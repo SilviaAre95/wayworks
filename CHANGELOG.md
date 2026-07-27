@@ -12,6 +12,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.2.0] — 2026-07-27
+
+Quality-hooks release — write-time feedback loops, selectively ported from the ideas in [everything-claude-code](https://github.com/WorldFlowAI/everything-claude-code) rather than installing it wholesale (its agents/commands/rules duplicate the existing fleet).
+
+### Added
+- **`harness` `1.6.0`** — three always-on quality hooks (no arming needed, all with cheap no-op paths outside their scope): (1) **stray-doc gate** — `PreToolUse` on `Write`: creating a *new* `.md`/`.txt` outside the standard set (README/CLAUDE/AGENTS/CONTRIBUTING/CHANGELOG/LICENSE/SKILL basenames; `docs/`, `.claude/`, `.github/`, `skills/`, `commands/`, `agents/`, `memory/`, scratchpad paths) surfaces an explicit Approve prompt (`permissionDecision: ask`) instead of letting agent-generated summaries accumulate silently; (2) **write-time type-check** — `PostToolUse` on TS edits: runs the project's *own* `tsc --noEmit` (only when `tsconfig.json` and a local `node_modules/.bin/tsc` exist — never npx-installs) and feeds back up to 10 errors *in the edited file only*, so type breakage surfaces at edit time instead of at the loop's verify gate; (3) **console.log sweep** — `Stop`: non-blocking `systemMessage` warning listing modified tracked JS/TS files that still contain `console.log` — never blocks the stop; blocking stays the loop gates' job. Each hook ships its own dependency-free test suite (`test/block-stray-docs.test.sh`, `test/tsc-check.test.sh`, `test/console-log-scan.test.sh`).
+
 ## [marketplace 4.1.1] — 2026-07-20
 
 Loop-durability release — five failure modes observed across production runs (kaffecard XARI-70/71).
