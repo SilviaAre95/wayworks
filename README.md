@@ -144,7 +144,7 @@ Between loops: `feature-bank` guards scope on every code edit; review/test/secur
 <details>
 <summary><b>harness</b> — tiered autonomy + Stop-gated verification loops</summary>
 
-Ships hooks (auto-approve reads, `Stop`-gate loop enforcement), templates, and its own test suite. See [plugins/harness/README.md](plugins/harness/README.md).
+Ships hooks (auto-approve reads, `Stop`-gate loop enforcement, write-time quality checks — stray-doc gate, TS type-check on edit, console.log sweep), templates, and its own test suite. See [plugins/harness/README.md](plugins/harness/README.md).
 
 | Command | Description |
 |---------|-------------|
