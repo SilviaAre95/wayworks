@@ -4,6 +4,8 @@ Claude Code plugin marketplace: 14 plugins under `plugins/`, manifest at `.claud
 
 These instructions apply to any coding agent working in this repo. The plugin *format* (manifests, hooks, skills) targets Claude Code — that is the product being built, so its file layout and variable names (e.g. `${CLAUDE_PLUGIN_ROOT}`) stay as-is regardless of which agent edits them.
 
+This file is the agent-facing summary; [CONTRIBUTING.md](CONTRIBUTING.md) is the canonical contributor guide (philosophy, PR expectations, full release rule). If they ever disagree, CONTRIBUTING.md wins — fix the drift.
+
 ## Checks
 
 Run `make check` before every push or handoff — the exact script CI runs. Work on a feature branch and open a PR; never push directly to `main`.
