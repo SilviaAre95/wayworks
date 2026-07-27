@@ -6,67 +6,14 @@ on:
   pull_request:
 
 jobs:
-  validate-manifests:
-    name: Validate marketplace + plugin manifests
+  checks:
+    # Runs the exact script contributors run locally (`make check`), so a
+    # green local run means a green CI run — same contract as ristretto-ai.
+    name: make check (manifests + harness tests)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: JSON parses
-        run: |
-          jq empty .claude-plugin/marketplace.json
-          for f in plugins/*/.claude-plugin/plugin.json plugins/*/hooks/hooks.json; do
-            [ -f "$f" ] || continue
-            jq empty "$f" || { echo "::error file=$f::invalid JSON"; exit 1; }
-          done
-
-      - name: Marketplace entries resolve and versions are in sync
-        run: |
-          fail=0
-          for name in $(jq -r '.plugins[].name' .claude-plugin/marketplace.json); do
-            manifest="plugins/$name/.claude-plugin/plugin.json"
-            if [ ! -f "$manifest" ]; then
-              echo "::error::marketplace lists '$name' but $manifest does not exist"; fail=1; continue
-            fi
-            mv=$(jq -r --arg n "$name" '.plugins[] | select(.name==$n) | .version' .claude-plugin/marketplace.json)
-            pv=$(jq -r .version "$manifest")
-            pn=$(jq -r .name "$manifest")
-            [ "$pn" = "$name" ] || { echo "::error file=$manifest::name '$pn' != marketplace entry '$name'"; fail=1; }
-            [ "$mv" = "$pv" ] || { echo "::error file=$manifest::version $pv != marketplace version $mv"; fail=1; }
-          done
-          for dir in plugins/*/; do
-            name=$(basename "$dir")
-            jq -e --arg n "$name" '.plugins[] | select(.name==$n)' .claude-plugin/marketplace.json >/dev/null \
-              || { echo "::error::plugins/$name exists but is not listed in marketplace.json"; fail=1; }
-          done
-          exit $fail
-
-      - name: Hook script paths resolve
-        run: |
-          fail=0
-          for hooks in plugins/*/hooks/hooks.json; do
-            [ -f "$hooks" ] || continue
-            plugin_dir=$(dirname "$(dirname "$hooks")")
-            for cmd in $(jq -r '.. | .command? // empty' "$hooks"); do
-              script="${cmd/\$\{CLAUDE_PLUGIN_ROOT\}/$plugin_dir}"
-              [ -f "$script" ] || { echo "::error file=$hooks::script not found: $script"; fail=1; }
-            done
-          done
-          exit $fail
-
-  harness-tests:
-    name: Harness shell tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run tests
-        run: |
-          fail=0
-          for t in plugins/harness/test/*.test.sh; do
-            echo "== $t"
-            bash "$t" || fail=1
-          done
-          exit $fail
+      - run: make check
 
   release-rule:
     name: Version bump + CHANGELOG on plugin changes
