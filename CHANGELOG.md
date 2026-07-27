@@ -12,6 +12,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.2.0] — 2026-07-27
+
+Quality-hooks release — write-time feedback loops, selectively ported from the ideas in [everything-claude-code](https://github.com/WorldFlowAI/everything-claude-code) rather than installing it wholesale (its agents/commands/rules duplicate the existing fleet).
+
+### Added
+- **`harness` `1.6.0`** — three always-on quality hooks (no arming needed, all with cheap no-op paths outside their scope): (1) **stray-doc gate** — `PreToolUse` on `Write`: creating a *new* `.md`/`.txt` outside the standard set (README/CLAUDE/AGENTS/CONTRIBUTING/CHANGELOG/LICENSE/SKILL basenames; `docs/`, `.claude/`, `.github/`, `skills/`, `commands/`, `agents/`, `memory/`, scratchpad paths) surfaces an explicit Approve prompt (`permissionDecision: ask`) instead of letting agent-generated summaries accumulate silently; (2) **write-time type-check** — `PostToolUse` on TS edits: runs the project's *own* `tsc --noEmit` (only when `tsconfig.json` and a local `node_modules/.bin/tsc` exist — never npx-installs) and feeds back up to 10 errors *in the edited file only*, so type breakage surfaces at edit time instead of at the loop's verify gate; (3) **console.log sweep** — `Stop`: non-blocking `systemMessage` warning listing modified tracked JS/TS files that still contain `console.log` — never blocks the stop; blocking stays the loop gates' job. Each hook ships its own dependency-free test suite (`test/block-stray-docs.test.sh`, `test/tsc-check.test.sh`, `test/console-log-scan.test.sh`).
+
+## [marketplace 4.1.1] — 2026-07-20
+
+Loop-durability release — five failure modes observed across production runs (kaffecard XARI-70/71).
+
+### Fixed
+- **`harness` `1.5.1`** — `/loop-dev` hardening from live runs that shipped the wrong change twice and lost an hour of finished work. (1) **Read the task**: the loop is routinely handed a bare tracker issue key as its entire task; it now reads the issue whenever one is named (Linear MCP `get_issue`, else `gh issue view`) — the ticket adds requirements the task omitted but never redirects the work, and a genuine task/ticket conflict stops the run. For a *bare* key it is the spec outright, so an unreadable one **stops** the run: previously the loop reconstructed scope from the branch name and shipped plausible, well-reviewed, wrong changes that passed every downstream gate. The PR stage no longer assumes a tracker key exists, so self-contained tasks finish without a Linear update. (2) **Commit before reviews**: the implementation is committed at the end of the build stage, so a run killed at its wall-clock limit no longer loses uncommitted work. (3) **Branch discipline**: work stays on the checked-out branch — no creating, switching, or pushing an invented branch name, which breaks the PR-first lookup that makes re-runs idempotent. (4) **Never stage blindly**: explicit paths only, never `git add -A`/`git add .` (they sweep unrelated edits and stale index entries into a PR), and loop-state files stay untracked — a tracked marker invalidates its own fingerprint and livelocks the gate. (5) **Grader dedup**: exactly one subagent per grader per round, and re-review re-runs only the graders whose findings were fixed — plus `security` whenever a fix touches any surface the panel rule calls security-relevant (executable code, hooks, auth/permissions, deploy templates, secrets handling), since a fix aimed at one grader's finding routinely lands in another's domain.
+
 ## [marketplace 4.1.0] — 2026-07-17
 
 Pipeline-gaps release — closes the gaps between the documented way-of-working and what the loops actually execute (2026-07-17 inspection).

@@ -20,7 +20,8 @@ Read-only tools are auto-approved in every tier so exploration never stalls.
 
 ### `/loop-dev <task> [--check-plan]`
 
-Extends `/loop-build` into a full staged dev loop: spec preflight, plan (pass
+Extends `/loop-build` into a full staged dev loop: read the task (a bare
+tracker key is fetched, never guessed at), spec preflight, plan (pass
 `--plan <path>` to hand it a written plan, e.g. from superpowers), build,
 **review stages** (`code-review`, `security`, `bugs` by default; add `design`
 for frontend repos — any grader name maps to the same-named skill) each run
@@ -54,6 +55,23 @@ On success it syncs the knowledge surfaces — repo docs, the project's vault
 note log, the Linear issue — before announcing on Slack.
 Config — `deploy`, `watch`, `verify`, `rollback`, `max_redeploys`,
 `migrations_gate` — lives in `.cc-deploy.yaml`.
+
+## Quality hooks
+
+Always-on (no arming needed), each with cheap no-op paths outside its scope:
+
+- **Stray-doc gate** — creating a *new* `.md`/`.txt` outside the standard set
+  (README/CLAUDE/AGENTS/CONTRIBUTING/CHANGELOG/LICENSE/SKILL basenames;
+  `docs/`, `.claude/`, `.github/`, `skills/`, `commands/`, `agents/`,
+  `memory/`, scratchpad paths) prompts for approval instead of landing
+  silently. Editing an existing doc is never gated.
+- **Write-time type-check** — after a TypeScript edit, runs the project's own
+  `tsc --noEmit` (only when `tsconfig.json` and a local `node_modules/.bin/tsc`
+  exist — never npx-installs) and feeds back errors *in the edited file only*,
+  max 10 lines, so type breakage surfaces at edit time instead of at the
+  verify gate.
+- **console.log sweep** — on stop, warns (never blocks) about `console.log`
+  left in modified tracked JS/TS files.
 
 ## Setup
 
