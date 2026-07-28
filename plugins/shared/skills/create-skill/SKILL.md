@@ -69,6 +69,15 @@ argument-hint: "<placeholder args the user passes, e.g. [target] [options]>"
 | `context` | No | `fork` = run in isolated subagent |
 | `paths` | No | Glob patterns for auto-loading |
 
+## Verbosity note (Claude 5+ models)
+
+Anthropic's context-engineering research (2026-07) shows newer Claude model families tolerate significantly less system prompt verbosity — deleting ~80% of Claude Code's system instructions with no eval loss. The house pattern's ~300–450-word structure remains mandatory so skills work across all models (including local/older ones), but be aware:
+
+- **Load-bearing structure** (keep explicit): gating conditions, tool constraints, output schemas, `$ARGUMENTS` handling — these prevent real failures regardless of model capability
+- **Likely redundant on Claude 5+**: over-explained rationales, repeated warnings, step-by-step prose rephrasing the same point — frontier models infer these from terse instructions
+
+When writing for exclusively frontier-model consumers, consider trimming rationale and repetition while keeping guardrails explicit. For marketplace-wide skills (like this plugin), lean toward the full structure so less-capable models don't misbehave. Use `claude doctor` (`/doctor` in Claude Code session) to detect redundant or conflicting instructions before shipping.
+
 ## Tips
 
 - Keep descriptions under 250 characters — they're used for skill matching

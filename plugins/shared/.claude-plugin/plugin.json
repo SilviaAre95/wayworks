@@ -1,6 +1,6 @@
 {
   "name": "shared",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "description": "Shared conventions, meta-skills, stack profiles, and the wayworks-init/wayworks-onboard bootstrap commands",
   "author": {
     "name": "Silvia Arellano"
