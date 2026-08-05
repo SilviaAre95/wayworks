@@ -1,0 +1,24 @@
+# Status check contexts required by the "Basic" branch ruleset on main.
+#
+# This file is the declared contract between two things that live apart and
+# cannot see each other:
+#
+#   - .github/workflows/ci.yml   — produces these contexts (job `name:` values)
+#   - the branch ruleset on main — requires them before a PR can merge
+#
+# A required context nothing produces never reports. GitHub shows it as
+# "Expected — waiting for status to be reported" forever, so the PR is blocked
+# by a check that will never run. That is not hypothetical: consolidating two
+# CI jobs into one between PR #26 and #27 left two stale contexts required, and
+# the next two PRs merged past them unnoticed.
+#
+# `make check` asserts ci.yml's job names match this list exactly.
+# `scripts/check-ruleset.sh` (manual, needs gh auth) asserts the live ruleset
+# does too — the direction CI cannot see, since editing a ruleset in GitHub's
+# UI changes no file and triggers no workflow.
+#
+# Renaming a CI job means updating this file AND the ruleset, in the same PR.
+# One line per context, exact match, comments and blank lines ignored.
+
+make check (manifests + harness tests)
+Version bump + CHANGELOG on plugin changes

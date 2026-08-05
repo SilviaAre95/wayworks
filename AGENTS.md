@@ -22,6 +22,10 @@ Two checks are **warnings** and never fail the build: a description over 250 cha
 
 Commands are linted separately and more loosely — they derive their name from the filename and use bare descriptions, so the skill rules do not apply to them.
 
+`make check` also asserts that `ci.yml`'s job names match `.github/required-checks.txt`. Those names are status check *contexts* required by the branch ruleset on `main`, which lives in repo settings and cannot be seen from the repo. Rename a CI job without updating both and the ruleset keeps requiring a context nothing produces — GitHub shows it as "Expected — waiting for status to be reported" forever and every PR is blocked by a check that will never run. **Renaming a CI job means updating `required-checks.txt` and the ruleset in the same PR.**
+
+The reverse direction — someone edits the ruleset in GitHub's UI — changes no file and triggers no workflow, so CI cannot catch it. `bash scripts/check-ruleset.sh` compares the live ruleset against the contract; run it after touching branch protection, or when a PR shows a check that never reports. It is deliberately outside `make check`, since reading a ruleset needs admin permission CI's token does not have, and a step that silently skipped in CI would make "make check is what CI runs" false.
+
 ## Release rule (non-negotiable)
 
 Any change under `plugins/` or `.claude-plugin/` must land in the same commit/PR with:

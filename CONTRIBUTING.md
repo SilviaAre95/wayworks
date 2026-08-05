@@ -33,6 +33,8 @@ CI validates manifests (JSON, name+version sync both ways, hook script paths), l
 
 The frontmatter linter (`scripts/lint-skills.sh`) enforces `name` (matching the directory), a quoted `description`, an explicit `user-invocable`, and `argument-hint` on any skill that reads `$ARGUMENTS`; positional `$0`/`$1` are rejected outright. Over-long descriptions and argument hints the skill never reads are reported as warnings, not failures — see AGENTS.md for why each rule is shaped the way it is.
 
+**Renaming a CI job is a two-file change.** Job names in `ci.yml` are the status check contexts the branch ruleset requires, and the ruleset lives in repo settings where no file can see it. Rename one without updating `.github/required-checks.txt` and the ruleset, and the stale context stays permanently pending — blocking every PR behind a check that will never run. `make check` enforces the `ci.yml` ↔ contract half; run `bash scripts/check-ruleset.sh` (needs `gh` with admin read) to check the live ruleset, which CI cannot reach.
+
 ## PR expectations
 
 - One logical change per PR; conventional commit titles (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`; `!` for breaking).
