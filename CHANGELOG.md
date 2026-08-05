@@ -12,6 +12,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.4.1] — 2026-08-05
+
+### Added
+- **`docs/reference/compatibility.md`** — what wayworks depends on from Claude Code, and what breaks silently when those contracts change. Skills are portable prose; the gates are not. Records the version last verified against (2.1.222), the hook surface the loops are built on (events, `{decision, reason}` output at 14 sites, `hookSpecificOutput`/`permissionDecision`, `stop_hook_active`), `${CLAUDE_PLUGIN_ROOT}` expansion, bundled-skill invocation, and the frontmatter keys in use. The failure mode it exists for: a `Stop` hook whose output is no longer understood does not error — it stops blocking, and the loop reports success as if every gate passed.
+
+  It also records the rule that upstream-drift issues are leads rather than specifications. Three of five in the 2026-08-05 batch were materially wrong — a command that did not exist, a file deleted weeks earlier, and a measurement no available tooling could produce — so a verification step now precedes acting on any of them. Cross-linked from `AGENTS.md` and `model-policy.md`.
+
+### Fixed
+- **`harness` `1.7.1`** — `/loop-dev` scoped its preflight permission from `Bash(bash:*)` down to the single script path, matching the pattern Anthropic's own `ralph-loop` uses. The broad form granted the command permission to run *any* bash command; only the preflight was ever intended. Found while cataloguing the `${CLAUDE_PLUGIN_ROOT}` contract for the compatibility record.
+
 ## [marketplace 4.4.0] — 2026-08-05
 
 Fail-early release — `/loop-dev` validates its configuration before it builds, not after.
