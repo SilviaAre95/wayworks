@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "An open-source way of work for AI-assisted building — plugins, second-brain support, and tracker integration",
-    "version": "4.2.1",
+    "version": "4.2.2",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -183,7 +183,7 @@
       "name": "feature-bank",
       "source": "./plugins/feature-bank",
       "description": "Source-of-truth feature specs with preflight/postflight gates that stop agent drift",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "category": "workflow",
       "tags": [
         "feature-bank",
