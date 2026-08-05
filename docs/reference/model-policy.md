@@ -2,6 +2,8 @@
 
 Which model runs which part of the way-of-work, and how to change it. This is the reference the loops and plugins already encode — change behavior there, document it here.
 
+For what these loops depend on from Claude Code itself — hook contracts, bundled-skill invocation, the tested version — see [compatibility.md](compatibility.md).
+
 ## The tiers
 
 | Work | Model | Where it's set |

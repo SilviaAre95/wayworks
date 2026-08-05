@@ -1,6 +1,6 @@
 {
   "name": "harness",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "Tiered autonomy + build-test-fix, staged dev, and prod deploy loops for hands-off AI workflows",
   "author": {
     "name": "Silvia Arellano"
