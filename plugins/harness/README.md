@@ -42,6 +42,13 @@ CI checks to green before handing over. Config — graders, `max_retries`, diff
 `base`, `open_pr` — lives in `.cc-dev.yaml`. Pass `--check-plan` to pause
 after the plan step for your approval before it builds.
 
+> **Upgrade-sensitive:** the default `code-review` grader dispatches Anthropic's
+> *bundled* `/code-review` skill by name. Bundled-skill invocation policy is set
+> by Claude Code, not by this plugin — v2.1.215 stopped auto-running `/verify`
+> and `/code-review` from description-matching alone. Re-check this grader
+> actually fires after a Claude Code upgrade: a degraded grader still stamps the
+> marker, so the loop cannot detect it for you.
+
 ### `/loop-deploy [--env prod|staging]`
 
 Deploys, watches the rollout, then verifies prod (health + smoke + error-rate)
