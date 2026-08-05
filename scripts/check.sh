@@ -42,6 +42,33 @@ for hooks in plugins/*/hooks/hooks.json; do
   done
 done
 
+echo "== CI job names match the required-checks contract"
+# The branch ruleset requires status contexts by exact name, but lives outside
+# the repo — nothing here can see it. Renaming a CI job therefore silently
+# strands a required context that never reports again. Guard the half we can
+# see offline; scripts/check-ruleset.sh covers the live-ruleset half.
+contract=.github/required-checks.txt
+if [ ! -f "$contract" ]; then
+  err "$contract is missing — the CI/ruleset contract has no source of truth"
+else
+  # Job display names sit at exactly four spaces under `jobs:`; step names are
+  # deeper and dash-prefixed, the workflow name is at column 0.
+  ci_names=$(awk '/^jobs:/{j=1;next} j && /^    name: /{sub(/^    name: /,"");print}' .github/workflows/ci.yml)
+  want=$(grep -vE '^\s*(#|$)' "$contract" | sort)
+  got=$(printf '%s\n' "$ci_names" | sed '/^$/d' | sort)
+
+  # A parse that finds nothing must fail loudly. Silently comparing two empty
+  # sets would report agreement forever and defeat the entire check.
+  if [ -z "$got" ]; then
+    err "could not parse any job names from .github/workflows/ci.yml — the guard is broken, not the workflow"
+  elif [ "$want" != "$got" ]; then
+    err "ci.yml job names do not match $contract"
+    diff <(printf '%s\n' "$want") <(printf '%s\n' "$got") \
+      | sed 's/^</  only in contract (ruleset requires it, no job produces it): /; s/^>/  only in ci.yml (job runs, ruleset ignores it): /' >&2
+    echo "  Fix both this file and the branch ruleset, or the mismatch becomes a permanently pending check." >&2
+  fi
+fi
+
 echo "== Skill/command frontmatter"
 bash scripts/lint-skills.sh || err "frontmatter lint failed"
 

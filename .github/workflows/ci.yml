@@ -1,3 +1,7 @@
+# The `name:` of each job below is a status check context required by the
+# branch ruleset on main. Renaming one strands a required check that never
+# reports again, blocking every PR — see .github/required-checks.txt, which
+# `make check` enforces. Rename here => update that file AND the ruleset.
 name: CI
 
 on:
