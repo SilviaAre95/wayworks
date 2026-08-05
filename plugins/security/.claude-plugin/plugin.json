@@ -1,6 +1,6 @@
 {
   "name": "security",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Code audits, dependency checks, and IAM reviews",
   "author": {
     "name": "Silvia Arellano"

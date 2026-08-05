@@ -12,6 +12,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.2.3] — 2026-08-05
+
+### Fixed
+- **`security` `1.0.4`** — `security-scan` now actually consumes its arguments. It advertised `argument-hint: "[path-to-.claude-dir] [--min-severity low|medium|high]"` but never referenced `$ARGUMENTS`, so `/security-scan ~/proj/.claude --min-severity high` silently scanned the current directory at default severity — the user believed they had scoped the scan and had not. Root cause was structural: the skill was a pure CLI reference with no instruction for what to run when invoked, so there was nothing for the arguments to reach. Adds a "Running the scan" section that parses the argument string and builds the command from it (bare path → `--path`, `--min-severity` restricted to `low`/`medium`/`high`, empty → current project). A non-existent path now stops the run rather than falling back to the current directory and reporting a clean grade for somewhere the user never named (XARI-104).
+
+  The parse is deliberately an allowlist, not an interpolation: these values reach a shell command, so substituting the raw argument string would have made a security skill's own entry point a command-injection vector. Shell metacharacters, unrecognized flags, and extra positionals stop the run. `--format`, `--fix`, and `--opus` remain documented CLI capabilities and are intentionally *not* argument-wired — `--fix` mutates configuration files, which should not be reachable by a mistyped slash command.
+
 ## [marketplace 4.2.2] — 2026-08-05
 
 Frontmatter-lint release — skills can no longer drift out of the house pattern unnoticed.
