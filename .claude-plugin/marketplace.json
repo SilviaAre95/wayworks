@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "An open-source way of work for AI-assisted building — plugins, second-brain support, and tracker integration",
-    "version": "4.2.0",
+    "version": "4.2.1",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -117,7 +117,7 @@
       "name": "devops",
       "source": "./plugins/devops",
       "description": "Dockerfiles, CI/CD pipelines, and infrastructure review",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "category": "infrastructure",
       "tags": [
         "devops",
@@ -169,7 +169,7 @@
       "name": "harness",
       "source": "./plugins/harness",
       "description": "Tiered autonomy + build-test-fix, staged dev, and prod deploy loops for hands-off AI workflows",
-      "version": "1.6.0",
+      "version": "1.6.1",
       "category": "workflow",
       "tags": [
         "workflow",

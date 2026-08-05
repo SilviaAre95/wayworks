@@ -1,6 +1,6 @@
 {
   "name": "devops",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Dockerfiles, CI/CD pipelines, and infrastructure review",
   "author": {
     "name": "Silvia Arellano"

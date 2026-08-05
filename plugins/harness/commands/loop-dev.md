@@ -25,7 +25,7 @@ Work in the `acceptEdits` tier (Shift+Tab) so edits and the allowlist run withou
    - **Small code diff** (under ~50 changed lines) that touches no hooks, auth, security, templates, or secrets handling: `code-review` + `bugs`.
    - **Everything else — and ALWAYS when the diff touches hooks, auth/permissions, deploy templates, or secrets handling**: the full configured panel.
    Dispatch **exactly one subagent per selected grader — never two for the same grader in one round** — **all at once, in a single batch of concurrent Task calls, not one after another** — each reviewing the diff against `base` (default `main`):
-   - `code-review` → correctness/quality review (or the `/code-review` skill).
+   - `code-review` → correctness/quality review. Tell the subagent to **invoke the `/code-review` slash command by name**, exactly as a user would type it — not "perform a code review". `/code-review` is an Anthropic-bundled skill, and since Claude Code v2.1.215 bundled skills are no longer auto-invoked by description-matching; a subagent asked for a review in prose will improvise a generic one, and nothing downstream can tell the difference (the marker still stamps, because *a* review happened). If the command does not exist in the running Claude Code, say so in the findings rather than silently substituting an ad-hoc review.
    - `security` → the `security:code-audit` skill (OWASP, injection, authz, secrets).
    - `bugs` → the `qa:bug-review` skill (edge cases, logic errors).
    - `design` → the `design:layout-review` skill on UI diffs (add `design:heuristic-eval` when the diff introduces a new user flow). Enable per-repo in `graders` for frontend projects.

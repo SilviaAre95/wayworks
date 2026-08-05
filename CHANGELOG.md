@@ -12,6 +12,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.2.1] — 2026-08-05
+
+Upstream-drift release — three external changes (Claude Code v2.1.215, `actions/checkout` defaults, `ollama launch`) that each invalidated an assumption written into a plugin or doc.
+
+### Fixed
+- **`harness` `1.6.1`** — `/loop-dev`'s default `code-review` grader no longer relies on description-matching to fire Anthropic's bundled `/code-review` skill. Claude Code v2.1.215 stopped auto-running the bundled `/verify` and `/code-review` skills, so step 5's old "(or the `/code-review` skill)" phrasing could silently degrade into an improvised generic review — undetectable downstream, because the reviews marker stamps as long as *a* review happened. The dispatched subagent is now told to invoke the slash command by name and to report a missing command rather than substitute for it. `README.md` gains an upgrade-sensitivity note, since this grader's behavior is set by Claude Code's bundled-skill policy, not by this plugin (XARI-86).
+- **`devops` `1.0.2`** — `ci-pipeline` gains a "pwn request" review check. The skill both generates and reviews GitHub Actions configs, but had no guard against the classic `pull_request_target`/`workflow_run` privilege-escalation shape: a privileged workflow that checks out the fork's ref and then executes it. Review mode now flags that pattern with the exploitable YAML shape and three concrete remediations, and notes that `actions/checkout` blocks the fetch by default as of 2026-07-20 — so an affected workflow may now be *failing* rather than merely unsafe (XARI-87).
+- **`docs/reference/model-policy.md`** — grader tier table pointed at `loop-dev.md` "step 4"; the review stages are step 5.
+
+### Changed
+- **`docs/reference/model-policy.md`** — the local-model section now leads with `ollama launch claude` (Ollama v0.15+, no env vars or config files) instead of the manual LiteLLM-proxy setup, and documents the direct `ANTHROPIC_BASE_URL=http://localhost:11434` path as the no-launcher alternative — Ollama's endpoint is Anthropic-compatible, so the intermediate proxy was never required. Adds the 64k-context guidance and flags multi-turn tool-call reliability (not raw model quality) as the binding constraint for running skill files locally. The architectural limit is unchanged and restated: Claude Code still cannot route individual stages or graders to a local model, only whole sessions — `ollama launch` solves setup, not routing (XARI-88).
+- **`docs/reference/model-policy.md`** — records Systima's published subagent fan-out measurement (2.6×–5.9× tokens vs. sequential) next to the tiering table, explicitly attributed as *external* data rather than a wayworks measurement, with no threshold changes: our own panel has never been instrumented, and the grader-scaling heuristics stay as-is until it is (XARI-93).
+
 ## [marketplace 4.2.0] — 2026-07-27
 
 Quality-hooks release — write-time feedback loops, selectively ported from the ideas in [everything-claude-code](https://github.com/WorldFlowAI/everything-claude-code) rather than installing it wholesale (its agents/commands/rules duplicate the existing fleet).
