@@ -12,6 +12,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.3.0] — 2026-08-05
+
+Falsification release — `code-audit` stops shipping unverified findings.
+
+### Added
+- **`security` `1.1.0`** — new `finding-verifier` sub-agent, and a verification pass in `code-audit` that uses it. The checklist audit was single-pass, so every finding inherited that pass's false-positive rate with nothing downstream to catch it. Each **Critical** and **High** finding is now handed to an independent verifier subagent (one per finding, dispatched concurrently) whose only job is to try to disprove it: trace where the value actually originates, whether it truly reaches the sensitive operation, and whether a framework, an upstream guard, or unreachability already mitigates it. Medium and Low skip the pass — the cost outweighs their blast radius. `--no-verify` skips it entirely (XARI-92).
+
+  Three decisions worth knowing, because the naive version of this feature is dangerous:
+
+  - **The verifier is a separate agent, not a second pass in the same context.** A model that has just argued for a finding is the worst available judge of it. The verifier is given the claim, its severity, and its `file:line` — deliberately *not* the reasoning that produced it — so it re-reads the code rather than grading an argument.
+  - **The default is that the finding stands.** This inverts the usual adversarial-verify pattern, which biases toward refutation. Here the asymmetry runs the other way: a false positive costs the reader a few minutes of triage, while a real vulnerability argued away vanishes from the report and nothing catches it again. Refutation requires a concrete, checkable reason; "seems unlikely" and exploit difficulty are explicitly not grounds, and a partly-wrong finding returns `stands` with a correction rather than being dropped.
+  - **Refuted findings are demoted, never deleted.** They appear in a new **Refuted** report section with the verifier's reasoning, and the Risk Summary states how many candidates were verified and how many refuted — so a wrong refutation is visible and reviewable instead of silent.
+
+  `finding-verifier` is the only wayworks agent with no `model:` pin, inheriting the session model instead. Disproving a Critical/High security finding is judgment-heavy adversarial work, and a cheaper model that rubber-stamps or over-refutes is worse than running no verification at all — the same reasoning that keeps the `security` grader off mid-tier. Documented in `docs/reference/model-policy.md`.
+
 ## [marketplace 4.2.3] — 2026-08-05
 
 ### Fixed

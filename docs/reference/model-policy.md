@@ -10,6 +10,7 @@ Which model runs which part of the way-of-work, and how to change it. This is th
 | `security` grader | Session model — **never downgrade** | `loop-dev.md` step 5 |
 | `code-review` / `bugs` graders | Mid-tier (e.g. sonnet) when the dispatch tool supports per-subagent model selection | `loop-dev.md` step 5 |
 | Review sub-agents (`design-reviewer`, `vuln-scanner`, `regression-scanner`, `deploy-checker`, `security-reviewer`) | `sonnet` | `model:` frontmatter in each `agents/*.md` |
+| `finding-verifier` | Session model — **unpinned by design** | no `model:` frontmatter |
 | Skills | Inherit the session | No `model:` frontmatter by default |
 
 Rationale: judgment-heavy, adversarial work (security, architecture) gets the biggest model in the room; mechanical review breadth (style, edge-case enumeration) is fine one tier down; nothing below mid-tier ever grades code.
@@ -24,7 +25,7 @@ Consequence for now: none. The thresholds stay as they are until someone measure
 
 ## Pinning a model
 
-- **Agents**: `model: sonnet | opus | haiku` in the agent frontmatter. All five wayworks agents pin `sonnet` today.
+- **Agents**: `model: sonnet | opus | haiku` in the agent frontmatter. Five of the six wayworks agents pin `sonnet`. The exception is `security:finding-verifier`, which is deliberately unpinned so it inherits the session model: its job is to disprove a Critical/High security finding, and a cheaper model that either rubber-stamps or over-refutes is worse than running no verification at all — an over-eager refutation deletes a real vulnerability from the report. This is the same reasoning that keeps the `security` grader on the session model.
 - **Skills**: same `model:` frontmatter field (see `shared:create-skill`). Pin only when a skill is deliberately mechanical (haiku) or deliberately heavyweight; unpinned is the right default — the user's session choice should win.
 - Model names are aliases, not versions — never write dated model IDs into skills or agents; they rot (this is why `security-scan` carries no model-version claims).
 

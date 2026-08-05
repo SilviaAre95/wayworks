@@ -19,7 +19,7 @@ your agent plans, builds, reviews, tests, ships, and documents. You review and m
 
 ---
 
-Every project lives in a linked triangle — **repo ↔ second brain ↔ tracker** — and every feature travels a gated pipeline where the agent cannot declare "done" until something measurable agrees. 14 plugins, 43 skills (5 of them stack profiles), 6 commands, and 5 sub-agents.
+Every project lives in a linked triangle — **repo ↔ second brain ↔ tracker** — and every feature travels a gated pipeline where the agent cannot declare "done" until something measurable agrees. 14 plugins, 43 skills (5 of them stack profiles), 6 commands, and 6 sub-agents.
 
 - `/wayworks-init` — bootstrap a repo: plugin fleet, CLAUDE.md header, verify gate
 - `/wayworks-onboard` — link a project's triangle: repo ↔ second brain ↔ tracker
@@ -167,7 +167,7 @@ Ships hooks (auto-approve reads, `Stop`-gate loop enforcement, write-time qualit
 <details>
 <summary><b>security</b> — code and infrastructure security</summary>
 
-Includes `vuln-scanner` sub-agent.
+Includes `vuln-scanner` and `finding-verifier` sub-agents.
 
 | Skill | Description |
 |-------|-------------|
@@ -306,6 +306,7 @@ Includes `deploy-checker` sub-agent.
 | qa | `regression-scanner` | Traces code changes through dependency graph |
 | devops | `deploy-checker` | Pre-deployment validation (build, lint, env, migrations) |
 | security | `vuln-scanner` | OWASP Top 10 vulnerability scanning |
+| security | `finding-verifier` | Tries to disprove a claimed finding before it reaches a report |
 
 ## 🧰 Per-project setup
 
