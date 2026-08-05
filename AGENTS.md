@@ -10,6 +10,18 @@ This file is the agent-facing summary; [CONTRIBUTING.md](CONTRIBUTING.md) is the
 
 Run `make check` before every push or handoff — the exact script CI runs. Work on a feature branch and open a PR; never push directly to `main`.
 
+`make check` includes `scripts/lint-skills.sh`, which enforces skill frontmatter. Its rules, and why each exists:
+
+- `name` required and must match the skill's directory.
+- `description` required and **quoted** — a bare scalar containing a colon or `#` breaks the YAML parse silently.
+- `user-invocable` required and explicit (`true`/`false`) — it gates the argument rules, so leaving it to the default makes invocability an accident.
+- A skill that reads `$ARGUMENTS` must declare `argument-hint`; one that does not read them must not be forced to invent one.
+- Positional `$0`/`$1` are an error anywhere (only `$ARGUMENTS` is valid).
+
+Two checks are **warnings** and never fail the build: a description over 250 chars (long descriptions are legitimate when the description is the model-invocation trigger surface), and an `argument-hint` the body never reads (real drift, but fixing it changes skill behavior, so it is surfaced rather than enforced).
+
+Commands are linted separately and more loosely — they derive their name from the filename and use bare descriptions, so the skill rules do not apply to them.
+
 ## Release rule (non-negotiable)
 
 Any change under `plugins/` or `.claude-plugin/` must land in the same commit/PR with:

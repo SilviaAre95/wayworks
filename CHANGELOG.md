@@ -12,6 +12,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.2.2] — 2026-08-05
+
+Frontmatter-lint release — skills can no longer drift out of the house pattern unnoticed.
+
+### Added
+- **`scripts/lint-skills.sh`** — dependency-free frontmatter linter over all 43 skills and 6 commands, wired into `scripts/check.sh` so it runs in `make check` and CI. Errors: missing/mismatched `name`, missing or unquoted `description` (a bare scalar containing a colon or `#` breaks the parse silently), missing or non-boolean `user-invocable`, a skill that reads `$ARGUMENTS` without declaring `argument-hint`, and positional `$0`/`$1` anywhere. Warnings that never fail the build: descriptions over 250 chars, and an `argument-hint` the body never reads. Ships with `scripts/lint-skills.test.sh` — 18 fixture-driven cases asserting every violation class actually fails and every legitimate exception actually passes, because a linter whose field extractor silently returned empty would report the whole repo clean (XARI-51, absorbing XARI-55).
+
+  Three rules are shaped by what the repo actually contains rather than by the abstract pattern: skills nest (the five `shared/stack-profiles/*` live a level deeper than the obvious glob reaches), `argument-hint` is tied to whether a skill *reads* `$ARGUMENTS` rather than to invocability (some invocable skills legitimately take none, and requiring a hint would document an argument that does not exist), and the positional-argument check exempts `shared:create-skill`, whose prose documents the prohibition it would otherwise be flagged for.
+
+### Fixed
+- **`feature-bank` `1.2.1`** — frontmatter was the repo's only house-pattern violation: an unquoted `description` (parse-fragile, and it contains 16 double quotes) and no `user-invocable`. Now single-quoted and explicitly `user-invocable: true`, matching the `/feature-bank` command the README already documents. Its 948-char description is deliberately left intact — that description *is* the skill's model-invocation trigger surface, listing the phrasings that make it auto-fire, so trimming it to the 250-char house guidance would degrade the behavior the skill exists to provide. The linter reports it as a warning.
+
+### Known
+- `security:security-scan` declares `argument-hint: "[path-to-.claude-dir] [--min-severity low|medium|high]"` but never reads `$ARGUMENTS`, so arguments typed after the command are silently discarded. Surfaced by the new linter as a warning; the fix changes skill behavior and belongs in its own PR against the `security` plugin.
+
 ## [marketplace 4.2.1] — 2026-08-05
 
 Upstream-drift release — three external changes (Claude Code v2.1.215, `actions/checkout` defaults, `ollama launch`) that each invalidated an assumption written into a plugin or doc.

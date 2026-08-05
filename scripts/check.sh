@@ -42,6 +42,12 @@ for hooks in plugins/*/hooks/hooks.json; do
   done
 done
 
+echo "== Skill/command frontmatter"
+bash scripts/lint-skills.sh || err "frontmatter lint failed"
+
+echo "== Frontmatter linter self-test"
+bash scripts/lint-skills.test.sh || err "lint-skills.test.sh failed"
+
 echo "== Harness shell tests"
 for t in plugins/harness/test/*.test.sh; do
   echo "-- $t"
