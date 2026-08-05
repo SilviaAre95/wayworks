@@ -395,6 +395,10 @@ wayworks/
 
 </details>
 
+## 🐞 Something broken?
+
+[Open an issue](https://github.com/SilviaAre95/wayworks/issues/new/choose). Include your plugin version and `claude --version` — most breakage here comes from a Claude Code release shifting behaviour underneath a plugin, and the versions are what make that diagnosable. Questions and skill requests are welcome too; the bug form is optional.
+
 ## 👋 Author
 
 **Silvia Arellano** — data platform architect. Consults through **OBEXDATA**, builds in public at [silviadata.dev](https://www.silviadata.dev).

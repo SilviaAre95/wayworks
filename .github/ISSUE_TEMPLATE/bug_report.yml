@@ -1,0 +1,75 @@
+name: Bug report
+description: A skill, command, hook, or agent isn't behaving as documented
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The version fields matter more than they look — most breakage here comes from a Claude Code release changing behaviour underneath a plugin, and without versions that's very hard to reproduce.
+
+  - type: dropdown
+    id: plugin
+    attributes:
+      label: Plugin
+      description: Which plugin does this involve?
+      options:
+        - architect
+        - backend-dev
+        - data-engineer
+        - design
+        - devops
+        - feature-bank
+        - frontend-dev
+        - harness
+        - pm
+        - qa
+        - security
+        - shared
+        - tech-writer
+        - test-builder
+        - not sure / more than one
+    validations:
+      required: true
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: From `claude plugin list`, or the `version` in that plugin's `.claude-plugin/plugin.json`.
+      placeholder: "1.6.1"
+    validations:
+      required: true
+
+  - type: input
+    id: cc-version
+    attributes:
+      label: Claude Code version
+      description: Output of `claude --version`.
+      placeholder: "2.1.215"
+    validations:
+      required: true
+
+  - type: input
+    id: entrypoint
+    attributes:
+      label: What you invoked
+      description: The skill or command, and any arguments.
+      placeholder: "/loop-dev XARI-42 --check-plan"
+    validations:
+      required: false
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what you expected
+      description: If a gate passed when it should have blocked (or vice versa), say which one — those are the failures worth catching quickly.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: Repo shape (monorepo, stack), relevant `.cc-dev.yaml` config, error output. Redact secrets and private paths.
+    validations:
+      required: false

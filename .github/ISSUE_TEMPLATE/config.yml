@@ -1,0 +1,4 @@
+# Keep the blank-issue option: questions, skill requests, and "does this work
+# with X" don't fit the bug form, and a form that turns those away costs more
+# than the structure it saves.
+blank_issues_enabled: true
