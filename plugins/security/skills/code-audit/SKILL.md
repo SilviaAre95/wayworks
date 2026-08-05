@@ -2,7 +2,7 @@
 name: code-audit
 description: "Security audit of application code — OWASP Top 10, injection vectors, auth flaws, data exposure"
 user-invocable: true
-argument-hint: "<file-or-directory> [focus: auth|injection|data|all]"
+argument-hint: "<file-or-directory> [focus: auth|injection|data|all] [--no-verify]"
 ---
 
 # Security Code Audit
@@ -45,6 +45,16 @@ Audit: **$ARGUMENTS** (focus defaults to all)
 - Are dependencies pinned to specific versions?
 - Are there unnecessary dependencies with broad system access?
 
+### 6. Verification pass (Critical and High only)
+
+The checklist is a single pass and inherits that pass's false-positive rate. Before reporting, dispatch one `security:finding-verifier` subagent per **Critical** and **High** finding — all in one concurrent batch — to try to disprove it.
+
+Give each verifier only the claim, its severity, and its `file:line` — **not your reasoning.** A verifier shown the argument that produced a finding tends to agree with it; the point is a fresh read of the code. Medium and Low skip this; the cost outweighs their blast radius.
+
+Apply the verdicts: `stands` → report as normal, applying any `CORRECTION`. `refuted` → move to **Refuted** with the verifier's reason; **never delete it**, since a verifier can be wrong and a silently dropped finding is unreviewable.
+
+Skip this step when invoked with `--no-verify`.
+
 ## Output Format
 
 ```markdown
@@ -65,9 +75,16 @@ Audit: **$ARGUMENTS** (focus defaults to all)
 ### High Findings
 ...
 
+### Refuted
+<Critical/High candidates a verifier disproved — omit this section if none>
+1. **<vulnerability type>** — <file:line>
+   - **Why it does not hold**: <verifier's reason + evidence>
+
 ### Hardening Recommendations
 1. <recommendation>
 ```
+
+State in the Risk Summary how many Critical/High candidates were verified and how many were refuted, so the reader can see the filter ran.
 
 ## Constraints
 
@@ -76,3 +93,4 @@ Audit: **$ARGUMENTS** (focus defaults to all)
 - Check the actual data flow, not just pattern matching
 - Don't flag framework-handled security (e.g., Prisma's SQL parameterization)
 - If you find a critical vulnerability, flag it clearly at the top
+- A finding survives unless a verifier **disproves** it — uncertainty is not refutation, and exploit difficulty is a severity question, not an existence one
