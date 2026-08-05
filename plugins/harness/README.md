@@ -42,6 +42,18 @@ CI checks to green before handing over. Config — graders, `max_retries`, diff
 `base`, `open_pr` — lives in `.cc-dev.yaml`. Pass `--check-plan` to pause
 after the plan step for your approval before it builds.
 
+Arming runs a **config preflight** first, because every one of these failures
+was otherwise found at the review stage — after a full implementation had been
+built: a `base` that cannot resolve (the marker is anchored on `merge-base
+<base> HEAD`), a missing `.cc-verify` in a non-Node repo (the gate falls back to
+`npm run lint && npm run build && npm test` and can never go green), a tracked
+loop-state file (a tracked marker invalidates its own fingerprint and livelocks
+the hook), and a `graders:` key with no value. It also prints the configured
+grader list so the agent can confirm each one resolves to a skill that is
+actually enabled — a shell script cannot see the session's plugin set, and a
+grader naming a skill you do not have is the common case (`bugs` needs
+`qa@wayworks`).
+
 > **Upgrade-sensitive:** the default `code-review` grader dispatches Anthropic's
 > *bundled* `/code-review` skill by name. Bundled-skill invocation policy is set
 > by Claude Code, not by this plugin — v2.1.215 stopped auto-running `/verify`

@@ -12,6 +12,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.4.0] — 2026-08-05
+
+Fail-early release — `/loop-dev` validates its configuration before it builds, not after.
+
+### Added
+- **`harness` `1.7.0`** — arm-time config preflight for `/loop-dev` (`hooks/scripts/loop-dev-preflight.sh`). Every condition it checks was previously discovered at the *review* stage, meaning a full implementation had already been written and committed before the loop reported that it could not finish. Blocking conditions: a `base` that does not resolve (the reviews marker is anchored on `git merge-base <base> HEAD`, so it fails at stamp time — after the work); no `.cc-verify` in a repo with no `package.json` (the gate falls back to `npm run lint && npm run build && npm test`, which such a repo can never make green); an empty `.cc-verify`; a `graders:` key with no value; and a loop-state file tracked by git, which invalidates its own fingerprint and livelocks the Stop hook. Non-blocking warnings cover a stale marker, a base that exists only on the remote, and `open_pr` with `gh` missing or unauthenticated.
+
+  The split is deliberate. A shell script cannot see which plugins are enabled in a session, so it cannot tell whether a configured grader resolves to an available skill — it prints the grader list and `loop-dev.md` makes the agent check that half, stopping if any name does not resolve. That is the failure this was built for: a `.cc-dev.yaml` declaring `graders: [code-review, security, bugs]` in a session without `qa@wayworks` silently loses the `bugs` grader, and the marker still stamps, so nothing downstream notices the panel ran short.
+
+  Ships with `test/loop-dev-preflight.test.sh` — 10 cases asserting each blocking condition blocks and each legitimate setup passes, including a Node repo that may rightly rely on the npm default. A preflight that always exits 0 is worse than none, since it reads as confirmation.
+
 ## [marketplace 4.3.0] — 2026-08-05
 
 Falsification release — `code-audit` stops shipping unverified findings.

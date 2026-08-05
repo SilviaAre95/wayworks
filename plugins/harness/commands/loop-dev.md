@@ -1,14 +1,23 @@
 ---
 description: Arm the staged dev loop — implement a task through spec/code/review/security/bugs to a PR
 argument-hint: <task description> [--plan <path>] [--check-plan]
-allowed-tools: Bash(touch:*), Bash(echo:*), Bash(cat:*), Bash(rm:*)
+allowed-tools: Bash(touch:*), Bash(echo:*), Bash(cat:*), Bash(rm:*), Bash(bash:*)
 ---
 
 Arm the dev loop for this project:
 
 !`touch .cc-loop-dev-active && echo 0 > .cc-loop-dev-state && rm -f .cc-dev-reviews-passed .cc-loop-dev-rounds && echo "loop-dev armed"`
 
-The staged dev loop is **ARMED**. Config lives in `.cc-dev.yaml` (graders, max_retries, base, open_pr) — read it now if present.
+The staged dev loop is **ARMED**. Config lives in `.cc-dev.yaml` (graders, max_retries, base, open_pr).
+
+**Preflight the config before doing anything else.** A broken grader name or an unusable gate is otherwise discovered at the review stage — after a full implementation has already been built and committed. Run:
+
+!`bash "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/loop-dev-preflight.sh" 2>&1 || true`
+
+- Any `BLOCK:` line → **stop and report it.** Do not build. These are conditions the loop cannot recover from later: a gate that can never go green, a `base` that fails at stamp time, a tracked marker that livelocks the hook.
+- Then resolve every name in `GRADERS_TO_RESOLVE` against the skills you **actually have in this session** — the script cannot see which plugins are enabled, so this half is yours. `code-review` → the `/code-review` command, `security` → `security:code-audit`, `bugs` → `qa:bug-review`, `design` → `design:layout-review`, anything else → the skill of that name. **If any does not resolve, STOP and say which one and what is missing** (usually a plugin not enabled in `.claude/settings.json`). Never continue with a reduced panel: the config asked for review coverage that would silently not happen, and the marker still stamps.
+- `warn:` lines are advisory — report them and continue.
+- If the script itself cannot run, say so and check the config by hand rather than skipping the step.
 
 Work in the `acceptEdits` tier (Shift+Tab) so edits and the allowlist run without prompts. Then execute these stages for the task below:
 
