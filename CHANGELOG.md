@@ -12,6 +12,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.5.0] — 2026-08-06
+
+### Added
+- **`devops` `1.1.0`** — new `repo-protection` skill: generate or review GitHub repository protection, mirroring how `ci-pipeline` generates or reviews CI configs. Covers the whole surface rather than branch rules alone — default-branch ruleset (deletion, force-push, required reviews, required status checks), secret scanning and push protection, vulnerability alerts and Dependabot security updates, and Actions token hardening. Ships `templates/ruleset-oss.json` and `templates/ruleset-private.json`.
+
+  The two presets differ on one real decision: the private/solo template **drops the review requirement**. An approval only you can grant is ceremony bypassed on every merge, and a rule routinely bypassed trains its owner to ignore the prompt. History protection and green CI still hold, and the rule goes back the moment a second person can review.
+
+  Three constraints encode failures already seen in this repo: required status checks are derived from *observed check runs*, never guessed from workflow YAML, because a required context nothing produces parks every PR at "Expected — waiting for status to be reported" (wayworks hit exactly this between PRs #26 and #27, and merged past two stranded checks unnoticed); `bypass_actors` must not be empty on a solo repo or the maintainer cannot merge their own work; and `PUT /rulesets/<id>` replaces the entire rules array, so the existing ruleset is read and merged rather than blind-written.
+
 ## [marketplace 4.4.1] — 2026-08-05
 
 ### Added

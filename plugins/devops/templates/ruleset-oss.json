@@ -1,0 +1,33 @@
+{
+  "_comment": "Public / open-source default branch ruleset. Replace the required_status_checks contexts with THIS repo's actual CI job names (see the skill — a required context nothing produces blocks every PR forever). Keep bypass_actors non-empty or you can lock yourself out of your own repo.",
+  "name": "Baseline",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
+  "bypass_actors": [
+    { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" }
+  ],
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 1,
+        "dismiss_stale_reviews_on_push": false,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": false,
+        "allowed_merge_methods": ["merge", "squash", "rebase"]
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [{ "context": "REPLACE_WITH_CI_JOB_NAME" }]
+      }
+    }
+  ]
+}

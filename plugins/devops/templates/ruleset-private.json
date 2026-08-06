@@ -1,0 +1,22 @@
+{
+  "_comment": "Private / solo-maintainer default branch ruleset. Drops the review requirement — a required approval nobody but you can give is ceremony you bypass on every merge, and a rule routinely bypassed teaches you to ignore the prompt. History protection and green CI still hold. Add the pull_request rule back the moment a second person can review.",
+  "name": "Baseline",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
+  "bypass_actors": [
+    { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" }
+  ],
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [{ "context": "REPLACE_WITH_CI_JOB_NAME" }]
+      }
+    }
+  ]
+}

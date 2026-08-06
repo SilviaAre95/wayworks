@@ -9,7 +9,7 @@ your agent plans, builds, reviews, tests, ships, and documents. You review and m
 
 [![marketplace](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FSilviaAre95%2Fwayworks%2Fmain%2F.claude-plugin%2Fmarketplace.json&query=%24.metadata.version&label=marketplace&color=6d28d9)](CHANGELOG.md)
 [![plugins](https://img.shields.io/badge/plugins-14-2563eb)](#-plugin-catalog)
-[![skills](https://img.shields.io/badge/skills-43-0891b2)](#-plugin-catalog)
+[![skills](https://img.shields.io/badge/skills-44-0891b2)](#-plugin-catalog)
 [![license](https://img.shields.io/github/license/SilviaAre95/wayworks?color=16a34a)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-f59e0b)](CONTRIBUTING.md)
 
@@ -19,7 +19,7 @@ your agent plans, builds, reviews, tests, ships, and documents. You review and m
 
 ---
 
-Every project lives in a linked triangle — **repo ↔ second brain ↔ tracker** — and every feature travels a gated pipeline where the agent cannot declare "done" until something measurable agrees. 14 plugins, 43 skills (5 of them stack profiles), 6 commands, and 6 sub-agents.
+Every project lives in a linked triangle — **repo ↔ second brain ↔ tracker** — and every feature travels a gated pipeline where the agent cannot declare "done" until something measurable agrees. 14 plugins, 44 skills (5 of them stack profiles), 6 commands, and 6 sub-agents.
 
 - `/wayworks-init` — bootstrap a repo: plugin fleet, CLAUDE.md header, verify gate
 - `/wayworks-onboard` — link a project's triangle: repo ↔ second brain ↔ tracker
@@ -273,6 +273,7 @@ Includes `deploy-checker` sub-agent.
 | `/dockerfile` | Generate or review multi-stage Dockerfiles |
 | `/ci-pipeline` | Generate CI/CD configs (GitHub Actions, Railway, Vercel) |
 | `/infra-review` | Review Docker, CI, deploy, env vars, production readiness |
+| `/repo-protection` | Branch rulesets, secret scanning, Dependabot, Actions hardening — OSS and private presets |
 
 </details>
 

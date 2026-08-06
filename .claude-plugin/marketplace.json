@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "An open-source way of work for AI-assisted building — plugins, second-brain support, and tracker integration",
-    "version": "4.4.1",
+    "version": "4.5.0",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -117,7 +117,7 @@
       "name": "devops",
       "source": "./plugins/devops",
       "description": "Dockerfiles, CI/CD pipelines, and infrastructure review",
-      "version": "1.0.2",
+      "version": "1.1.0",
       "category": "infrastructure",
       "tags": [
         "devops",
