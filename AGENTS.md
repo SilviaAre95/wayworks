@@ -26,6 +26,10 @@ Commands are linted separately and more loosely — they derive their name from 
 
 The reverse direction — someone edits the ruleset in GitHub's UI — changes no file and triggers no workflow, so CI cannot catch it. `bash scripts/check-ruleset.sh` compares the live ruleset against the contract; run it after touching branch protection, or when a PR shows a check that never reports. It is deliberately outside `make check`, since reading a ruleset needs admin permission CI's token does not have, and a step that silently skipped in CI would make "make check is what CI runs" false.
 
+## Before adding a skill
+
+Check [docs/reference/first-party-overlap.md](docs/reference/first-party-overlap.md) — the official marketplace now ships 39 Anthropic-authored plugins, several in wayworks' territory. The rule it records: **if deleting a skill would cost a gate, keep it; if it would only cost a checklist, delegate it.** Checklists are commodity now; the enforcement is not.
+
 ## Upstream changes
 
 [docs/reference/compatibility.md](docs/reference/compatibility.md) records the Claude Code version wayworks was last verified against and the specific contracts the gates depend on — hook events and output shapes, `${CLAUDE_PLUGIN_ROOT}` expansion, bundled-skill invocation, frontmatter keys. Read it before changing a hook or a loop command, and update the version line when you verify against a newer Claude Code.
