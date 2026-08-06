@@ -1,6 +1,11 @@
 # /loop-dev config. Committed per-project.
 graders: [code-review, security, bugs]   # review stages the agent must run + pass
-                                          # add `design` for frontend repos (design:layout-review);
+                                          # each grader needs its plugin ENABLED, or it silently
+                                          # does not run and the marker still stamps:
+                                          #   code-review -> /code-review (bundled, no plugin)
+                                          #   security    -> security:code-audit  (security@wayworks)
+                                          #   bugs        -> qa:bug-review        (qa@wayworks)
+                                          #   design      -> design:layout-review (design@wayworks)
                                           # any other name maps to the skill of the same name
 # max_review_rounds: 3                    # stop attempts without a clean marker before the review breaker trips
 max_retries: 3                            # failed deterministic attempts before circuit breaker

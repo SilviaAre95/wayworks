@@ -24,7 +24,9 @@ Every project lives in a linked triangle — **repo ↔ second brain ↔ tracker
 - `/wayworks-init` — bootstrap a repo: plugin fleet, CLAUDE.md header, verify gate
 - `/wayworks-onboard` — link a project's triangle: repo ↔ second brain ↔ tracker
 
-**Core** (enable everywhere): `shared`, `harness`, `security`, `test-builder`, `feature-bank`. **Extended** (enable per stack): everything else — `/wayworks-init` picks the right set for a repo.
+**Core** (enable everywhere): `shared`, `harness`, `security`, `qa`, `test-builder`, `feature-bank`. **Extended** (enable per stack): everything else — `/wayworks-init` picks the right set for a repo.
+
+> `security` and `qa` are core because `/loop-dev`'s default graders need them: `security` → `security:code-audit`, `bugs` → `qa:bug-review`. Omit either and that grader silently does not run — the reviews marker still stamps, so nothing tells you the panel ran short.
 
 ## 🔁 The pipeline
 
@@ -322,6 +324,7 @@ The easiest path is `/wayworks-init`, which writes this for you. Manually, drop 
     "shared@wayworks": true,
     "harness@wayworks": true,
     "security@wayworks": true,
+    "qa@wayworks": true,
     "test-builder@wayworks": true,
     "feature-bank@wayworks": true,
     "superpowers@claude-plugins-official": true

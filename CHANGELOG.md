@@ -12,6 +12,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.5.1] — 2026-08-06
+
+### Fixed
+- **README** — the documented core fleet omitted `qa`, while the default `.cc-dev.yaml` template ships `graders: [code-review, security, bugs]` and `bugs` maps to `qa:bug-review`. Anyone following wayworks' own setup instructions therefore got a grader that silently never ran, and the reviews marker stamps regardless, so nothing surfaced the short panel. Found in `ristretto-ai`, which had been running two of its three configured graders. `qa` is now core, with a note saying *why* `security` and `qa` are core rather than leaving it to be rediscovered.
+- **`harness` `1.7.2`** — the `/loop-dev` preflight now prints the plugin each configured grader needs, not just the grader names. "`bugs` did not resolve" is not actionable on its own; "`bugs -> qa:bug-review (needs qa@wayworks)`" is. The mapping was previously only in `loop-dev.md` prose, so diagnosing a missing grader meant going to read the command file. `templates/.cc-dev.yaml` carries the same mapping inline, where someone editing the grader list will actually see it.
+
 ## [marketplace 4.5.0] — 2026-08-06
 
 ### Added

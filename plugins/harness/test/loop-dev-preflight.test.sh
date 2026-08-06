@@ -26,10 +26,22 @@ printf 'graders: [code-review, security, bugs]\nbase: main\n' > "$d/.cc-dev.yaml
 run "$d"
 [ "$RC" = "0" ] && ok "valid config passes" || bad "valid config passes (rc=$RC: $OUT)"
 
-# grader list is handed back for the agent-side availability check
+# grader list is handed back for the agent-side availability check, naming the
+# plugin each one needs — "bugs did not resolve" is not actionable on its own.
 run "$d"
-echo "$OUT" | grep -q "GRADERS_TO_RESOLVE: code-review, security, bugs" \
-  && ok "emits grader list for the agent to resolve" || bad "emits grader list (got: $OUT)"
+{ echo "$OUT" | grep -q "bugs -> qa:bug-review" \
+  && echo "$OUT" | grep -q "needs qa@wayworks" \
+  && echo "$OUT" | grep -q "security -> security:code-audit" \
+  && echo "$OUT" | grep -q "code-review -> /code-review"; } \
+  && ok "emits grader -> skill -> plugin mapping" || bad "emits mapping (got: $OUT)"
+
+# an unrecognised grader still reports, without inventing a plugin name
+d=$(newrepo custom)
+echo "make check" > "$d/.cc-verify"
+printf 'graders: [custom-thing]\nbase: main\n' > "$d/.cc-dev.yaml"
+run "$d"
+echo "$OUT" | grep -q "custom-thing -> skill named 'custom-thing'" \
+  && ok "unknown grader maps to a same-named skill" || bad "unknown grader mapping (got: $OUT)"
 
 # --- the npm-default trap ---------------------------------------------------
 d=$(newrepo nonode)
@@ -83,7 +95,10 @@ run "$d"
 d=$(newrepo nocfg)
 echo "make check" > "$d/.cc-verify"
 run "$d"
-{ [ "$RC" = "0" ] && echo "$OUT" | grep -q "GRADERS_TO_RESOLVE: code-review, security, bugs"; } \
+{ [ "$RC" = "0" ] \
+  && echo "$OUT" | grep -q "code-review -> /code-review" \
+  && echo "$OUT" | grep -q "security -> security:code-audit" \
+  && echo "$OUT" | grep -q "bugs -> qa:bug-review"; } \
   && ok "absent .cc-dev.yaml uses documented defaults" || bad "absent .cc-dev.yaml uses defaults (rc=$RC)"
 
 # --- stale marker warns, does not block -------------------------------------
