@@ -83,10 +83,23 @@ if [ ! -f "$CFG" ] || ! grep -qE '^open_pr:[[:space:]]*false' "$CFG" 2>/dev/null
 fi
 
 # --- hand the grader list back for the agent-side check ---------------------
+# The script cannot see which plugins are enabled, but it does know which
+# plugin each grader needs. Naming it turns "grader `bugs` did not resolve"
+# into something the user can act on without going to read loop-dev.md.
 echo
-echo "GRADERS_TO_RESOLVE: $graders"
+echo "GRADERS_TO_RESOLVE:"
+for g in $(printf '%s' "$graders" | tr ',' ' '); do
+  case "$g" in
+    code-review) echo "  $g -> /code-review (bundled with Claude Code; no plugin)" ;;
+    security)    echo "  $g -> security:code-audit    (needs security@wayworks)" ;;
+    bugs)        echo "  $g -> qa:bug-review          (needs qa@wayworks)" ;;
+    design)      echo "  $g -> design:layout-review   (needs design@wayworks)" ;;
+    *)           echo "  $g -> skill named '$g'       (needs whichever plugin provides it)" ;;
+  esac
+done
+
 if [ "$fail" -eq 0 ]; then
-  echo "PREFLIGHT OK — now confirm each grader above maps to a skill you actually have."
+  echo "PREFLIGHT OK — now confirm each skill above is available in this session."
 else
   echo "PREFLIGHT FAILED — fix the above before building."
 fi
