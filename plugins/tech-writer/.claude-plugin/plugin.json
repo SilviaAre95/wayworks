@@ -1,6 +1,6 @@
 {
   "name": "tech-writer",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "README generation and API documentation",
   "author": {
     "name": "Silvia Arellano"
@@ -12,6 +12,5 @@
     "readme",
     "api-docs",
     "technical-writing"
-  ],
-  "skills": "./skills/"
+  ]
 }

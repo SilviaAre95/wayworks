@@ -1,6 +1,6 @@
 {
   "name": "backend-dev",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "API design, database schemas, and error handling patterns",
   "author": {
     "name": "Silvia Arellano"
@@ -11,6 +11,5 @@
     "api",
     "database",
     "backend"
-  ],
-  "skills": "./skills/"
+  ]
 }

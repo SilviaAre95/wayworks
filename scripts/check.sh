@@ -32,6 +32,34 @@ for dir in plugins/*/; do
     || err "plugins/$name exists but is not listed in marketplace.json"
 done
 
+echo "== No redundant conventional paths in plugin manifests"
+# Claude Code auto-discovers commands/, skills/, agents/, and hooks/hooks.json.
+# Declaring those same paths in plugin.json makes it load them TWICE, and the
+# second load is a hard error: "Duplicate hooks file detected ... The standard
+# hooks/hooks.json is loaded automatically, so manifest.hooks should only
+# reference additional hook files." Every wayworks plugin shipped this for
+# months — the manifests were valid JSON and every path resolved, so nothing
+# here caught it. Only `/plugin` in a live session showed the failure.
+conventional() { # $1=value $2=dirname -> 0 if it points at the auto-discovered path
+  case "$1" in
+    "./$2/"|"./$2"|"$2/"|"$2") return 0 ;;
+    *) return 1 ;;
+  esac
+}
+for f in plugins/*/.claude-plugin/plugin.json; do
+  [ -f "$f" ] || continue
+  for key in commands skills agents; do
+    v=$(jq -r --arg k "$key" '.[$k] // empty' "$f")
+    [ -n "$v" ] && conventional "$v" "$key" && \
+      err "$f: declares '$key: $v' — that path is auto-discovered; remove the key"
+  done
+  hv=$(jq -r '.hooks // empty' "$f")
+  case "$hv" in
+    "./hooks/hooks.json"|"hooks/hooks.json") \
+      err "$f: declares 'hooks: $hv' — the standard hooks/hooks.json loads automatically; declare only ADDITIONAL hook files" ;;
+  esac
+done
+
 echo "== Hook script paths resolve"
 for hooks in plugins/*/hooks/hooks.json; do
   [ -f "$hooks" ] || continue
