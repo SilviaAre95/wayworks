@@ -1,12 +1,12 @@
 ---
 description: Arm the staged dev loop — implement a task through spec/code/review/security/bugs to a PR
 argument-hint: <task description> [--plan <path>] [--check-plan]
-allowed-tools: Bash(touch:*), Bash(echo:*), Bash(cat:*), Bash(rm:*), Bash(${CLAUDE_PLUGIN_ROOT}/hooks/scripts/loop-dev-preflight.sh:*)
+allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/hooks/scripts/loop-arm.sh:*), Bash(cat:*), Bash(rm:*), Bash(${CLAUDE_PLUGIN_ROOT}/hooks/scripts/loop-dev-preflight.sh:*)
 ---
 
 Arm the dev loop for this project:
 
-!`touch .cc-loop-dev-active && echo 0 > .cc-loop-dev-state && rm -f .cc-dev-reviews-passed .cc-loop-dev-rounds && echo "loop-dev armed"`
+!`"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/loop-arm.sh" dev`
 
 The staged dev loop is **ARMED**. Config lives in `.cc-dev.yaml` (graders, max_retries, base, open_pr).
 

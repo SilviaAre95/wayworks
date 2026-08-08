@@ -12,6 +12,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.5.3] — 2026-08-08
+
+Arm fix — none of the three loops could start.
+
+### Fixed
+- **`harness` `1.7.4`** — `/loop-dev`, `/loop-build`, and `/loop-deploy` all armed with shell output redirection inside their `!` pre-execution block (`touch .cc-…-active && echo 0 > .cc-…-state`). Somewhere between Claude Code 2.1.222 and 2.1.226 that became a hard permission failure — *"Output redirection to '…/.cc-loop-dev-state' was blocked"* — so **no loop could arm at all**. Declaring `Bash(echo:*)` does not help: running `echo` and redirecting it into a file are checked separately, and the redirect is denied regardless of the working directory.
+
+  Arming now runs through `hooks/scripts/loop-arm.sh`, and `allowed-tools` grants that script path instead of `touch`/`echo` — redirection inside a script is never parsed by the permission checker. Same shape as the preflight added in 1.7.0.
+
+  The script also fails *loudly and completely*: if it cannot write, it removes any sentinel it already created and names the real cause ("start Claude Code from the repository root, or add this directory with `/add-dir`"). A sentinel without its state file arms the Stop hook against a loop that never initialised, which livelocks the session — strictly worse than not arming.
+
+  Ships `test/loop-arm.test.sh` — 10 cases covering all three loops, stale-marker clearing, cross-loop isolation (arming `build` must not delete `dev`'s marker), bad and missing arguments, an unwritable directory, and the assertion that a failed arm leaves **no** partial state behind.
+
+### Changed
+- **`docs/reference/compatibility.md`** — verified version 2.1.222 → **2.1.226**, and records the redirection restriction plus a related trap: `cd` does **not** widen a session's write sandbox. Allowed directories are fixed at launch from the starting cwd, so `cd` into a repo and writing there still fails; launch from the repo root or use `/add-dir`.
+
 ## [marketplace 4.5.2] — 2026-08-07
 
 Manifest fix — every plugin was failing to load one of its components.

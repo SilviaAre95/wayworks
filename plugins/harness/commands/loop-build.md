@@ -1,12 +1,12 @@
 ---
 description: Arm the build-test-fix loop, then implement a task that runs to green
 argument-hint: <task description>
-allowed-tools: Bash(touch:*), Bash(echo:*)
+allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/hooks/scripts/loop-arm.sh:*)
 ---
 
 Arm the loop for this project:
 
-!`touch .cc-loop-active && echo 0 > .cc-loop-state && echo "loop armed"`
+!`"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/loop-arm.sh" build`
 
 The build-test-fix loop is now **ARMED**. Implement the task below. When you think you are done, the `Stop` hook runs this project's verify gate (`.cc-verify` if present, else `npm run lint && npm run build && npm test`):
 
