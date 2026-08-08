@@ -1,14 +1,14 @@
 ---
 description: Deploy, watch, verify prod, and fix→redeploy until healthy (or roll back + escalate)
 argument-hint: [--env prod|staging]
-allowed-tools: Bash(touch:*), Bash(echo:*), Bash(cat:*), Bash(rm:*)
+allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/hooks/scripts/loop-arm.sh:*), Bash(cat:*), Bash(rm:*)
 ---
 
 Read `.cc-deploy.yaml` (deploy, watch, verify, rollback, max_redeploys, migrations_gate). If it is missing, stop and ask the user to create it — do not guess deploy commands.
 
 Then arm the deploy loop:
 
-!`touch .cc-deploy-active && echo 0 > .cc-deploy-state && echo "loop-deploy armed"`
+!`"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/loop-arm.sh" deploy`
 
 The deploy loop is **ARMED**. Execute these stages for the target below:
 

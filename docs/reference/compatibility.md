@@ -8,7 +8,7 @@ Skills are portable prose; the **gates are not**. Hooks, plugin manifests, and s
 
 | | |
 |---|---|
-| Claude Code | **2.1.222** |
+| Claude Code | **2.1.226** |
 | Last verified | 2026-08-05 |
 
 This is the version wayworks was last exercised on, not a floor or a ceiling. Nothing enforces it. Older or newer versions may work fine — the point of this file is that when they don't, the list below is where to look.
@@ -52,6 +52,18 @@ Re-check after any Claude Code upgrade. A degraded grader looks identical to a w
 `description` (55), `name` (49), `user-invocable` (43), `argument-hint` (40), `allowed-tools` (12), `model` (5), `paths` (4). Enforced by `scripts/lint-skills.sh`, which checks *our* conformance — not whether Claude Code still honours these keys.
 
 Model values are aliases (`sonnet`/`opus`/`haiku`), never dated IDs, because dated IDs rot.
+
+### No shell redirection inside a command's `!` block
+
+Somewhere between 2.1.222 and 2.1.226, output redirection in `!` pre-execution became a hard permission failure:
+
+> Shell command permission check failed … Output redirection to `'.../.cc-loop-dev-state'` was blocked.
+
+Declaring `Bash(echo:*)` does not help — *running* `echo` and *redirecting it into a file* are checked separately, and the redirect is denied regardless of the working directory. All three loops armed this way (`touch .cc-…-active && echo 0 > .cc-…-state`), so **none of them could arm at all**.
+
+The fix, and the pattern to reuse: put the work in a script and grant the script path. Redirection inside a script is never parsed by the permission checker, because the grant is on invoking the path. `hooks/scripts/loop-arm.sh` now does the arming for all three loops, and `allowed-tools` names it instead of `touch`/`echo`.
+
+A related trap: **`cd` does not widen a session's write sandbox.** The allowed directories are fixed at launch from the starting cwd, so `cd` into a repo and then writing there still fails. Launch from the repository root, or use `/add-dir`.
 
 ### Plugin manifests: declare only what is NOT conventional
 
