@@ -12,6 +12,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.5.2] — 2026-08-07
+
+Manifest fix — every plugin was failing to load one of its components.
+
+### Fixed
+- **All 14 plugins** (patch bump each) — removed the `commands`, `skills`, and `hooks` keys from every `plugin.json`. Claude Code auto-discovers `commands/`, `skills/`, `agents/`, and `hooks/hooks.json`; declaring those same paths makes it load them twice, and the second load is a hard error: *"Duplicate hooks file detected … The standard hooks/hooks.json is loaded automatically, so manifest.hooks should only reference additional hook files."* Every enabled wayworks plugin showed **"Needs attention · 1 error"** in `/plugin`, and `harness` failed to load its hooks entirely — meaning the Stop gates the whole harness depends on were not being registered.
+
+  Every declared path was the conventional one (`./skills/`, `./commands/`, `./hooks/hooks.json`), so all 14 were pure redundancy. `architect` already had an undeclared `agents/` directory that loaded fine, which is the proof the convention needs no declaration. Anthropic's own plugins declare none of these keys.
+
+  **CI was green the entire time this shipped.** The manifests were valid JSON and every declared path resolved — `scripts/check.sh` had nothing to object to, because it validated our expectations rather than Claude Code's loader. The failure was visible only in `/plugin` in a live session. `check.sh` now rejects the conventional paths in any of their spellings (`./skills/`, `./skills`, `skills/`, `skills`) while still allowing genuinely additional ones, such as `hooks: "./hooks/extra.json"`.
+
+### Added
+- **`docs/reference/compatibility.md`** — three contracts learned the hard way: manifests must declare only non-conventional paths; plugin updates need a **session restart** because commands register at session start (and `installed_plugins.json` pins version + commit *per project*, so one project can sit stale while another is current); and plugin slash commands are **namespaced** — `harness:loop-dev`, not `loop-dev`.
+
 ## [marketplace 4.5.1] — 2026-08-06
 
 ### Fixed

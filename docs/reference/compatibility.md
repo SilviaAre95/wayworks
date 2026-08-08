@@ -53,9 +53,27 @@ Re-check after any Claude Code upgrade. A degraded grader looks identical to a w
 
 Model values are aliases (`sonnet`/`opus`/`haiku`), never dated IDs, because dated IDs rot.
 
+### Plugin manifests: declare only what is NOT conventional
+
+Claude Code auto-discovers `commands/`, `skills/`, `agents/`, and `hooks/hooks.json`. Declaring those same paths in `plugin.json` makes it load them **twice**, and the second load is a hard error:
+
+> Duplicate hooks file detected: `./hooks/hooks.json` resolves to already-loaded file … The standard `hooks/hooks.json` is loaded automatically, so `manifest.hooks` should only reference *additional* hook files.
+
+All 14 wayworks plugins shipped this for months. The manifests were valid JSON, every declared path existed, and `make check` was green throughout — the failure is only visible in `/plugin` in a live session, which nothing in CI simulates. `scripts/check.sh` now rejects the conventional paths while still allowing genuinely additional ones (`hooks: "./hooks/extra.json"` is fine).
+
+Anthropic's own plugins declare none of these keys. When in doubt, match their manifest shape.
+
+### Plugin updates need a session restart
+
+Commands and skills are registered at session start. `claude plugin marketplace update` and `/plugin → Update now` change what is on disk but do **not** re-register anything in the running session, so a freshly-updated command reports as an unknown command until you restart. A plugin can also be pinned per-project: `~/.claude/plugins/installed_plugins.json` records `version` and `gitCommitSha` per `projectPath`, so one project can sit on an old version while another is current, and `/plugin` surfaces the stale project's error globally.
+
+### Slash commands from plugins are namespaced
+
+`harness:loop-dev`, not `loop-dev`. Same for skills (`security:code-audit`) and `shared:wayworks-init`.
+
 ### Other
 
-- Plugin manifest + `marketplace.json` schema — validated structurally by `scripts/check.sh`, but against our expectations, not a published schema.
+- `marketplace.json` schema — validated structurally by `scripts/check.sh`, but against our expectations, not a published schema.
 - `acceptEdits` permission tier — the loops assume it exists.
 - Concurrent subagent dispatch, optionally with per-subagent model selection. `model-policy.md` treats that selection as best-effort ("when your dispatch tool supports it"), so losing it degrades cost, not correctness.
 

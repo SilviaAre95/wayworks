@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "An open-source way of work for AI-assisted building — plugins, second-brain support, and tracker integration",
-    "version": "4.5.1",
+    "version": "4.5.2",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -14,7 +14,7 @@
       "name": "shared",
       "source": "./plugins/shared",
       "description": "Shared conventions, coding style, and meta-skills",
-      "version": "2.1.3",
+      "version": "2.1.4",
       "category": "conventions",
       "tags": [
         "conventions",
@@ -26,7 +26,7 @@
       "name": "architect",
       "source": "./plugins/architect",
       "description": "System design, tradeoff analysis, and architecture decision records",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "category": "design",
       "tags": [
         "architecture",
@@ -38,7 +38,7 @@
       "name": "backend-dev",
       "source": "./plugins/backend-dev",
       "description": "API design, database schemas, and error handling patterns",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "category": "backend",
       "tags": [
         "api",
@@ -50,7 +50,7 @@
       "name": "test-builder",
       "source": "./plugins/test-builder",
       "description": "Unit, integration, and end-to-end test generation",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "category": "testing",
       "tags": [
         "testing",
@@ -63,7 +63,7 @@
       "name": "data-engineer",
       "source": "./plugins/data-engineer",
       "description": "Pipeline design, schema review, and SQL optimization",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "category": "data",
       "tags": [
         "data",
@@ -76,7 +76,7 @@
       "name": "frontend-dev",
       "source": "./plugins/frontend-dev",
       "description": "Component building, styling review, and accessibility checks for React/Next.js",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "category": "frontend",
       "tags": [
         "frontend",
@@ -89,7 +89,7 @@
       "name": "qa",
       "source": "./plugins/qa",
       "description": "Edge case discovery, bug review, and regression checking",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "category": "quality",
       "tags": [
         "qa",
@@ -102,7 +102,7 @@
       "name": "design",
       "source": "./plugins/design",
       "description": "Design review — layout + responsive behavior, design systems, usability heuristics, and user flows",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "category": "design",
       "tags": [
         "design",
@@ -117,7 +117,7 @@
       "name": "devops",
       "source": "./plugins/devops",
       "description": "Dockerfiles, CI/CD pipelines, and infrastructure review",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "category": "infrastructure",
       "tags": [
         "devops",
@@ -130,7 +130,7 @@
       "name": "security",
       "source": "./plugins/security",
       "description": "Code audits, dependency checks, and IAM reviews",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "category": "security",
       "tags": [
         "security",
@@ -143,7 +143,7 @@
       "name": "tech-writer",
       "source": "./plugins/tech-writer",
       "description": "README generation and API documentation",
-      "version": "2.0.1",
+      "version": "2.0.2",
       "category": "documentation",
       "tags": [
         "documentation",
@@ -156,7 +156,7 @@
       "name": "pm",
       "source": "./plugins/pm",
       "description": "User stories, task breakdowns, and PRD writing",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "category": "product",
       "tags": [
         "product",
@@ -169,7 +169,7 @@
       "name": "harness",
       "source": "./plugins/harness",
       "description": "Tiered autonomy + build-test-fix, staged dev, and prod deploy loops for hands-off AI workflows",
-      "version": "1.7.2",
+      "version": "1.7.3",
       "category": "workflow",
       "tags": [
         "workflow",
@@ -183,7 +183,7 @@
       "name": "feature-bank",
       "source": "./plugins/feature-bank",
       "description": "Source-of-truth feature specs with preflight/postflight gates that stop agent drift",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "category": "workflow",
       "tags": [
         "feature-bank",

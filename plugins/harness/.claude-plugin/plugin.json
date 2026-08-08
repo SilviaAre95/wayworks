@@ -1,6 +1,6 @@
 {
   "name": "harness",
-  "version": "1.7.2",
+  "version": "1.7.3",
   "description": "Tiered autonomy + build-test-fix, staged dev, and prod deploy loops for hands-off AI workflows",
   "author": {
     "name": "Silvia Arellano"
@@ -13,7 +13,5 @@
     "hooks",
     "autonomy",
     "loop"
-  ],
-  "commands": "./commands/",
-  "hooks": "./hooks/hooks.json"
+  ]
 }

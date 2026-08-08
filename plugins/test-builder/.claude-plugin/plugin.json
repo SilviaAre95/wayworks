@@ -1,6 +1,6 @@
 {
   "name": "test-builder",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Unit, integration, and end-to-end test generation",
   "author": {
     "name": "Silvia Arellano"
@@ -12,6 +12,5 @@
     "unit-tests",
     "integration",
     "e2e"
-  ],
-  "skills": "./skills/"
+  ]
 }

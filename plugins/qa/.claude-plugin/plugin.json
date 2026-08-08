@@ -1,6 +1,6 @@
 {
   "name": "qa",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Edge case discovery, bug review, and regression checking",
   "author": {
     "name": "Silvia Arellano"
@@ -12,6 +12,5 @@
     "testing",
     "bugs",
     "regression"
-  ],
-  "skills": "./skills/"
+  ]
 }
