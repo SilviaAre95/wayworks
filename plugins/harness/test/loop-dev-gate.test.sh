@@ -152,10 +152,43 @@ out=$(CC_GATE_CMD="true" run "$d")
 check "quoted base: staleness still enforced" "" "$out" "stale"
 rm -rf "$d"
 
+# 16b. Empty diff -> nothing to review, allow stop WITHOUT demanding a stamp.
+#      Previously the gate read "deterministic gate green" as "work is verified"
+#      when it actually meant "no work exists", and demanded a marker that would
+#      certify graders passed on a change nobody made. The loop could not exit.
+d=$(mktemp -d); gsetup "$d"; touch "$d/.cc-loop-dev-active"
+out=$(CC_GATE_CMD="true" run "$d")
+check "empty diff: does not demand reviews" "" "$out" "nothing to review"
+check "empty diff: no stamp command offered" "" "$([ -n "${out##*merge-base*}" ] && echo absent || echo present)" "absent"
+check "empty diff: no block decision" "" "$([ -n "${out##*\"block\"*}" ] && echo none || echo blocked)" "none"
+rm -rf "$d"
+
+# 16c. A tracked change IS work -> the gate must still demand reviews.
+d=$(mktemp -d); gsetup "$d"; touch "$d/.cc-loop-dev-active"
+echo change >> "$d/f.txt"
+out=$(CC_GATE_CMD="true" run "$d")
+check "tracked diff still demands reviews" "" "$out" "review stages"
+rm -rf "$d"
+
+# 16d. An UNTRACKED new file is work too — the diff is empty but the run
+#      produced something, and it must not slip past ungraded.
+d=$(mktemp -d); gsetup "$d"; touch "$d/.cc-loop-dev-active"
+echo new > "$d/added.py"
+out=$(CC_GATE_CMD="true" run "$d")
+check "untracked file still demands reviews" "" "$out" "review stages"
+rm -rf "$d"
+
+# 16e. Loop state files are not work — they exist in every armed run.
+d=$(mktemp -d); gsetup "$d"; touch "$d/.cc-loop-dev-active" "$d/.cc-loop-dev-rounds"
+out=$(CC_GATE_CMD="true" run "$d")
+check "loop state alone is not work" "" "$out" "nothing to review"
+rm -rf "$d"
+
 # 17. Hostile base value -> sanitized to main; no shell injection in the STAMP
 #     command the agent is told to run
 d=$(mktemp -d); gsetup "$d"; touch "$d/.cc-loop-dev-active"
 printf 'base: main"; touch PWNED #\n' > "$d/.cc-dev.yaml"
+echo work >> "$d/f.txt"   # a diff must exist, else the gate correctly reports nothing to review
 out=$(CC_GATE_CMD="true" run "$d")
 check "hostile base: falls back to main" "" "$out" "git merge-base main HEAD"
 check_not "hostile base: no injection in message" "$out" "PWNED"

@@ -111,6 +111,27 @@ review_breaker() {  # disarm and tell the agent to summarize, not re-grade
 
 # 6. Stage 2 — reviews marker must exist.
 if [ ! -f "$MARKER" ]; then
+  # ...but only if there is something to review. A green deterministic gate on
+  # an empty diff does not mean "work is done and verified", it means "no work
+  # exists" — and demanding a stamp there livelocks the loop: the only way out
+  # is a marker certifying that every grader passed on a change nobody made,
+  # which is indistinguishable from a real green run afterwards. The marker's
+  # fingerprint guards against edits landing AFTER a stamp; this is the same
+  # failure reached from the other side.
+  #
+  # Conservative on purpose: untracked files count as work, so a run that only
+  # added new files still gets graded.
+  if git -C "$DIR" rev-parse --git-dir >/dev/null 2>&1; then
+    mb=$(git -C "$DIR" merge-base "$BASE" HEAD 2>/dev/null)
+    if [ -n "$mb" ] \
+       && [ -z "$(git -C "$DIR" diff "$mb" 2>/dev/null)" ] \
+       && [ -z "$(git -C "$DIR" ls-files --others --exclude-standard 2>/dev/null | grep -v '^\.cc-' | head -1)" ]; then
+      jq -n --arg b "$BASE" \
+        '{systemMessage:("Loop-dev: nothing to review — the working tree is identical to " + $b + " (no diff, no new files). Stopping without a marker; no reviews were run and none were needed.")}'
+      exit 0
+    fi
+  fi
+
   if ! review_round; then review_breaker; exit 0; fi
   GRADERS=$(grep -E '^graders:' "$CFG" 2>/dev/null | head -1 | sed -E 's/^graders:[[:space:]]*//; s/[[:space:]]*#.*$//')
   [ -z "$GRADERS" ] && GRADERS="[code-review, security, bugs]"
