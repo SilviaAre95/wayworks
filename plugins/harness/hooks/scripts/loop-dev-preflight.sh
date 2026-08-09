@@ -100,6 +100,10 @@ done
 
 if [ "$fail" -eq 0 ]; then
   echo "PREFLIGHT OK — now confirm each skill above is available in this session."
+  echo "  Invoke one to check; do not infer from .claude/settings.json. Enabling a"
+  echo "  plugin there is a no-op if it was never INSTALLED for this project, and"
+  echo "  that failure is silent — the cache directory may exist from another repo."
+  echo "  Fix with: /plugin install <name>@<marketplace>"
 else
   echo "PREFLIGHT FAILED — fix the above before building."
 fi

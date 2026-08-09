@@ -35,7 +35,7 @@ Every gate is a hook. If any of this changes, the loops stop enforcing and keep 
 
 - `!\`...\`` pre-execution in a command body — arms the loops.
 - `${CLAUDE_PLUGIN_ROOT}` expansion in a command body and in `allowed-tools`. Precedent: Anthropic's own `ralph-loop`, `hookify`, `plugin-dev`, and `code-modernization` plugins use this.
-- **Unverified:** whether `${CLAUDE_PLUGIN_ROOT}` expands inside `!` pre-execution specifically. `loop-dev`'s preflight relies on it. It degrades safely — the invocation fails, `|| true` swallows it, and the command tells the agent to check the config by hand — but the deterministic half would silently not run. Worth confirming on the next real `/loop-dev`.
+- **Verified 2026-08-09 against 2.1.226:** `${CLAUDE_PLUGIN_ROOT}` *does* expand inside `!` pre-execution. A real `/loop-dev` run printed the preflight's output in full. Both the arm script and the preflight rely on this.
 - `$ARGUMENTS` substitution. Positional `$0`/`$1` populate only for *typed* commands and leak literally under model invocation, which is why `scripts/lint-skills.sh` rejects them outright.
 
 ### Bundled skills
@@ -74,6 +74,14 @@ Claude Code auto-discovers `commands/`, `skills/`, `agents/`, and `hooks/hooks.j
 All 14 wayworks plugins shipped this for months. The manifests were valid JSON, every declared path existed, and `make check` was green throughout — the failure is only visible in `/plugin` in a live session, which nothing in CI simulates. `scripts/check.sh` now rejects the conventional paths while still allowing genuinely additional ones (`hooks: "./hooks/extra.json"` is fine).
 
 Anthropic's own plugins declare none of these keys. When in doubt, match their manifest shape.
+
+### Enabling a plugin is not installing it
+
+`.claude/settings.json` declares *intent*; `~/.claude/plugins/installed_plugins.json` records the actual per-project registration. Listing a plugin under `enabledPlugins` that was never installed for that project is a **silent no-op** — no warning, no error, the skills simply are not there.
+
+Observed 2026-08-09: `ristretto-ai` listed `qa@wayworks: true` for days while the only registration was for a different project. Six of the seven plugins in that same file auto-registered; `qa` was the only one that already had a cache directory on disk from the other project, which is the likely reason its per-project registration was skipped. The result reads as healthy from every angle — valid manifest, populated cache, `true` in settings — and the skill still does not resolve.
+
+**Verify by invoking, never by reading config.** `/loop-dev`'s preflight says as much in its output. Fix with `/plugin install <name>@<marketplace>`.
 
 ### Plugin updates need a session restart
 

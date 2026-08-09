@@ -12,6 +12,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.5.4] — 2026-08-09
+
+Livelock fix — from the loop's first real end-to-end run.
+
+### Fixed
+- **`harness` `1.7.5`** — `/loop-dev`'s Stop gate no longer demands a reviews marker when there is nothing to review. It read "deterministic gate is green" as *"work is done and verified"* when on an empty diff it actually means *"no work exists"*, and then blocked the stop until a marker appeared. The only way to satisfy that is a marker certifying `code-review`, `security`, and `bugs` all passed on a change nobody made — indistinguishable afterwards from a real green run. Observed live: the same hook message fired three times in a row on a run that stopped at preflight, and the session could not exit.
+
+  The marker's tree fingerprint already guards against edits landing *after* a stamp. This is the same failure reached from the other side — a stamp landing before any edits at all.
+
+  The check is deliberately conservative: **untracked files count as work**, so a run that only added new files is still graded. Only loop-state files (`.cc-*`) are ignored, since they exist in every armed run. When there is genuinely nothing, the gate allows the stop and says why rather than exiting silently.
+
+  Three of the six new tests assert the gate still *demands* reviews — for a tracked diff, for an untracked new file, and that loop state alone is not work. One pre-existing test (`hostile base: falls back to main`) had been relying on the old behaviour to reach the stamp message from a repo with no diff; its fixture now makes a change first, which is what it meant to test all along.
+
+- **`harness` `1.7.5`** — the preflight now warns that enabling a plugin in `.claude/settings.json` is a no-op if it was never *installed* for that project, and tells you to verify by invoking rather than by reading config.
+
+### Changed
+- **`docs/reference/compatibility.md`** — `${CLAUDE_PLUGIN_ROOT}` inside `!` pre-execution is now **verified** against 2.1.226 (a real `/loop-dev` printed the preflight output in full), and a new section records that enabling ≠ installing: `settings.json` declares intent, `installed_plugins.json` records registration, and the gap is silent. Observed on `ristretto-ai`, where six of seven plugins auto-registered and the one that already had a cache directory from another project did not.
+
 ## [marketplace 4.5.3] — 2026-08-08
 
 Arm fix — none of the three loops could start.
