@@ -18,7 +18,7 @@ Thanks for considering a contribution. wayworks is an opinionated way of work �
 
 ## Scaffolding a new skill
 
-Use the meta-skill: `/create-skill <skill-name> <plugin-name> "<description>"` — it generates the correct frontmatter and structure. New plugins enter at `1.0.0` with a `.claude-plugin/plugin.json` matching the existing ones.
+Use the meta-skill: `/shared:create-skill <skill-name> <plugin-name> "<description>"` — it generates the correct frontmatter and structure. New plugins enter at `1.0.0` with a `.claude-plugin/plugin.json` matching the existing ones.
 
 ## The release rule (CI-enforced)
 

@@ -12,6 +12,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.5.5] — 2026-08-09
+
+Docs fix — every command and skill reference in the docs was unusable as written.
+
+### Fixed
+- **All user-facing docs** — plugin commands and skills are **namespaced**, and the docs documented the bare form throughout: `/loop-dev`, `/wayworks-init`, `/harness-init`, `/code-audit` and 40-odd others. None of them work. The real invocations are `/harness:loop-dev`, `/shared:wayworks-init`, `/security:code-audit`. Anyone following the README hit an unknown-command error on their first try — which is exactly how this was found. 75 references corrected across `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, `docs/reference/*`, and `plugins/harness/README.md` (**`harness` `1.7.6`**), including the two mermaid diagram labels and the references carrying arguments.
+
+  Names were mapped from the plugin tree on disk rather than by hand, and the nine Claude Code **built-ins** — `/code-review`, `/plugin`, `/doctor`, `/verify`, `/loop`, `/batch`, `/debug`, `/add-dir`, `/claude-api` — were deliberately left bare, since those are not namespaced. Verified afterwards that every remaining `plugin:name` resolves to a real skill or command, and that no reference was double-namespaced.
+
+  Historical design records under `docs/plans/`, `docs/specs/`, and `docs/superpowers/` are left as written — they are dated point-in-time documents, not instructions.
+
 ## [marketplace 4.5.4] — 2026-08-09
 
 Livelock fix — from the loop's first real end-to-end run.
