@@ -28,7 +28,7 @@ We shipped XARI-92 (2026-08-05) reimplementing the falsification pattern this pl
 
 `pr-review-toolkit` ships review agents for comments, tests, error handling, type design, quality, and simplification. `code-review` adds confidence-based scoring to filter false positives. Together they cover most of what the `qa` plugin does, with more specialisation.
 
-But `/loop-dev`'s `bugs` grader is a *gate* — its findings block the loop. The gate is ours; the reviewing doesn't have to be.
+But `/harness:loop-dev`'s `bugs` grader is a *gate* — its findings block the loop. The gate is ours; the reviewing doesn't have to be.
 
 **Action:** keep the `bugs` grader name and its blocking semantics, change what it dispatches. Same shape as the `code-review` grader, which already dispatches Anthropic's bundled skill rather than a wayworks-authored one.
 
@@ -46,7 +46,7 @@ What `create-skill` uniquely carries is the *house pattern* — `Steps → Outpu
 - **`feature-bank`.** Nothing first-party does spec-preflight/postflight gating on code edits.
 - **`devops`** (`ci-pipeline`, `dockerfile`, `infra-review`), **`data-engineer`**, **`backend-dev`**, **`pm`**, **`tech-writer`**, **`test-builder`**. No first-party equivalents.
 - **`architect`.** `feature-dev` covers architecture design inside a feature workflow, but nothing first-party writes or manages ADRs.
-- **`shared:conventions`** and **`/wayworks-init`**. `claude-md-management` maintains CLAUDE.md quality and `claude-code-setup` recommends automations; neither installs a specific opinionated fleet. Complementary, not competing.
+- **`shared:conventions`** and **`/shared:wayworks-init`**. `claude-md-management` maintains CLAUDE.md quality and `claude-code-setup` recommends automations; neither installs a specific opinionated fleet. Complementary, not competing.
 - **`design`** and **`frontend-dev`** review skills (`layout-review`, `heuristic-eval`, `accessibility-check`, `styling-review`). `frontend-design` *generates* interfaces; ours *review* them. Different direction. `component-builder` is the one genuine overlap on the generation side and is the weaker of the two — flag, don't rush.
 - **`security:security-scan`.** Audits `.claude/` configuration. `security-guidance` reviews application code via hooks. Different targets.
 

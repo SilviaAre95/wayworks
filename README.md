@@ -21,12 +21,12 @@ your agent plans, builds, reviews, tests, ships, and documents. You review and m
 
 Every project lives in a linked triangle — **repo ↔ second brain ↔ tracker** — and every feature travels a gated pipeline where the agent cannot declare "done" until something measurable agrees. 14 plugins, 44 skills (5 of them stack profiles), 6 commands, and 6 sub-agents.
 
-- `/wayworks-init` — bootstrap a repo: plugin fleet, CLAUDE.md header, verify gate
-- `/wayworks-onboard` — link a project's triangle: repo ↔ second brain ↔ tracker
+- `/shared:wayworks-init` — bootstrap a repo: plugin fleet, CLAUDE.md header, verify gate
+- `/shared:wayworks-onboard` — link a project's triangle: repo ↔ second brain ↔ tracker
 
-**Core** (enable everywhere): `shared`, `harness`, `security`, `qa`, `test-builder`, `feature-bank`. **Extended** (enable per stack): everything else — `/wayworks-init` picks the right set for a repo.
+**Core** (enable everywhere): `shared`, `harness`, `security`, `qa`, `test-builder`, `feature-bank`. **Extended** (enable per stack): everything else — `/shared:wayworks-init` picks the right set for a repo.
 
-> `security` and `qa` are core because `/loop-dev`'s default graders need them: `security` → `security:code-audit`, `bugs` → `qa:bug-review`. Omit either and that grader silently does not run — the reviews marker still stamps, so nothing tells you the panel ran short.
+> `security` and `qa` are core because `/harness:loop-dev`'s default graders need them: `security` → `security:code-audit`, `bugs` → `qa:bug-review`. Omit either and that grader silently does not run — the reviews marker still stamps, so nothing tells you the panel ran short.
 
 ## 🔁 The pipeline
 
@@ -35,14 +35,14 @@ flowchart LR
     subgraph front["🧠 Think first"]
         A[Brainstorm → spec<br/>→ written plan] --> B{{Feature bank<br/>preflight gate}}
     end
-    subgraph loop["⚙️ /loop-dev — Stop-hook enforced"]
+    subgraph loop["⚙️ /harness:loop-dev — Stop-hook enforced"]
         B --> C[Build] --> D[Parallel review graders<br/>code · security · bugs · design]
         D -->|findings| C
         D --> E[Dev test<br/>the way the product is used] -->|fails| C
         E --> F[Docs postflight] --> G[PR + CI<br/>watched to green]
     end
     G --> H([👤 Human reviews<br/>and merges])
-    subgraph ship["🚀 /loop-deploy"]
+    subgraph ship["🚀 /harness:loop-deploy"]
         H --> I[Deploy → watch<br/>→ verify prod] -->|unhealthy| J[Fix / redeploy<br/>or roll back] --> I
         I --> K[Knowledge sync<br/>repo docs · vault · tracker]
     end
@@ -56,7 +56,7 @@ The `Stop` hooks are the point: a loop cannot end while the verify gate is red, 
 claude plugin marketplace add SilviaAre95/wayworks
 ```
 
-Then either bootstrap a repo with the whole fleet in one step — install `shared`, run `/wayworks-init` inside the repo — or install plugins individually:
+Then either bootstrap a repo with the whole fleet in one step — install `shared`, run `/shared:wayworks-init` inside the repo — or install plugins individually:
 
 <details>
 <summary><b>Install plugins one by one</b></summary>
@@ -99,13 +99,13 @@ claude --plugin-dir ./plugins/shared --plugin-dir ./plugins/architect --plugin-d
 ## 🗺️ How it's used
 
 **One-time setup**
-1. Install the marketplace and the core plugins (above), or let `/wayworks-init` do it per repo.
-2. *Recommended*: point your global `~/.claude/CLAUDE.md` at your Obsidian vault (one line: where it lives and that repo CLAUDE.md files reference notes inside it). The vault is the knowledge layer — project notes, PRDs, decisions — and what `/wayworks-onboard` links against.
+1. Install the marketplace and the core plugins (above), or let `/shared:wayworks-init` do it per repo.
+2. *Recommended*: point your global `~/.claude/CLAUDE.md` at your Obsidian vault (one line: where it lives and that repo CLAUDE.md files reference notes inside it). The vault is the knowledge layer — project notes, PRDs, decisions — and what `/shared:wayworks-onboard` links against.
 3. *Optional*: connect a tracker. Linear (via the claude.ai connector) gets the deepest integration; GitHub Issues or a backlog inside your vault work too — the commands adapt to what you have.
 
 **Per project**
-- `/wayworks-onboard <name-or-idea>` — takes inventory (repo? vault note? tracker project?), creates only what's missing, and wires the links between all three. Works from a bare idea (vault note + tracker only) up to a fully existing project (links only).
-- `/wayworks-init` — inside a repo: detects the stack, enables the right plugin fleet in committed `.claude/settings.json` (so your whole team gets it on clone), scaffolds the CLAUDE.md config header, and hands off to `/harness-init` for the verify gate.
+- `/shared:wayworks-onboard <name-or-idea>` — takes inventory (repo? vault note? tracker project?), creates only what's missing, and wires the links between all three. Works from a bare idea (vault note + tracker only) up to a fully existing project (links only).
+- `/shared:wayworks-init` — inside a repo: detects the stack, enables the right plugin fleet in committed `.claude/settings.json` (so your whole team gets it on clone), scaffolds the CLAUDE.md config header, and hands off to `/harness:harness-init` for the verify gate.
 
 > **Adapts to your setup**: no vault → knowledge lives in `docs/`; no Linear → pick Obsidian checkboxes, GitHub Issues, or `docs/BACKLOG.md`. Obsidian + Linear is the recommended pairing, not a requirement.
 
@@ -113,10 +113,10 @@ claude --plugin-dir ./plugins/shared --plugin-dir ./plugins/architect --plugin-d
 
 | Loop | What it does |
 |------|--------------|
-| Front half | superpowers `brainstorming` → spec → `writing-plans`, then hand the plan to the loop: `/loop-dev --plan docs/superpowers/plans/<plan>.md` |
-| `/loop-build` | Build-test-fix until the verify gate is green |
-| `/loop-dev` | Full feature loop: spec preflight → plan → build → parallel review/security/bug (+ optional design) subagents → dev test → docs postflight → PR + CI watch |
-| `/loop-deploy` | Deploy → watch → verify prod → fix/redeploy or roll back → sync repo docs, vault log, and Linear |
+| Front half | superpowers `brainstorming` → spec → `writing-plans`, then hand the plan to the loop: `/harness:loop-dev --plan docs/superpowers/plans/<plan>.md` |
+| `/harness:loop-build` | Build-test-fix until the verify gate is green |
+| `/harness:loop-dev` | Full feature loop: spec preflight → plan → build → parallel review/security/bug (+ optional design) subagents → dev test → docs postflight → PR + CI watch |
+| `/harness:loop-deploy` | Deploy → watch → verify prod → fix/redeploy or roll back → sync repo docs, vault log, and Linear |
 
 Between loops: `feature-bank` guards scope on every code edit; review/test/security skills run on demand; browser verification via Claude's built-in browser tooling or `chrome-devtools-mcp`.
 
@@ -129,10 +129,10 @@ Between loops: `feature-bank` guards scope on every code edit; review/test/secur
 
 | Skill | Description |
 |-------|-------------|
-| `/conventions` | Apply wayworks working conventions — simplicity-first, explicit errors, conventional commits (language-agnostic) |
-| `/create-skill` | Generate a new SKILL.md with proper frontmatter and structure |
-| `/wayworks-init` | Bootstrap a repo as a wayworks workspace — plugin fleet in `.claude/settings.json`, CLAUDE.md header, harness handoff |
-| `/wayworks-onboard` | Onboard a project from any starting point — create + link Linear project ↔ vault note ↔ repo, adapting to what exists |
+| `/shared:conventions` | Apply wayworks working conventions — simplicity-first, explicit errors, conventional commits (language-agnostic) |
+| `/shared:create-skill` | Generate a new SKILL.md with proper frontmatter and structure |
+| `/shared:wayworks-init` | Bootstrap a repo as a wayworks workspace — plugin fleet in `.claude/settings.json`, CLAUDE.md header, harness handoff |
+| `/shared:wayworks-onboard` | Onboard a project from any starting point — create + link Linear project ↔ vault note ↔ repo, adapting to what exists |
 
 **Stack profiles** (auto-loaded based on project files — this is where language/stack opinions live):
 - `nextjs-vercel` — Next.js App Router + TypeScript style + Tailwind/Prisma + Vercel conventions
@@ -150,10 +150,10 @@ Ships hooks (auto-approve reads, `Stop`-gate loop enforcement, write-time qualit
 
 | Command | Description |
 |---------|-------------|
-| `/harness-init` | Set up the harness in a project — verify gate (`.cc-verify`), loop configs, gitignore |
-| `/loop-build` | Build-test-fix loop that runs until the verify gate is green |
-| `/loop-dev` | Staged dev loop: spec preflight → plan (`--plan <path>`) → build → review subagents → dev test → docs postflight → PR + CI watch |
-| `/loop-deploy` | Prod deploy loop: deploy → watch → verify → fix/redeploy until healthy, rollback on exhaustion; knowledge sync on success |
+| `/harness:harness-init` | Set up the harness in a project — verify gate (`.cc-verify`), loop configs, gitignore |
+| `/harness:loop-build` | Build-test-fix loop that runs until the verify gate is green |
+| `/harness:loop-dev` | Staged dev loop: spec preflight → plan (`--plan <path>`) → build → review subagents → dev test → docs postflight → PR + CI watch |
+| `/harness:loop-deploy` | Prod deploy loop: deploy → watch → verify → fix/redeploy until healthy, rollback on exhaustion; knowledge sync on success |
 
 </details>
 
@@ -162,7 +162,7 @@ Ships hooks (auto-approve reads, `Stop`-gate loop enforcement, write-time qualit
 
 | Skill | Description |
 |-------|-------------|
-| `/feature-bank` | Enforce `/docs/features/` specs before any code change; interactive backfill for existing codebases |
+| `/feature-bank:feature-bank` | Enforce `/docs/features/` specs before any code change; interactive backfill for existing codebases |
 
 </details>
 
@@ -173,9 +173,9 @@ Includes `vuln-scanner` and `finding-verifier` sub-agents.
 
 | Skill | Description |
 |-------|-------------|
-| `/code-audit` | OWASP Top 10 code audit — injection, auth, data exposure |
-| `/dependency-check` | Audit dependencies for CVEs, outdated packages, bloat |
-| `/iam-review` | Review auth flows, RBAC, sessions, API key management |
+| `/security:code-audit` | OWASP Top 10 code audit — injection, auth, data exposure |
+| `/security:dependency-check` | Audit dependencies for CVEs, outdated packages, bloat |
+| `/security:iam-review` | Review auth flows, RBAC, sessions, API key management |
 | `security-scan` | Supply-chain scan of agent configs (requires external `ecc-agentshield` via npx) |
 
 </details>
@@ -185,9 +185,9 @@ Includes `vuln-scanner` and `finding-verifier` sub-agents.
 
 | Skill | Description |
 |-------|-------------|
-| `/unit-tests` | Generate isolated unit tests with edge cases and mocks |
-| `/integration-tests` | Generate integration tests with real database |
-| `/e2e-tests` | Generate Playwright/Cypress end-to-end tests |
+| `/test-builder:unit-tests` | Generate isolated unit tests with edge cases and mocks |
+| `/test-builder:integration-tests` | Generate integration tests with real database |
+| `/test-builder:e2e-tests` | Generate Playwright/Cypress end-to-end tests |
 
 </details>
 
@@ -200,9 +200,9 @@ Includes `design-reviewer` and `security-reviewer` sub-agents.
 
 | Skill | Description |
 |-------|-------------|
-| `/system-design` | Design system architecture — components, data flow, infra |
-| `/tradeoff-analysis` | Compare options with structured pros/cons/recommendation |
-| `/adr-writer` | Write + manage ADRs — generates records, scaffolds docs/adr/, list/status modes |
+| `/architect:system-design` | Design system architecture — components, data flow, infra |
+| `/architect:tradeoff-analysis` | Compare options with structured pros/cons/recommendation |
+| `/architect:adr-writer` | Write + manage ADRs — generates records, scaffolds docs/adr/, list/status modes |
 
 </details>
 
@@ -211,9 +211,9 @@ Includes `design-reviewer` and `security-reviewer` sub-agents.
 
 | Skill | Description |
 |-------|-------------|
-| `/api-design` | Design REST/GraphQL endpoints with schemas and validation |
-| `/db-schema` | Design or review Prisma database schemas |
-| `/error-handling` | Implement structured error handling patterns |
+| `/backend-dev:api-design` | Design REST/GraphQL endpoints with schemas and validation |
+| `/backend-dev:db-schema` | Design or review Prisma database schemas |
+| `/backend-dev:error-handling` | Implement structured error handling patterns |
 
 </details>
 
@@ -222,9 +222,9 @@ Includes `design-reviewer` and `security-reviewer` sub-agents.
 
 | Skill | Description |
 |-------|-------------|
-| `/component-builder` | Scaffold React components with types, a11y, and Tailwind |
-| `/styling-review` | Review Tailwind usage, design consistency, and patterns |
-| `/accessibility-check` | WCAG 2.1 AA code audit + UX experience mode (screen reader, keyboard, low vision, motor, cognitive) |
+| `/frontend-dev:component-builder` | Scaffold React components with types, a11y, and Tailwind |
+| `/frontend-dev:styling-review` | Review Tailwind usage, design consistency, and patterns |
+| `/frontend-dev:accessibility-check` | WCAG 2.1 AA code audit + UX experience mode (screen reader, keyboard, low vision, motor, cognitive) |
 
 </details>
 
@@ -233,10 +233,10 @@ Includes `design-reviewer` and `security-reviewer` sub-agents.
 
 | Skill | Description |
 |-------|-------------|
-| `/layout-review` | Visual hierarchy, spacing, alignment + responsive breakpoints and touch targets |
-| `/design-system` | Audit, scaffold, or extend a Tailwind design system |
-| `/heuristic-eval` | Nielsen's 10 heuristics evaluation with severity ratings |
-| `/user-flow-analysis` | Map user flows, identify friction and drop-off risks |
+| `/design:layout-review` | Visual hierarchy, spacing, alignment + responsive breakpoints and touch targets |
+| `/design:design-system` | Audit, scaffold, or extend a Tailwind design system |
+| `/design:heuristic-eval` | Nielsen's 10 heuristics evaluation with severity ratings |
+| `/design:user-flow-analysis` | Map user flows, identify friction and drop-off risks |
 
 </details>
 
@@ -247,9 +247,9 @@ Includes `regression-scanner` sub-agent.
 
 | Skill | Description |
 |-------|-------------|
-| `/edge-case-finder` | Identify edge cases, boundary conditions, and failure modes |
-| `/bug-review` | Analyze bug reports, find root causes, verify fixes |
-| `/regression-check` | Trace code changes for potential regressions |
+| `/qa:edge-case-finder` | Identify edge cases, boundary conditions, and failure modes |
+| `/qa:bug-review` | Analyze bug reports, find root causes, verify fixes |
+| `/qa:regression-check` | Trace code changes for potential regressions |
 
 </details>
 
@@ -258,10 +258,10 @@ Includes `regression-scanner` sub-agent.
 
 | Skill | Description |
 |-------|-------------|
-| `/pipeline-design` | Design ETL/ELT pipelines with monitoring and error handling |
-| `/schema-review` | Review schemas for normalization, indexes, naming |
-| `/sql-optimizer` | Analyze and optimize SQL queries |
-| `/pipeline-verify` | Run a pipeline against a bounded sample in dev; assert schema, row accounting, idempotency, clean logs |
+| `/data-engineer:pipeline-design` | Design ETL/ELT pipelines with monitoring and error handling |
+| `/data-engineer:schema-review` | Review schemas for normalization, indexes, naming |
+| `/data-engineer:sql-optimizer` | Analyze and optimize SQL queries |
+| `/data-engineer:pipeline-verify` | Run a pipeline against a bounded sample in dev; assert schema, row accounting, idempotency, clean logs |
 
 </details>
 
@@ -272,10 +272,10 @@ Includes `deploy-checker` sub-agent.
 
 | Skill | Description |
 |-------|-------------|
-| `/dockerfile` | Generate or review multi-stage Dockerfiles |
-| `/ci-pipeline` | Generate CI/CD configs (GitHub Actions, Railway, Vercel) |
-| `/infra-review` | Review Docker, CI, deploy, env vars, production readiness |
-| `/repo-protection` | Branch rulesets, secret scanning, Dependabot, Actions hardening — OSS and private presets |
+| `/devops:dockerfile` | Generate or review multi-stage Dockerfiles |
+| `/devops:ci-pipeline` | Generate CI/CD configs (GitHub Actions, Railway, Vercel) |
+| `/devops:infra-review` | Review Docker, CI, deploy, env vars, production readiness |
+| `/devops:repo-protection` | Branch rulesets, secret scanning, Dependabot, Actions hardening — OSS and private presets |
 
 </details>
 
@@ -284,8 +284,8 @@ Includes `deploy-checker` sub-agent.
 
 | Skill | Description |
 |-------|-------------|
-| `/readme-gen` | Generate README by analyzing project code and config |
-| `/api-docs` | Generate API docs from route handlers (markdown or OpenAPI) |
+| `/tech-writer:readme-gen` | Generate README by analyzing project code and config |
+| `/tech-writer:api-docs` | Generate API docs from route handlers (markdown or OpenAPI) |
 
 </details>
 
@@ -294,9 +294,9 @@ Includes `deploy-checker` sub-agent.
 
 | Skill | Description |
 |-------|-------------|
-| `/user-stories` | Generate user stories with acceptance criteria |
-| `/task-breakdown` | Break features into tasks with estimates and dependencies |
-| `/prd-writer` | Generate PRDs with problem, solution, scope, metrics |
+| `/pm:user-stories` | Generate user stories with acceptance criteria |
+| `/pm:task-breakdown` | Break features into tasks with estimates and dependencies |
+| `/pm:prd-writer` | Generate PRDs with problem, solution, scope, metrics |
 
 </details>
 
@@ -313,7 +313,7 @@ Includes `deploy-checker` sub-agent.
 
 ## 🧰 Per-project setup
 
-The easiest path is `/wayworks-init`, which writes this for you. Manually, drop into your project's `.claude/settings.json` (committed, so the whole team gets the same fleet on clone):
+The easiest path is `/shared:wayworks-init`, which writes this for you. Manually, drop into your project's `.claude/settings.json` (committed, so the whole team gets the same fleet on clone):
 
 ```json
 {

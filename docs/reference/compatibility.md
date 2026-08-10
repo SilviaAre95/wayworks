@@ -35,12 +35,12 @@ Every gate is a hook. If any of this changes, the loops stop enforcing and keep 
 
 - `!\`...\`` pre-execution in a command body — arms the loops.
 - `${CLAUDE_PLUGIN_ROOT}` expansion in a command body and in `allowed-tools`. Precedent: Anthropic's own `ralph-loop`, `hookify`, `plugin-dev`, and `code-modernization` plugins use this.
-- **Verified 2026-08-09 against 2.1.226:** `${CLAUDE_PLUGIN_ROOT}` *does* expand inside `!` pre-execution. A real `/loop-dev` run printed the preflight's output in full. Both the arm script and the preflight rely on this.
+- **Verified 2026-08-09 against 2.1.226:** `${CLAUDE_PLUGIN_ROOT}` *does* expand inside `!` pre-execution. A real `/harness:loop-dev` run printed the preflight's output in full. Both the arm script and the preflight rely on this.
 - `$ARGUMENTS` substitution. Positional `$0`/`$1` populate only for *typed* commands and leak literally under model invocation, which is why `scripts/lint-skills.sh` rejects them outright.
 
 ### Bundled skills
 
-`/loop-dev`'s default `code-review` grader invokes Anthropic's **bundled** `/code-review` skill by name. Bundled-skill policy is Claude Code's, not ours:
+`/harness:loop-dev`'s default `code-review` grader invokes Anthropic's **bundled** `/code-review` skill by name. Bundled-skill policy is Claude Code's, not ours:
 
 - **v2.1.215** stopped auto-running `/verify` and `/code-review` from description matching. That silently degraded the grader into an improvised generic review — the marker still stamped, so nothing downstream noticed (XARI-86).
 - `disableBundledSkills` turns them off entirely, which would break this grader outright.
@@ -81,7 +81,7 @@ Anthropic's own plugins declare none of these keys. When in doubt, match their m
 
 Observed 2026-08-09: `ristretto-ai` listed `qa@wayworks: true` for days while the only registration was for a different project. Six of the seven plugins in that same file auto-registered; `qa` was the only one that already had a cache directory on disk from the other project, which is the likely reason its per-project registration was skipped. The result reads as healthy from every angle — valid manifest, populated cache, `true` in settings — and the skill still does not resolve.
 
-**Verify by invoking, never by reading config.** `/loop-dev`'s preflight says as much in its output. Fix with `/plugin install <name>@<marketplace>`.
+**Verify by invoking, never by reading config.** `/harness:loop-dev`'s preflight says as much in its output. Fix with `/plugin install <name>@<marketplace>`.
 
 ### Plugin updates need a session restart
 
