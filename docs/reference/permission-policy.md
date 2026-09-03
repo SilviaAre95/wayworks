@@ -11,11 +11,26 @@ Applies in every tier, including `bypassPermissions`.
   "Bash(rm -rf *)",
   "Bash(rm -rf /*)",
   "Bash(rm -rf ~/*)",
-  "Write(.git/**)",
-  "Write(.env)",
-  "Write(.env.*)"
+  "Edit(.git/**)",
+  "Edit(.env)",
+  "Edit(.env.*)"
 ]
 ```
+
+> **Why `Edit`, not `Write`.** Claude Code's file-permission checks only match
+> `Edit(path)` rules — and `Edit` rules cover *all* file-editing tools, Write
+> included. A `Write(.env)` deny is silently inert; Claude Code says so at
+> startup: *"Permission deny rule: Write(.env) is not matched by file
+> permission checks — only Edit(path) rules are."* This policy shipped the
+> inert form for months and every downstream repo copied it, so the rules
+> meant to protect `.env` and `.git` protected nothing. If you copied an
+> earlier version of this block, change `Write(` to `Edit(` in your
+> settings.
+>
+> **Unverified, worth testing:** the `Bash(sudo *)` space-glob form above
+> predates this fix. The documented pattern form is `Bash(cmd:*)`. Claude
+> Code emitted no warning for these, but absence of a warning is not proof
+> they match — verify before relying on them as the only floor.
 
 ## Hard gates — `permissions.ask` (always prompt, even in build/bypass)
 
