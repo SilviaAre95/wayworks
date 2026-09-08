@@ -14,7 +14,7 @@ The goal state is a linked triangle: **Linear project ↔ vault note ↔ repo**.
 
 2. **Create what's missing** (in this order — knowledge first, tracking second, code last):
    - **Vault note**: instantiate the vault's `_templates/tpl-project.md` (fill `created`/`updated` with today, write a real one-line `summary:` — it's what agents scan). Sections: Goal, Context, Tasks, Log, Resources. Follow the vault's `_agent/INSTRUCTIONS.md` rules and link the note from `_index/MOC-Projects.md`.
-   - **Linear project**: create via `save_project` with a description that follows the house pattern: one bold type line (e.g. **Venture — fullstack.**), a 2–3 sentence scope, then `Local repo:` and `Vault note:` pointer lines. If starting from just an idea, also seed 3–5 starter issues from the vault note's Tasks section.
+   - **Linear project**: create it with `/shared:linear-project` — it owns the description pattern (bold type line, 2–3 sentence scope, `Local repo:` and `Vault note:` pointer lines), the first milestone, and the 3–5 starter issues, each written with `/shared:linear-issue`. If starting from just an idea, seed the starter issues from the vault note's Tasks section. Write each one with `/shared:linear-issue` so they stay short.
    - **Repo**: if none exists and the user wants one now, create the directory, `git init`, and add a README stub. If it's idea-stage only, skip — the vault note and Linear project are enough; note in both where the repo will live when created.
 
 3. **Wire the links** (idempotent — fix stale links on projects that already have all three):
