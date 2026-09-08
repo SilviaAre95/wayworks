@@ -53,6 +53,8 @@ Re-check after any Claude Code upgrade. A degraded grader looks identical to a w
 
 Model values are aliases (`sonnet`/`opus`/`haiku`), never dated IDs, because dated IDs rot.
 
+`claude plugin validate` (skill frontmatter checks since 2.1.77, bare `.claude/skills` scanning since 2.1.233) is **not** a substitute for the linter and does not replace it: verified 2026-09-08 on 2.1.263 that it flags only a whole-block YAML parse failure, enforces no house rule, and scans skills only when pointed at a plugin root or a skills directory — from the repo root it validates `marketplace.json` alone. Full comparison in `first-party-overlap.md`.
+
 ### No shell redirection inside a command's `!` block
 
 Somewhere between 2.1.222 and 2.1.226, output redirection in `!` pre-execution became a hard permission failure:

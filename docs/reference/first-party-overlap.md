@@ -42,6 +42,29 @@ What `create-skill` uniquely carries is the *house pattern* — `Steps → Outpu
 
 ### Keep — no real first-party equivalent
 
+**`claude plugin validate` vs `scripts/lint-skills.sh`** — checked 2026-09-08 against Claude Code 2.1.263 (XARI-109).
+
+The built-in has validated skill frontmatter since 2.1.77 and gained bare-`.claude/skills` scanning in 2.1.233, so the question was whether `lint-skills.sh` still earns its place. Measured on a fixture tree that breaks every rule the linter enforces:
+
+| Fixture | `claude plugin validate --strict` | `lint-skills.sh` |
+|---|---|---|
+| Unterminated quote in `description` (whole block fails to parse) | error | error (as "must be quoted") |
+| No frontmatter block | warning | error |
+| Bare `description` containing `:` and `#` | silent | error |
+| Missing `name` | silent | error |
+| `name` ≠ directory | silent | error |
+| Missing `user-invocable` | silent | error |
+| Reads `$ARGUMENTS`, no `argument-hint` | silent | error |
+| Positional `$0`/`$1` | silent | error |
+| House keys fine, unrelated key `[unterminated` | silent | silent |
+| Duplicate `description` key | silent | silent |
+
+The built-in checks one thing: does the YAML block parse at all. It does not know or enforce any house rule, and it missed two of the three parse-failure variants tried. Its one genuine addition — a block where every house key is well-formed but some *other* line breaks the parse, so the runtime drops all metadata — is a class the awk linter cannot see and the built-in only sometimes does.
+
+Scope also matters: run from the repo root it validates `marketplace.json` and **nothing else** — a marketplace fixture whose plugin contained broken skills passed clean. It scans `skills/` only when pointed at a plugin root or a skills directory directly.
+
+**Verdict: keep `lint-skills.sh` unchanged.** Nothing to thin. `claude plugin validate --strict plugins/<name>` is worth running by hand before a release for the parse-failure class, and stays out of `make check` for the same reason `check-ruleset.sh` does: CI has no `claude` binary, and a step that silently skips in CI would make "`make check` is what CI runs" false.
+
 - **`harness`** (all four commands + hooks). `ralph-loop` is the nearest thing and is a different mechanism entirely: it repeats a task until the model judges it complete. The harness gates on *measurable* outcomes — a passing `.cc-verify`, a fingerprinted review marker — and refuses to stop until they hold. Self-assessed completion is exactly what the harness exists to not trust. This is the moat.
 - **`feature-bank`.** Nothing first-party does spec-preflight/postflight gating on code edits.
 - **`devops`** (`ci-pipeline`, `dockerfile`, `infra-review`), **`data-engineer`**, **`backend-dev`**, **`pm`**, **`tech-writer`**, **`test-builder`**. No first-party equivalents.
