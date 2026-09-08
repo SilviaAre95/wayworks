@@ -12,6 +12,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.7.0] — 2026-09-08
+
+Linear gets house rules: tickets that fit on one screen, updates that say one thing, projects that point.
+
+### Added
+- **`shared` `2.2.0`** — three skills that own every Linear write in the fleet (XARI-122):
+  - **`/shared:linear-issue`** — invoked before creating or rewriting an issue. Claude-written tickets were running 400+ words with headers, a rationale section and a retelling of how the bug was found, which buries the ask. The skill states what a ticket *is*: title `<type> - <App>: <sentence>` (`bug`, `feat`, `chore`, `docs`, `spec`, `trend`), problem in one or two sentences, evidence as `path:line` or a command, fix as bullets, at most three acceptance criteria, no headers, no tables, under 150 words measured with `wc -w` before submitting. A ticket is a **spec** only when the input contains decisions — choices made where another option existed, with the reason each went the way it did; specs keep their Decisions table with no cap, and a spec's ordered slices become short-form sub-issues under it.
+  - **`/shared:linear-update`** — one comment per event (`started`, `pr-opened`, `stood-down`, `blocked`, `deployed`, `corrected`), under 80 words: what happened, a bare URL, and the one thing a human must do next, plus the state the event implies. Checks for an existing comment with the same URL first so a re-run never double-posts. The PR carries the change, the log carries the trace; the ticket carries neither.
+  - **`/shared:linear-project`** — a project record is a pointer: bold kind-and-stack line, two or three sentences, `Local repo:` and `Vault note:` lines, under 80 words; one milestone only if the brief names one; three to five starter issues written with `linear-issue`. The description pattern moved here out of `/shared:wayworks-onboard`, which now delegates.
+
+  Written test-first: fresh agents given each scenario without the skill, then with it. Bug facts: 401 and 380 words without, 149 / 145 / 126 with, all in the four-part form with typed titles. A decisions-heavy input stayed a spec at 388 words. A PR-opened comment: 151 words without, 17 with. A stand-down comment: 193 without, 50 with, state left In Progress both times. A project brief: seven untyped free-form issues without; a 57-word pointer description, one milestone and five typed short-form issues with. Skills live in `shared`, not `pm`, because `shared` is enabled in every repo and issues get written from all of them.
+
 ## [marketplace 4.6.0] — 2026-09-08
 
 A gate that stands down now leaves a record.

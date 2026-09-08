@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "An open-source way of work for AI-assisted building — plugins, second-brain support, and tracker integration",
-    "version": "4.6.0",
+    "version": "4.7.0",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -14,7 +14,7 @@
       "name": "shared",
       "source": "./plugins/shared",
       "description": "Shared conventions, coding style, and meta-skills",
-      "version": "2.1.5",
+      "version": "2.2.0",
       "category": "conventions",
       "tags": [
         "conventions",

@@ -19,7 +19,7 @@ your agent plans, builds, reviews, tests, ships, and documents. You review and m
 
 ---
 
-Every project lives in a linked triangle — **repo ↔ second brain ↔ tracker** — and every feature travels a gated pipeline where the agent cannot declare "done" until something measurable agrees. 14 plugins, 44 skills (5 of them stack profiles), 6 commands, and 6 sub-agents.
+Every project lives in a linked triangle — **repo ↔ second brain ↔ tracker** — and every feature travels a gated pipeline where the agent cannot declare "done" until something measurable agrees. 14 plugins, 47 skills (5 of them stack profiles), 6 commands, and 6 sub-agents.
 
 - `/shared:wayworks-init` — bootstrap a repo: plugin fleet, CLAUDE.md header, verify gate
 - `/shared:wayworks-onboard` — link a project's triangle: repo ↔ second brain ↔ tracker
@@ -131,6 +131,9 @@ Between loops: `feature-bank` guards scope on every code edit; review/test/secur
 |-------|-------------|
 | `/shared:conventions` | Apply wayworks working conventions — simplicity-first, explicit errors, conventional commits (language-agnostic) |
 | `/shared:create-skill` | Generate a new SKILL.md with proper frontmatter and structure |
+| `/shared:linear-issue` | Write a Linear issue that fits on one screen — `type - App: sentence` title, problem, evidence, fix, acceptance; specs keep their decisions, slices become sub-issues |
+| `/shared:linear-project` | Scaffold a Linear project — pointer-style description, one milestone, 3–5 starter issues via `linear-issue` |
+| `/shared:linear-update` | Post one comment per event to a Linear issue (PR opened, stood down, blocked, deployed, corrected) under 80 words, and set the state it implies |
 | `/shared:wayworks-init` | Bootstrap a repo as a wayworks workspace — plugin fleet in `.claude/settings.json`, CLAUDE.md header, harness handoff |
 | `/shared:wayworks-onboard` | Onboard a project from any starting point — create + link Linear project ↔ vault note ↔ repo, adapting to what exists |
 
