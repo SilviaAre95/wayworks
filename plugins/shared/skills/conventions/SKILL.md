@@ -15,7 +15,7 @@ Apply these conventions to all code you write or review, in any language. Stack-
 - **No over-engineering** — if the simple fix is correct, use it
 - **No speculative abstractions** — three similar lines > a premature abstraction
 - **Delete dead code** — no `_unused` vars, no `// removed` comments, no re-exports for backwards compat
-- **Delegate reading, keep the main thread thin** — exploration spanning more than a couple of files goes to a subagent that returns the conclusion, not the file contents. A subagent carries a fraction of the context, so it costs a fraction of the per-turn price, and the main thread stays cheap for the turns that need judgment
+- **Delegate exploration, not editing or review** — when the question is *where does X live* or *does Y exist anywhere*, send it to a subagent and take the answer; the parent pays one small turn instead of many large ones. Read files directly when you are about to **edit** them (the edit needs the file in your own context) or **review** them (a reviewer must see the code, never a summary of it)
 
 ## Error Handling
 

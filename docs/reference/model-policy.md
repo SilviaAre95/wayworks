@@ -19,31 +19,46 @@ Rationale: judgment-heavy, adversarial work (security, architecture) gets the bi
 
 ### Fan-out cost (measured 2026-09-08)
 
-Measured over the 79 local transcripts in `~/.claude/projects` — about 2.9B tokens, roughly $2.5k at Anthropic list rates — covering ristretto, pilates-flow, wayworks, kaffecard and obex work. Reproduce with a script over the `usage` objects in those transcripts; `session-report` produces the same shape.
+Measured over the local transcripts in `~/.claude/projects` by `scripts/measure-token-spend.py`, which prints every table in this section. **Re-run it before acting on any number here, including these** — the first pass at this measurement got two of them wrong, and the script exists so the next reader does not have to trust prose.
 
-| Where the work ran | Share of cost | Turns | Cost/turn | Median context/turn |
+| Where the work ran | Share of cost | Turns | $/turn | Median context/turn |
 |---|---|---|---|---|
-| Interactive session (main thread) | 97.7% | 6,577 | $0.374 | 396k |
-| Subagent | 2.3% | 1,347 | $0.043 | 56k |
+| Interactive session (main thread) | 97.4% | 6,676 | $0.372 | 399k |
+| Subagent | 2.6% | 1,534 | $0.044 | 57k |
 
-**Subagent fan-out is ~9× cheaper per turn, not more expensive.** A subagent works in a small fresh context; a main-thread turn re-reads the whole conversation. Systima's "The Subagent Tax" ([systima.ai/blog/subagent-tax](https://systima.ai/blog/subagent-tax), ~2026-07) measured fan-out at **2.6×–5.9× the tokens** of sequential work, blaming each subagent re-paying its own system prompt and tool set. That overhead is real, and it is dwarfed by the variable their setup holds constant: what a long parent conversation costs to re-read every turn. Their number is not wrong about their rig; it is the wrong variable for ours.
+**What this shows, and what it does not.** A subagent turn costs ~8× less than a main-thread turn because it works in a 57k context instead of a 399k one. That is close to definitionally true, and it is **not** a refutation of Systima's "The Subagent Tax" ([systima.ai/blog/subagent-tax](https://systima.ai/blog/subagent-tax), ~2026-07), which measured *the same work* done sequentially versus fanned out at 2.6×–5.9× the tokens. This sample contains no sequential counterfactual, and per-locus accounting cannot produce one: a subagent's report lands in the parent's context and is re-read on every later parent turn, and that cost is charged to the parent, never to the subagent.
 
-Consequence: the panel-scaling rules in `loop-dev.md` step 5 stay as they are, but their justification changes — they bound latency and review noise, not cost. **Never skip a grader to save tokens; the saving is not there.** Prefer dispatching read-heavy work to a subagent over doing it on the main thread.
+What the sample does support is narrower and still decides the question: **subagents were 2.6% of all spend.** No grader panel in this repo is a material cost line. The scaling rules in `loop-dev.md` step 5 stay as they are, but their justification is latency and review noise, not cost — **never skip a grader to save tokens.**
 
-**Where the cost actually is: session length.** Per-turn cost grows with the conversation, so a session's total grows with the square of its length.
+**Where the cost is: session length.** Per-turn cost rises with the conversation, so a session's total rises faster than its turn count.
 
-| Turn number | Median context/turn |
+| Session | Main turns | Median ctx, first 25 turns | Last 25 turns | Growth |
+|---|---|---|---|---|
+| largest | 3,580 | 47k | 433k | 9.3× |
+| | 1,263 | 79k | 125k | 1.6× |
+| | 1,014 | 60k | 747k | 12.5× |
+| | 341 | 75k | 473k | 6.3× |
+| | 217 | 75k | 248k | 3.3× |
+
+Median growth excluding the largest session is **4.8×**, so this is not an artifact of one runaway session. Note what it is *not* evidence of: the largest session was 57% of measured spend but also 53% of main-thread turns, so its cost is roughly *proportional* to its length. The effect is within a session, turn over turn, not across sessions.
+
+No harness gate catches this. The gates fire only on an armed loop, and the expensive sessions are unarmed interactive ones; Claude Code already shows context usage in the UI. Treat it as a practice — hand off at a PR or issue boundary — rather than something to build.
+
+**Rejected — routing large file reads to a cheap worker model.** Spotify's "shunt" pattern (engineering.atspotify.com, 2026-09-03) blocks reads over 350 lines with a `PreToolUse` hook and hands them to a cheap model, measured at ~90% savings on a Java monorepo full of large files. Derivation of why it cannot pay here:
+
+| | |
 |---|---|
-| 0–24 | 68k |
-| 100–124 | 152k |
-| 200–224 | 248k |
-| 300+ | 534k |
+| File-read text reaching context | **702k tokens** — 468k via Bash (`cat`/`head`/`sed -n`/`tail`), 234k via the `Read` tool |
+| Share of all tool-result text | 64% |
+| Average re-read amplification (`cache_read` ÷ `cache_creation`) | 21.9× |
+| Amplified file-read cost | 15.4M of 2,872M `cache_read` tokens |
+| **Share of spend a perfect shunt could address** | **0.54%** |
 
-Three quarters of sampled main-thread turns sat past turn 300. A single 3,516-turn interactive session was **57% of all measured spend**. The lever is handing off at a natural boundary — a PR, an issue — rather than carrying one session for hours. No harness gate catches this: the expensive sessions were never armed, and Claude Code already shows context usage in the UI.
+Two traps that first pass fell into, recorded so the next one does not. **Do not measure file reads from the `Read` tool alone** — agents read files through Bash constantly, and Bash carries twice the file-read volume of `Read` here, which is also why the raw per-tool ranking puts Bash on top. And **do not count `toolUseResult` json length as tokens** — the largest of those records are base64 screenshots, where chars÷4 overstates tokens by orders of magnitude. Only 3–8 files per repo in this workspace exceed 350 lines at all. Do not re-propose the shunt from a release-notes scan without re-running the script.
 
-**Fork dispatch for graders — argued against by this data.** v2.1.232 made `subagent_type: "fork"` the default, and a fork inherits the parent's full conversation and prompt cache. That removes the system-prompt overhead Systima blamed, but it swaps a 56k grader context for the parent's, which the first table says is exactly where the money goes. A fork also always runs on the parent's model, so the tiering above cannot apply to it, and a grader that inherits the author's reasoning is not an independent reviewer. Keep graders on fresh subagents.
+**Why delegation still pays when the shunt does not.** They are different mechanisms and the numbers are not in conflict. A shunt removes tool-result *bytes* from the parent, worth ~0.5%. Delegation removes *turns* from the parent: exploration that takes fifteen turns costs fifteen turns at the parent's context size, versus fifteen at a subagent's 57k with only the conclusion coming back. The saving is in the turn count, not the payload.
 
-**Rejected — routing large file reads to a cheap worker model.** Spotify's "shunt" pattern (engineering.atspotify.com, 2026-09-03) blocks reads over 350 lines with a `PreToolUse` hook and hands them to a cheap model, measured at ~90% savings on a Java monorepo full of large files. It cannot pay here: all tool results across the 79 transcripts total ~996k tokens, of which `Read` is 208k — so blocking every large read saves ~0.16% of spend. `Bash` output is ~3× `Read` volume, so even the tool ranking does not transfer, and only 3–8 files per repo exceed 350 lines. Do not re-propose this from a release-notes scan without re-measuring.
+**Fork dispatch for graders.** v2.1.232 made forked subagents available without the `CLAUDE_CODE_FORK_SUBAGENT=1` env var that had gated them since v2.1.117. It did **not** make every subagent a fork: `subagent_type: "fork"` forks the caller, while any other type — or omitting it — starts a fresh agent. A grader dispatch that names no type is therefore already a fresh context, which is what the 57k above measures. Keep it that way. A fork would swap that 57k for the parent's context, always runs on the parent's model so the tiering above cannot apply to it, and inherits the author's reasoning, which is the opposite of an independent review.
 
 ## Pinning a model
 
