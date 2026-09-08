@@ -21,6 +21,8 @@ Rationale: judgment-heavy, adversarial work (security, architecture) gets the bi
 
 Measured over the local transcripts in `~/.claude/projects` by `scripts/measure-token-spend.py`, which prints every table in this section. **Re-run it before acting on any number here, including these** — the first pass at this measurement got two of them wrong, and the script exists so the next reader does not have to trust prose.
 
+These figures are a **snapshot** (2026-09-08, ~8,200 turns of transcript). The corpus grows with every session, so re-running gives different absolute numbers — turn counts climb, and shares and amplification drift by a few tenths. That is expected and is not a discrepancy. **The finding is the ratios and the order of magnitude**, which have held across every run: a subagent turn is roughly an order of magnitude cheaper than a main-thread turn, subagents are a low-single-digit share of spend, and a perfect read-shunt addresses well under one percent.
+
 | Where the work ran | Share of cost | Turns | $/turn | Median context/turn |
 |---|---|---|---|---|
 | Interactive session (main thread) | 97.4% | 6,676 | $0.372 | 399k |
