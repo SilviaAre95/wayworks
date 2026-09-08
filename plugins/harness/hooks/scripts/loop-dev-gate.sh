@@ -7,6 +7,7 @@
 # sibling gates and overlapping sessions via gate-lock.sh.
 set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-lock.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-standdown.sh"
 INPUT=$(cat)
 DIR="${CLAUDE_PROJECT_DIR:-$(printf '%s' "$INPUT" | jq -r '.cwd // "."')}"
 SENTINEL="$DIR/.cc-loop-dev-active"
@@ -46,6 +47,7 @@ if ! ( cd "$DIR" && eval "$GATE" ) >"$LOG" 2>&1; then
   ATTEMPTS=$((ATTEMPTS + 1)); echo "$ATTEMPTS" > "$STATE"
   TAIL="$(tail -40 "$LOG" 2>/dev/null)"
   if [ "$ATTEMPTS" -ge "$MAX" ]; then
+    gate_standdown "$DIR" loop-dev deterministic-breaker "attempts=$MAX"
     rm -f "$SENTINEL" "$STATE" "$ROUNDS_FILE"
     jq -n --arg log "$TAIL" --arg max "$MAX" \
       '{decision:"block", reason:("Circuit breaker: deterministic gate still failing after " + $max + " attempts. Stop fixing and summarize what is still broken:\n" + $log)}'
@@ -104,6 +106,7 @@ review_round() {  # increment the round counter; fails when the budget is spent
   [ "$r" -le "$MAXR" ]
 }
 review_breaker() {  # disarm and tell the agent to summarize, not re-grade
+  gate_standdown "$DIR" loop-dev review-breaker "rounds=$MAXR"
   rm -f "$SENTINEL" "$STATE" "$ROUNDS_FILE" "$MARKER"
   jq -n --arg max "$MAXR" \
     '{decision:"block", reason:("Review circuit breaker: " + $max + " review rounds without a clean stamped marker. Stop dispatching graders and do NOT stamp the marker — summarize the outstanding findings and what you changed, then stop. The loop is disarmed.")}'
