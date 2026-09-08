@@ -11,7 +11,7 @@ This profile is automatically loaded when working in a Next.js project deployed 
 
 ## Architecture Conventions
 
-- **Next.js 14+** with App Router (not Pages Router)
+- **Next.js 16+** with App Router (not Pages Router)
 - **React Server Components** by default; `"use client"` only when needed
 - **Prisma** for database access with PostgreSQL
 - **Tailwind CSS** for styling
@@ -45,7 +45,8 @@ prisma/
 - Metadata API for SEO: `export const metadata = { ... }` or `generateMetadata()`
 - Loading UI: `loading.tsx` for Suspense boundaries
 - Error UI: `error.tsx` for error boundaries
-- Middleware: `middleware.ts` at project root for auth/redirects
+- Proxy: `proxy.ts` at project root exporting `proxy(request)` for auth/redirects. Node.js runtime only — a `runtime` export in this file is a build error. Never rely on it alone for auth: a matcher change silently drops coverage, so authorize inside each Server Function too
+- Upgrading from 15: `middleware.ts` is deprecated but still runs. Rename it with `npx @next/codemod@canary middleware-to-proxy .` (renames the file and the exported function); `skipMiddlewareUrlNormalize` becomes `skipProxyUrlNormalize`
 
 ## TypeScript & Code Style
 
@@ -60,7 +61,7 @@ prisma/
 ## Vercel-Specific
 
 - Environment variables: set in Vercel dashboard, not `.env` in production
-- Edge functions: use `export const runtime = 'edge'` sparingly
+- Edge functions: use `export const runtime = 'edge'` sparingly (route handlers and pages only — not available in `proxy.ts`)
 - ISR: `revalidate` export for static pages that update
 - Image optimization: use `next/image`, Vercel handles the CDN
 - Analytics: `@vercel/analytics` for web vitals
