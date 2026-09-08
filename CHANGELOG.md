@@ -12,6 +12,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.8.2] — 2026-09-08
+
+Two gaps found by using the skill shipped in 4.8.1 on real work.
+
+### Changed
+- **`shared` `2.2.2`** — `linear-update` gains two things it needed the first time it was used:
+  - **A `merged` event.** The event list ran `started → pr-opened → deployed`, so a repo that ships by merging rather than deploying had no terminal transition; marking an issue Done after a merge meant going outside the skill. `merged` carries which PR merged and what shipped, and sets Done. The constraint is explicit that `pr-opened` never sets Done, because the human merges.
+  - **A required PR attachment.** The skill posted the PR as a bare URL in a comment and stopped there. A comment scrolls away; a Linear attachment shows on the issue. `pr-opened` and `merged` now attach it with `links: [{url, title}]`, which is append-only, so a re-run cannot duplicate it. An issue whose work shipped and that carries no PR attachment is now explicitly unfinished.
+
+### Fixed
+- **`docs/reference/compatibility.md`** — the "Tested against" table read `2.1.226 / 2026-08-05` while the workspace ran 2.1.265, so it was 39 releases stale. It is now **two rows**, because the old single row conflated two claims and only one of them can be automated: *checks and docs* verified on **2.1.265** (`make check`, the `claude plugin validate` audit, the Agent-tool fork contract), and *gates exercised live* still on **2.1.226**, which only a real `/harness:loop-dev` run driving the `Stop` hooks can move. `make check` passing on a new version says our logic is intact and says nothing about whether Claude Code still reads a `Stop` hook's output the way the gates assume.
+
 ## [marketplace 4.8.1] — 2026-09-08
 
 Measured where the tokens go, and corrected the note that guessed.
