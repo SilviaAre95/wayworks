@@ -20,7 +20,7 @@ The deploy loop is **ARMED**. Execute these stages for the target below:
 6. **Success (knowledge sync).** When verify passes, the loop closes. Before announcing, sync the three knowledge surfaces:
    - **Repo**: confirm the docs reflect what shipped — feature-bank postflight done for touched features; README/CHANGELOG updated if the change is user-facing.
    - **Second brain**: if the user's global CLAUDE.md declares a vault, append a dated one-line entry to the project's vault note (Log section), following the vault's own write rules. No vault → skip.
-   - **Tracker**: move the Linear issue to Done.
+   - **Tracker**: `/shared:linear-update <key> deployed <target> <verify result>` — moves the issue to Done with a one-line comment.
    Then post to Slack: "🚀 <target> deployed, prod healthy" with the bare deployment URL.
 
 The `Stop` hook enforces the verify gate — you cannot finish while prod verification is failing, and you cannot exceed the redeploy budget without a rollback.
