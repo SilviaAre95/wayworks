@@ -12,6 +12,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.8.0] — 2026-09-08
+
+The loops talk to Linear through one skill.
+
+### Changed
+- **`harness` `1.9.0`** — `/harness:loop-dev` and `/harness:loop-deploy` route every Linear write through `/shared:linear-update` instead of carrying their own prose, and the board now reflects the loop's real state:
+  - **In Progress on task read.** loop-dev marks the issue when it starts, not when the PR opens. Before this, a loop that stood down left the issue in Backlog as if nobody had touched it.
+  - **Stand-downs reach the ticket.** When a circuit breaker trips on a task with a tracker issue, the loop posts the `stood-down` comment — which breaker, after how many attempts, what is still failing, which branch holds the work — before summarizing. Pairs with the `.cc-loop-standdowns.log` record from 4.6.0: the log is the trace, the ticket is what a human reads.
+  - **PR-opened and deployed** delegate the In Review and Done transitions, keeping the existing no-double-post guarantee.
+
+  Requires `shared` ≥ 2.2.0, which is core and enabled everywhere `/shared:wayworks-init` runs.
+
 ## [marketplace 4.7.0] — 2026-09-08
 
 Linear gets house rules: tickets that fit on one screen, updates that say one thing, projects that point.

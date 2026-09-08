@@ -71,7 +71,7 @@ loop, and escalates instead of looping forever, so prod is never left broken.
 Deploying to prod is a hard Approve/Deny gate, and a deploy that runs a DB
 migration needs a **second** explicit approval when `migrations_gate` is true.
 On success it syncs the knowledge surfaces — repo docs, the project's vault
-note log, the Linear issue — before announcing on Slack.
+note log, the Linear issue via `/shared:linear-update` — before announcing on Slack.
 Config — `deploy`, `watch`, `verify`, `rollback`, `max_redeploys`,
 `migrations_gate` — lives in `.cc-deploy.yaml`.
 
