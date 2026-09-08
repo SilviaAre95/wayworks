@@ -12,6 +12,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.5.6] — 2026-09-08
+
+Stack-profile fix — the Next.js profile taught a convention Next.js 16 deprecated.
+
+### Fixed
+- **`shared` `2.1.5`** — the `nextjs-vercel` stack profile told every Next.js project to put auth and redirects in `middleware.ts`. Next.js 16 renamed the convention to `proxy.ts` with an exported `proxy` function, pinned it to the Node.js runtime (a `runtime` export in the file is now a build error), renamed `skipMiddlewareUrlNormalize` to `skipProxyUrlNormalize`, and ships a codemod for the rename. The profile now documents all of that, moves its stated baseline from Next.js 14+ to 16+, and adds the reference's own warning that a matcher change can silently drop proxy coverage, so auth belongs inside each Server Function as well.
+
+  The lead for this (XARI-107) claimed a leftover `middleware.ts` is silently ignored after upgrading. Checked against the Next.js 16 upgrade guide and the `proxy` file-convention reference: it is not. `middleware.ts` is deprecated but still runs — the upgrade guide tells you to keep it if you need the edge runtime. The profile says what was verified, not what the lead claimed.
+
 ## [marketplace 4.5.5] — 2026-08-09
 
 Docs fix — every command and skill reference in the docs was unusable as written.
