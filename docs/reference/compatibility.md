@@ -6,12 +6,14 @@ Skills are portable prose; the **gates are not**. Hooks, plugin manifests, and s
 
 ## Tested against
 
-| | |
-|---|---|
-| Claude Code | **2.1.226** |
-| Last verified | 2026-08-05 |
+| | Version | Date | What that covers |
+|---|---|---|---|
+| **Checks and docs** | **2.1.265** | 2026-09-08 | `make check` (manifests, frontmatter lint, harness shell tests), the `claude plugin validate` audit, and the Agent-tool/fork contract recorded below |
+| **Gates exercised live** | **2.1.226** | 2026-08-05 | A real `/harness:loop-dev` run driving the `Stop` hooks end to end |
 
-This is the version wayworks was last exercised on, not a floor or a ceiling. Nothing enforces it. Older or newer versions may work fine — the point of this file is that when they don't, the list below is where to look.
+The two rows are deliberately separate, because they answer different questions and only one of them can be automated. `make check` passing on a new version says our own logic is intact; it says nothing about whether Claude Code still interprets a `Stop` hook's output the way the gates assume. **Only a live loop run moves the second row.** When you do one, move it and say so.
+
+Neither row is a floor or a ceiling, and nothing enforces either. Older or newer versions may work fine — the point of this file is that when they don't, the list below is where to look.
 
 ## What we depend on
 
