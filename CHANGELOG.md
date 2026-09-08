@@ -12,6 +12,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.8.1] — 2026-09-08
+
+Measured where the tokens go, and corrected the note that guessed.
+
+### Added
+- **`scripts/measure-token-spend.py`** — reads your own `~/.claude/projects` transcripts and prints every table in `model-policy.md`'s fan-out section. Nothing leaves the machine. It exists because the first pass at this measurement published two numbers nobody could reproduce, and a doc that gates a future decision on "re-measure first" has to ship the thing that measures.
+
+### Changed
+- **`shared` `2.2.1`** — `conventions` gains one bullet: delegate *exploration* to a subagent and take the answer, but read files directly when you are about to edit them (the edit needs the file in your own context) or review them (a reviewer must see the code, not a summary). The narrower wording is deliberate — the first draft said to delegate reading generally, which would have had a reviewer signing off on code it never read.
+
+### Fixed
+- **`docs/reference/model-policy.md`** — the "Fan-out cost" section rested on an external benchmark (Systima's "Subagent Tax", 2.6×–5.9× more tokens for fan-out) and said the thresholds would stay conservative until someone measured our own panel. Measured now: **a subagent turn costs ~$0.044 against ~$0.372 on the main thread**, carrying 57k of context against 399k, and **subagents were 2.6% of all spend**. The section is explicit that this does not refute Systima, who compared the same work sequential versus fanned out — per-locus accounting has no sequential counterfactual, since a subagent's report is re-read in the parent and charged there. What it does settle: no grader panel here is a material cost line, so never skip a grader to save tokens. `loop-dev.md` step 5 is unchanged; its justification is latency and review noise.
+
+  Also recorded: per-turn cost rises with conversation length (median context/turn 47k→433k across the largest session, 4.8× median growth excluding it), while noting that the largest session's 57% of spend is roughly *proportional* to its 53% of turns and so is not itself evidence of the effect. Spotify's read-shunt pattern is **rejected with a derivation**: file-read text is 702k tokens (468k of it via Bash, only 234k via `Read`), amplified 21.9× gives 15.4M of 2,872M `cache_read` — **0.54% of spend**.
+
+- **`docs/reference/model-policy.md`, `docs/reference/compatibility.md`** — both claimed v2.1.232 "made `subagent_type: "fork"` the default". It did not. That release lifted the `CLAUDE_CODE_FORK_SUBAGENT=1` gate, making forks *available* by default; omitting `subagent_type` still starts a fresh agent. As written, a reader would conclude their grader dispatches were silently inheriting the parent's context and model when they are not.
+
+- **`docs/reference/first-party-overlap.md`** — still said the fan-out measurement was available but unrecorded. It is recorded now, and by a committed script rather than by `session-report`, since the transcripts are plain JSONL.
+
 ## [marketplace 4.8.0] — 2026-09-08
 
 The loops talk to Linear through one skill.
