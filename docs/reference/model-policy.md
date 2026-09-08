@@ -25,6 +25,14 @@ The only numbers we have are external: Systima's "The Subagent Tax" ([systima.ai
 
 Consequence for now: none. The thresholds stay as they are until someone measures *this* panel. If you do that, record the numbers here and adjust `loop-dev.md` step 5 in the same PR.
 
+**Fork subagents may have moved this number (unmeasured).** Claude Code v2.1.232 made `subagent_type: "fork"` the default: a fork inherits the parent's full conversation *and prompt cache* rather than re-paying a fresh system prompt and tool set — which is precisely the overhead Systima blamed for the multiplier. That does not make the figure wrong for our panel, and it does not make fork dispatch the obvious replacement, for three reasons that cut the other way:
+
+- A fork carries the *whole session* into each grader, not just the diff. Cache reads are cheaper than fresh tokens but not free, and a long session multiplied by four graders is a different bill than four short fresh contexts. Which is larger depends on session length — unmeasured.
+- A fork always runs on the parent's model; the `model` override is ignored. The tiering above (`code-review`/`bugs` one tier down) cannot be applied to a forked grader at all.
+- A grader that inherits the author's reasoning is no longer an independent reviewer. It arrives already believing what the session believed. For `security` in particular, the value of the panel is that it does *not* share the author's assumptions.
+
+Consequence: still none. Same rule as above — measure this panel before touching `loop-dev.md` step 5, and if fork dispatch is part of what you measure, record the session length alongside the token counts, since that is the variable that decides it. `first-party-overlap.md` names `session-report` as the tool that can produce the numbers from local transcripts.
+
 ## Pinning a model
 
 - **Agents**: `model: sonnet | opus | haiku` in the agent frontmatter. Five of the six wayworks agents pin `sonnet`. The exception is `security:finding-verifier`, which is deliberately unpinned so it inherits the session model: its job is to disprove a Critical/High security finding, and a cheaper model that either rubber-stamps or over-refutes is worse than running no verification at all — an over-eager refutation deletes a real vulnerability from the report. This is the same reasoning that keeps the `security` grader on the session model.
