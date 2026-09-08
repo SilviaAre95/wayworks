@@ -96,6 +96,7 @@ Commands and skills are registered at session start. `claude plugin marketplace 
 - `marketplace.json` schema — validated structurally by `scripts/check.sh`, but against our expectations, not a published schema.
 - `acceptEdits` permission tier — the loops assume it exists.
 - Concurrent subagent dispatch, optionally with per-subagent model selection. `model-policy.md` treats that selection as best-effort ("when your dispatch tool supports it"), so losing it degrades cost, not correctness.
+- **Fork subagents** (`subagent_type: "fork"`, on by default since **v2.1.232**): the child inherits the *full parent conversation and prompt cache* instead of starting from a fresh isolated context, and always runs on the parent's model — a `model` override is ignored. Same release backgrounded non-teammate agent spawns by default in interactive sessions. Nothing in the loops uses fork dispatch today; recorded because it is a different cost and isolation shape from the fresh-context subagents `loop-dev.md` step 5 assumes, and because its model-inheritance rule collides with the per-grader tiering in `model-policy.md`. See the fan-out note there before adopting it for graders.
 
 ## Upstream claims are unverified until checked
 
