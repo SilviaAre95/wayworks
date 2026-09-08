@@ -7,6 +7,7 @@
 # serialized against sibling gates and overlapping sessions via gate-lock.sh.
 set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-lock.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-standdown.sh"
 INPUT=$(cat)
 DIR="${CLAUDE_PROJECT_DIR:-$(printf '%s' "$INPUT" | jq -r '.cwd // "."')}"
 SENTINEL="$DIR/.cc-deploy-active"
@@ -51,6 +52,7 @@ else ROLLBACK=""; fi
 # 4. No verify command configured -> cannot gate; tell the agent and allow stop.
 if [ -z "$VERIFY" ]; then
   jq -n '{decision:"block", reason:"loop-deploy is armed but .cc-deploy.yaml has no `verify:` command. Add one (health check + smoke + error-rate) or disarm with: rm .cc-deploy-active"}'
+  gate_standdown "$DIR" loop-deploy no-verify-command
   rm -f "$SENTINEL" "$STATE"
   exit 0
 fi
@@ -68,11 +70,12 @@ TAIL="$(tail -40 "$LOG" 2>/dev/null)"
 
 if [ "$ATTEMPTS" -ge "$MAX" ]; then
   # Exhausted: roll back to last-good, disarm, escalate.
-  ROLLMSG="(no rollback command configured)"
+  ROLLMSG="(no rollback command configured)"; ROLLSTATE=none
   if [ -n "$ROLLBACK" ]; then
-    if ( cd "$DIR" && eval "$ROLLBACK" ) >>"$LOG" 2>&1; then ROLLMSG="rolled back via: $ROLLBACK"; else ROLLMSG="ROLLBACK FAILED: $ROLLBACK — prod may be broken, act now"; fi
+    if ( cd "$DIR" && eval "$ROLLBACK" ) >>"$LOG" 2>&1; then ROLLMSG="rolled back via: $ROLLBACK"; ROLLSTATE=ok; else ROLLMSG="ROLLBACK FAILED: $ROLLBACK — prod may be broken, act now"; ROLLSTATE=FAILED; fi
   fi
   TAIL="$(tail -40 "$LOG" 2>/dev/null)"
+  gate_standdown "$DIR" loop-deploy redeploy-breaker "attempts=$MAX" "rollback=$ROLLSTATE"
   rm -f "$SENTINEL" "$STATE"
   jq -n --arg max "$MAX" --arg roll "$ROLLMSG" --arg log "$TAIL" \
     '{decision:"block", reason:("Prod still failing after " + $max + " redeploys. " + $roll + ". STOP redeploying — escalate to the user with what broke and what you tried:\n" + $log)}'

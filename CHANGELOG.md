@@ -12,6 +12,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.6.0] — 2026-09-08
+
+A gate that stands down now leaves a record.
+
+### Added
+- **`harness` `1.8.0`** — every circuit breaker now appends one line to **`.cc-loop-standdowns.log`** when it trips: `/harness:loop-build`'s verify breaker, `/harness:loop-dev`'s deterministic and review breakers, and `/harness:loop-deploy`'s redeploy breaker (with whether rollback ran, succeeded, or failed) and its no-`verify:`-command disarm. Each line carries a UTC timestamp, the loop, the breaker, its counter, the short `HEAD`, and a hash of `git diff HEAD` — the same fingerprint shape the review marker uses.
+
+  The breakers were doing the right thing — disarm, let the stop through, tell the agent to summarize — but the only record of *why* the loop ended was that one turn's hook output. Whoever merges the PR may never see it, and afterwards a stop reached by exhaustion is indistinguishable from a clean green run. `compatibility.md` already named this failure class in the abstract ("a gate that stops gating still lets you ship, so nothing tells you it stopped working"); this was a live instance of it inside the harness's own scripts (XARI-108, from `great_cto`'s "a stand-down that nobody recorded did not happen").
+
+  The file is append-only and no gate deletes it — a clean run writes nothing, so its presence is the signal. It matches the `.cc-loop-*` gitignore glob; `/harness:harness-init` now lists it explicitly for consumer projects. Ten new shell tests cover every trip site plus the negative case on each loop. Breaker behaviour itself is unchanged.
+
 ## [marketplace 4.5.6] — 2026-09-08
 
 Stack-profile fix — the Next.js profile taught a convention Next.js 16 deprecated.

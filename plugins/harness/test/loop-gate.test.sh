@@ -97,4 +97,15 @@ sl_d=$(decision "$sl_out"); check "stale lock stolen: green allows" "$sl_d" "ALL
 [ -d "$sl_dir/.cc-loop-gate.lock" ] && { echo "FAIL - stale lock released after run"; fail=1; } \
   || echo "ok   - stale lock released after run"
 
+# 10. Stand-down audit trail: a breaker trip appends one durable line naming
+#     the loop and breaker; a clean green run writes nothing.
+sd_dir=$(mktemp -d); touch "$sd_dir/.cc-loop-active"; echo 4 > "$sd_dir/.cc-loop-state"
+printf '{"stop_hook_active":false,"cwd":"%s"}' "$sd_dir" | CLAUDE_PROJECT_DIR="$sd_dir" CC_GATE_CMD="false" bash "$HOOK" >/dev/null
+sd_line=$(tail -1 "$sd_dir/.cc-loop-standdowns.log" 2>/dev/null || echo "missing")
+case "$sd_line" in *"loop verify-breaker"*) echo "ok   - breaker logs stand-down" ;; *) echo "FAIL - breaker logs stand-down (got '$sd_line')"; fail=1 ;; esac
+case "$sd_line" in *"attempts=5"*) echo "ok   - stand-down line records attempts" ;; *) echo "FAIL - stand-down line records attempts (got '$sd_line')"; fail=1 ;; esac
+sd_dir2=$(mktemp -d); touch "$sd_dir2/.cc-loop-active"
+printf '{"stop_hook_active":false,"cwd":"%s"}' "$sd_dir2" | CLAUDE_PROJECT_DIR="$sd_dir2" CC_GATE_CMD="true" bash "$HOOK" >/dev/null
+[ -f "$sd_dir2/.cc-loop-standdowns.log" ] && { echo "FAIL - green run writes no stand-down"; fail=1; } || echo "ok   - green run writes no stand-down"
+
 exit $fail

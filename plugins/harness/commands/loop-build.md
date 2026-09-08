@@ -12,7 +12,7 @@ The build-test-fix loop is now **ARMED**. Implement the task below. When you thi
 
 - Gate **passes** → you're allowed to finish.
 - Gate **fails** → you'll be told the failures; fix them and continue. Do not stop until green.
-- After **5** failed attempts a circuit breaker trips: stop fixing and summarize what's still broken.
+- After **5** failed attempts a circuit breaker trips: stop fixing and summarize what's still broken. The trip is recorded in `.cc-loop-standdowns.log` so the stop is distinguishable from a green run later.
 
 Work in the `acceptEdits` tier (Shift+Tab) so edits and the allowlist run without prompts.
 

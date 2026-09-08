@@ -68,4 +68,23 @@ eq "live lock counts no redeploy" "$([ -f "$d/.cc-deploy-state" ] && cat "$d/.cc
 eq "live lock keeps sentinel" "$([ -f "$d/.cc-deploy-active" ] && echo present)" "present"
 rm -rf "$d"
 
+# 9. Stand-down audit trail: the redeploy breaker and the no-verify disarm each
+#    append one durable line; a healthy verify writes nothing.
+d=$(mktemp -d); touch "$d/.cc-deploy-active"; echo 2 > "$d/.cc-deploy-state"
+CC_DEPLOY_VERIFY_CMD="false" CC_DEPLOY_ROLLBACK_CMD="true" run "$d" >/dev/null
+has "redeploy breaker logs stand-down" "$(tail -1 "$d/.cc-loop-standdowns.log" 2>/dev/null)" "loop-deploy redeploy-breaker attempts=3 rollback=ok"
+rm -rf "$d"
+d=$(mktemp -d); touch "$d/.cc-deploy-active"; echo 2 > "$d/.cc-deploy-state"
+CC_DEPLOY_VERIFY_CMD="false" CC_DEPLOY_ROLLBACK_CMD="false" run "$d" >/dev/null
+has "failed rollback recorded" "$(tail -1 "$d/.cc-loop-standdowns.log" 2>/dev/null)" "rollback=FAILED"
+rm -rf "$d"
+d=$(mktemp -d); touch "$d/.cc-deploy-active"
+run "$d" >/dev/null
+has "no-verify disarm logs stand-down" "$(tail -1 "$d/.cc-loop-standdowns.log" 2>/dev/null)" "loop-deploy no-verify-command"
+rm -rf "$d"
+d=$(mktemp -d); touch "$d/.cc-deploy-active"
+CC_DEPLOY_VERIFY_CMD="true" run "$d" >/dev/null
+eq "healthy verify writes no stand-down" "$([ -f "$d/.cc-loop-standdowns.log" ] && echo present || echo gone)" "gone"
+rm -rf "$d"
+
 echo "---"; echo "pass=$pass fail=$fail"; [ "$fail" -eq 0 ]

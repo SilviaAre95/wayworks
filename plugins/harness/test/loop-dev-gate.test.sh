@@ -250,4 +250,23 @@ check "success allows despite rounds" "" "$out" "EMPTY"
 check "success clears rounds" "" "$([ -f "$d/.cc-loop-dev-rounds" ] && echo present || echo gone)" "gone"
 rm -rf "$d"
 
+# 19. Stand-down audit trail. Both breakers disarm the loop and let the stop
+#     through; nothing durable said WHY the loop ended, so a reviewer could not
+#     tell "shipped via exhaustion" from "shipped clean". Each trip appends one
+#     line to .cc-loop-standdowns.log; a clean run writes nothing.
+d=$(mktemp -d); touch "$d/.cc-loop-dev-active"; echo 2 > "$d/.cc-loop-dev-state"
+CC_GATE_CMD="false" run "$d" >/dev/null
+check "det breaker logs stand-down" "" "$(tail -1 "$d/.cc-loop-standdowns.log" 2>/dev/null)" "loop-dev deterministic-breaker attempts=3"
+# re-arm in the same dir: the review breaker (rounds already at max, green gate,
+# no marker, non-git so "nothing to review" cannot short-circuit) appends a 2nd line
+touch "$d/.cc-loop-dev-active"; echo 3 > "$d/.cc-loop-dev-rounds"
+CC_GATE_CMD="true" run "$d" >/dev/null
+check "review breaker logs stand-down" "" "$(tail -1 "$d/.cc-loop-standdowns.log" 2>/dev/null)" "loop-dev review-breaker rounds=3"
+check "stand-down log appends" "" "$(wc -l < "$d/.cc-loop-standdowns.log" 2>/dev/null | tr -d ' ')" "^2$"
+rm -rf "$d"
+d=$(mktemp -d); touch "$d/.cc-loop-dev-active" "$d/.cc-dev-reviews-passed"
+CC_GATE_CMD="true" run "$d" >/dev/null
+check "clean run writes no stand-down" "" "$([ -f "$d/.cc-loop-standdowns.log" ] && echo present || echo gone)" "gone"
+rm -rf "$d"
+
 echo "---"; echo "pass=$pass fail=$fail"; [ "$fail" -eq 0 ]

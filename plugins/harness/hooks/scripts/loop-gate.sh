@@ -6,6 +6,7 @@
 # Serialized against sibling gates and overlapping sessions via gate-lock.sh.
 set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-lock.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-standdown.sh"
 MAX=5
 INPUT=$(cat)
 DIR="${CLAUDE_PROJECT_DIR:-$(printf '%s' "$INPUT" | jq -r '.cwd // "."')}"
@@ -49,6 +50,7 @@ TAIL="$(tail -40 "$LOG" 2>/dev/null)"
 if [ "$ATTEMPTS" -ge "$MAX" ]; then
   # Circuit breaker: disarm, then block ONCE telling Claude to summarize.
   # Sentinel is now gone, so the next stop attempt is allowed.
+  gate_standdown "$DIR" loop verify-breaker "attempts=$MAX"
   rm -f "$SENTINEL" "$STATE"
   jq -n --arg log "$TAIL" --arg max "$MAX" \
     '{decision:"block", reason:("Circuit breaker tripped: verify gate still failing after " + $max + " attempts. STOP trying to fix. Summarize for the user what is still failing, what you tried, and the last error below:\n" + $log)}'
