@@ -12,6 +12,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 4.8.1] — 2026-09-08
+
+The Subagent Tax note said the opposite of what our own traffic says.
+
+### Fixed
+- **`docs/reference/model-policy.md`** — the "Fan-out cost" section rested on an external benchmark (Systima's "Subagent Tax", 2.6×–5.9× more tokens for fan-out) and said outright that the thresholds stayed conservative until someone measured our own panel. Measured now, over the 79 transcripts in `~/.claude/projects` (~2.9B tokens, ~$2.5k at list rates): **a subagent turn costs ~$0.043 against ~$0.374 on the main thread, roughly 9× cheaper**, because it carries 56k of context against 396k. Fan-out is not the tax; the parent conversation is. Interactive sessions were 97.7% of spend and subagents 2.3%.
+
+  The scaling rules in `loop-dev.md` step 5 are unchanged, but their justification is not: they bound latency and review noise, not cost. Skipping a grader to save tokens saves nothing.
+
+  Also recorded there: per-turn cost grows with conversation length, so a session's total grows with its square (median context/turn is 68k at turn 0–24 and 534k past turn 300; one 3,516-turn session was 57% of all measured spend); fork dispatch for graders is now argued *against* by the same data, since a fork swaps a 56k grader context for the parent's; and Spotify's read-shunt pattern is **rejected with numbers** — all tool results across the sample total ~996k tokens, `Read` only 208k, so blocking every large read saves ~0.16% of spend.
+
+- **`shared` `2.2.1`** — `conventions` gains the one line that follows from the above: exploration spanning more than a couple of files goes to a subagent that returns the conclusion, not the file contents.
+
 ## [marketplace 4.8.0] — 2026-09-08
 
 The loops talk to Linear through one skill.

@@ -17,21 +17,33 @@ For what these loops depend on from Claude Code itself — hook contracts, bundl
 
 Rationale: judgment-heavy, adversarial work (security, architecture) gets the biggest model in the room; mechanical review breadth (style, edge-case enumeration) is fine one tier down; nothing below mid-tier ever grades code.
 
-### Fan-out cost (external data, not ours)
+### Fan-out cost (measured 2026-09-08)
 
-Subagent fan-out is not free, and the panel-scaling rules in `loop-dev.md` step 5 (docs-only → `code-review` alone; small non-sensitive → skip `security`) exist to bound it. Those thresholds are set by diff *type*, not by measured overhead — we have never instrumented our own panel.
+Measured over the 79 local transcripts in `~/.claude/projects` — about 2.9B tokens, roughly $2.5k at Anthropic list rates — covering ristretto, pilates-flow, wayworks, kaffecard and obex work. Reproduce with a script over the `usage` objects in those transcripts; `session-report` produces the same shape.
 
-The only numbers we have are external: Systima's "The Subagent Tax" ([systima.ai/blog/subagent-tax](https://systima.ai/blog/subagent-tax), ~2026-07) measured Claude Code subagent fan-out at **2.6×–5.9× the tokens** of the same work done sequentially, never faster in their timed tasks, with each subagent re-paying its own system prompt and tool-set overhead; pinning subagents to a small model cut their bill ~37%. Treat this as a directional caveat from someone else's rig, **not** a wayworks measurement — our panel is at most four graders on a single diff, which is a different shape from what they benchmarked.
+| Where the work ran | Share of cost | Turns | Cost/turn | Median context/turn |
+|---|---|---|---|---|
+| Interactive session (main thread) | 97.7% | 6,577 | $0.374 | 396k |
+| Subagent | 2.3% | 1,347 | $0.043 | 56k |
 
-Consequence for now: none. The thresholds stay as they are until someone measures *this* panel. If you do that, record the numbers here and adjust `loop-dev.md` step 5 in the same PR.
+**Subagent fan-out is ~9× cheaper per turn, not more expensive.** A subagent works in a small fresh context; a main-thread turn re-reads the whole conversation. Systima's "The Subagent Tax" ([systima.ai/blog/subagent-tax](https://systima.ai/blog/subagent-tax), ~2026-07) measured fan-out at **2.6×–5.9× the tokens** of sequential work, blaming each subagent re-paying its own system prompt and tool set. That overhead is real, and it is dwarfed by the variable their setup holds constant: what a long parent conversation costs to re-read every turn. Their number is not wrong about their rig; it is the wrong variable for ours.
 
-**Fork subagents may have moved this number (unmeasured).** Claude Code v2.1.232 made `subagent_type: "fork"` the default: a fork inherits the parent's full conversation *and prompt cache* rather than re-paying a fresh system prompt and tool set — which is precisely the overhead Systima blamed for the multiplier. That does not make the figure wrong for our panel, and it does not make fork dispatch the obvious replacement, for three reasons that cut the other way:
+Consequence: the panel-scaling rules in `loop-dev.md` step 5 stay as they are, but their justification changes — they bound latency and review noise, not cost. **Never skip a grader to save tokens; the saving is not there.** Prefer dispatching read-heavy work to a subagent over doing it on the main thread.
 
-- A fork carries the *whole session* into each grader, not just the diff. Cache reads are cheaper than fresh tokens but not free, and a long session multiplied by four graders is a different bill than four short fresh contexts. Which is larger depends on session length — unmeasured.
-- A fork always runs on the parent's model; the `model` override is ignored. The tiering above (`code-review`/`bugs` one tier down) cannot be applied to a forked grader at all.
-- A grader that inherits the author's reasoning is no longer an independent reviewer. It arrives already believing what the session believed. For `security` in particular, the value of the panel is that it does *not* share the author's assumptions.
+**Where the cost actually is: session length.** Per-turn cost grows with the conversation, so a session's total grows with the square of its length.
 
-Consequence: still none. Same rule as above — measure this panel before touching `loop-dev.md` step 5, and if fork dispatch is part of what you measure, record the session length alongside the token counts, since that is the variable that decides it. `first-party-overlap.md` names `session-report` as the tool that can produce the numbers from local transcripts.
+| Turn number | Median context/turn |
+|---|---|
+| 0–24 | 68k |
+| 100–124 | 152k |
+| 200–224 | 248k |
+| 300+ | 534k |
+
+Three quarters of sampled main-thread turns sat past turn 300. A single 3,516-turn interactive session was **57% of all measured spend**. The lever is handing off at a natural boundary — a PR, an issue — rather than carrying one session for hours. No harness gate catches this: the expensive sessions were never armed, and Claude Code already shows context usage in the UI.
+
+**Fork dispatch for graders — argued against by this data.** v2.1.232 made `subagent_type: "fork"` the default, and a fork inherits the parent's full conversation and prompt cache. That removes the system-prompt overhead Systima blamed, but it swaps a 56k grader context for the parent's, which the first table says is exactly where the money goes. A fork also always runs on the parent's model, so the tiering above cannot apply to it, and a grader that inherits the author's reasoning is not an independent reviewer. Keep graders on fresh subagents.
+
+**Rejected — routing large file reads to a cheap worker model.** Spotify's "shunt" pattern (engineering.atspotify.com, 2026-09-03) blocks reads over 350 lines with a `PreToolUse` hook and hands them to a cheap model, measured at ~90% savings on a Java monorepo full of large files. It cannot pay here: all tool results across the 79 transcripts total ~996k tokens, of which `Read` is 208k — so blocking every large read saves ~0.16% of spend. `Bash` output is ~3× `Read` volume, so even the tool ranking does not transfer, and only 3–8 files per repo exceed 350 lines. Do not re-propose this from a release-notes scan without re-measuring.
 
 ## Pinning a model
 
