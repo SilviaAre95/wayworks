@@ -12,6 +12,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 5.1.1] — 2026-09-09
+
+Both surviving sub-agents were running with every tool. The restriction was an inert key.
+
+### Fixed
+- **`architect` `2.0.1`, `security` `2.0.1`** — `design-reviewer` and `finding-verifier` declared `allowed-tools: "Read Grep Glob"`. **That is a *skill* key; agents take a comma-separated `tools:` list, and an unrecognised key in agent frontmatter is silently ignored.** So both read-only reviewers resolved with the full tool set — including write and Bash — for as long as they have existed. Confirmed against the live agent registry, which reported both as "Tools: All tools" while an agent using `tools: Read, Glob, Grep` reported exactly those three. Both now use `tools:`.
+
+  Same class as the inert deny rules in 45bd58c: valid YAML, plausible key, no effect, no warning. It mattered more from 5.0.0, which wired `design-reviewer` into `system-design` and so made an unrestricted agent reachable for the first time.
+
+- **`scripts/lint-skills.sh`** — the linter only ever looked at skills and commands, which is why nothing caught the above. It now lints **agents** too: `allowed-tools` is a hard error naming the consequence, `tools:` must be comma-separated (a space-separated list parses as one bogus tool name rather than erroring), and `name` must match the filename. Six tests added, including that a single tool with no comma still passes. Header and the `-- linted N skills, N commands, N agents` line updated.
+
+- **`AGENTS.md`** — documented the inert `allowed-tools` key as though it worked, so anyone following the house convention would reproduce the bug.
+
+- **`architect` `2.0.1`** — `system-design`'s critique step, added in 5.0.0, told you to dispatch `design-reviewer` "against the design you just wrote" but never said to pass the design in, and sat *before* the `## Output Format` section, so at that point no design existed. It is now its own section after the output format and says explicitly to paste the full design text into the subagent prompt, since nothing is written to a file for it to read.
+
+- **`.claude/settings.json`** — did not enable `architect@wayworks`, so 5.0.0's headline addition could not be exercised in the repo that ships it.
+
+- **`docs/reference/model-policy.md`** — still said "Five of the six wayworks agents pin `sonnet`" two paragraphs below the table 5.0.0 had corrected.
+
 ## [marketplace 5.1.0] — 2026-09-09
 
 Anthropic's bundled review skills are graders now, and the README says what is actually on disk.

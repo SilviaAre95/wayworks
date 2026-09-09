@@ -35,8 +35,6 @@ Design the architecture for: **$ARGUMENTS**
    - Caching strategy if needed
    - CI/CD pipeline shape
 
-6. **Critique it before you hand it over** — dispatch one `architect:design-reviewer` subagent against the design you just wrote. It attacks what you built: attack surface and auth boundaries, what breaks first at 10× load, zero-downtime deploy and rollback, race conditions and partial failure, runaway cost. Fold its Critical items in and list its Warnings under Risks. A design nobody argued with is a draft.
-
 ## Output Format
 
 ```markdown
@@ -63,6 +61,10 @@ Design the architecture for: **$ARGUMENTS**
 ### Open Questions
 - <Things that need team input>
 ```
+
+## Critique before handing over
+
+Write the design in the format above **first**, then dispatch one `architect:design-reviewer` subagent and **paste the full design text into its prompt** — it has no other way to see it, since nothing has been written to a file. It attacks what you built: attack surface and auth boundaries, what breaks first at 10× load, zero-downtime deploy and rollback, race conditions and partial failure, runaway cost. Fold its Critical items into the design and list its Warnings under Risks. A design nobody argued with is a draft.
 
 ## Constraints
 

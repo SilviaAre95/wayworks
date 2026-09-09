@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# Frontmatter linter for skills and commands. Dependency-free (awk/grep only),
-# same contract as check.sh: errors set the exit code, warnings never do.
+# Frontmatter linter for skills, agents and commands. Dependency-free (awk/grep
+# only), same contract as check.sh: errors set the exit code, warnings never do.
 #
-# Skills and commands follow deliberately different conventions:
+# All three follow deliberately different conventions:
 #   - Skills declare `name` (matching their directory) and a *quoted* description.
+#   - Agents declare `name` (matching their filename) and a comma-separated
+#     `tools:` list. `allowed-tools` here is silently ignored, which is the bug
+#     the agent section exists to catch.
 #   - Commands derive their name from the filename, and their descriptions are
 #     bare scalars. Applying the skill rules to them would invent violations.
 set -uo pipefail
@@ -124,6 +127,45 @@ while IFS= read -r f; do
   fi
 done < <(find plugins -name SKILL.md | sort)
 
+echo "== Agent frontmatter"
+# Agents take `tools:` (comma-separated), NOT the skills' `allowed-tools:`.
+# An `allowed-tools` key in agent frontmatter is silently ignored, so the agent
+# resolves with EVERY tool available — a read-only reviewer that can write.
+# Both shipped agents had this for months; nothing caught it because this
+# linter only looked at skills and commands. Same class as the inert deny
+# rules in 45bd58c: valid YAML, plausible key, no effect, no warning.
+agent_count=0
+for f in plugins/*/agents/*.md; do
+  [ -f "$f" ] || continue
+  agent_count=$((agent_count+1))
+  base=$(basename "$f" .md)
+
+  if ! has_frontmatter "$f"; then
+    err "$f: no frontmatter block (file must start with ---)"
+    continue
+  fi
+
+  name=$(fm "$f" name)
+  desc=$(fm "$f" description)
+  tools=$(fm "$f" tools)
+  bad_tools=$(fm "$f" allowed-tools)
+
+  [ -n "$name" ] || err "$f: missing required field 'name'"
+  [ -n "$name" ] && [ "$name" != "$base" ] && \
+    err "$f: name '$name' does not match its filename '$base'"
+  [ -n "$desc" ] || err "$f: missing required field 'description'"
+
+  [ -n "$bad_tools" ] && \
+    err "$f: uses 'allowed-tools' — that is a SKILL key and is silently ignored here, so this agent gets every tool. Use comma-separated 'tools:' instead (e.g. tools: Read, Glob, Grep)"
+
+  # A space-separated list parses as one bogus tool name rather than erroring.
+  if [ -n "$tools" ] && [ "${tools#*,}" = "$tools" ]; then
+    case "$tools" in
+      *[[:space:]]*) err "$f: 'tools' looks space-separated ($tools) — it must be comma-separated" ;;
+    esac
+  fi
+done
+
 echo "== Command frontmatter"
 cmd_count=0
 for f in plugins/*/commands/*.md; do
@@ -146,5 +188,5 @@ for f in plugins/*/commands/*.md; do
   fi
 done
 
-echo "-- linted $skill_count skills, $cmd_count commands ($warn_count warning(s))"
+echo "-- linted $skill_count skills, $cmd_count commands, $agent_count agents ($warn_count warning(s))"
 exit $fail

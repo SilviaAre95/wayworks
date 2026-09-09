@@ -191,4 +191,59 @@ allowed-tools: Read
 ---' > "$TMP/plugins/p/commands/c.md"
 run; [ "$RC" = "1" ] && ok "command without description fails" || bad "command without description fails"
 
+# --- agents: allowed-tools is inert here and must be rejected ---
+reset
+mkdir -p "$TMP/plugins/p/agents"
+printf '%s\n' '---
+name: rev
+description: "A reviewer"
+allowed-tools: "Read Grep Glob"
+---' > "$TMP/plugins/p/agents/rev.md"
+run
+[ "$RC" = "1" ] && ok "agent with allowed-tools fails" || bad "agent with allowed-tools fails (out: $OUT)"
+printf '%s' "$OUT" | grep -q "silently ignored here" \
+  && ok "agent allowed-tools error explains the consequence" \
+  || bad "agent allowed-tools error explains the consequence (out: $OUT)"
+
+# --- agents: comma-separated tools is the correct form ---
+reset
+mkdir -p "$TMP/plugins/p/agents"
+printf '%s\n' '---
+name: rev
+description: "A reviewer"
+tools: Read, Glob, Grep
+model: sonnet
+---' > "$TMP/plugins/p/agents/rev.md"
+run; [ "$RC" = "0" ] && ok "agent with comma-separated tools passes" || bad "agent with comma-separated tools passes (out: $OUT)"
+
+# --- agents: a space-separated list parses as one bogus tool name ---
+reset
+mkdir -p "$TMP/plugins/p/agents"
+printf '%s\n' '---
+name: rev
+description: "A reviewer"
+tools: Read Glob Grep
+---' > "$TMP/plugins/p/agents/rev.md"
+run; [ "$RC" = "1" ] && ok "agent with space-separated tools fails" || bad "agent with space-separated tools fails (out: $OUT)"
+
+# --- agents: a single tool with no comma is legitimate ---
+reset
+mkdir -p "$TMP/plugins/p/agents"
+printf '%s\n' '---
+name: rev
+description: "A reviewer"
+tools: Read
+---' > "$TMP/plugins/p/agents/rev.md"
+run; [ "$RC" = "0" ] && ok "agent with a single tool passes" || bad "agent with a single tool passes (out: $OUT)"
+
+# --- agents: name must match the filename ---
+reset
+mkdir -p "$TMP/plugins/p/agents"
+printf '%s\n' '---
+name: something-else
+description: "A reviewer"
+tools: Read
+---' > "$TMP/plugins/p/agents/rev.md"
+run; [ "$RC" = "1" ] && ok "agent name mismatching filename fails" || bad "agent name mismatching filename fails"
+
 exit $fail

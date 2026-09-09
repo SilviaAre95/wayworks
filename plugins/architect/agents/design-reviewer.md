@@ -2,7 +2,7 @@
 name: design-reviewer
 description: "Sub-agent that reviews a system design for security, scalability, and operational concerns"
 model: sonnet
-allowed-tools: "Read Grep Glob"
+tools: Read, Glob, Grep
 ---
 
 # Design Review Agent

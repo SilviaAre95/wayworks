@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "An open-source way of work for AI-assisted building — plugins, second-brain support, and tracker integration",
-    "version": "5.1.0",
+    "version": "5.1.1",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -26,7 +26,7 @@
       "name": "architect",
       "source": "./plugins/architect",
       "description": "System design, tradeoff analysis, and architecture decision records",
-      "version": "2.0.0",
+      "version": "2.0.1",
       "category": "design",
       "tags": [
         "architecture",
@@ -130,7 +130,7 @@
       "name": "security",
       "source": "./plugins/security",
       "description": "Code audits, dependency checks, and IAM reviews",
-      "version": "2.0.0",
+      "version": "2.0.1",
       "category": "security",
       "tags": [
         "security",

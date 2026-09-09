@@ -1,7 +1,7 @@
 ---
 name: finding-verifier
 description: "Sub-agent that tries to disprove a single claimed security finding before it reaches a report — checks data flow, reachability, and existing mitigations"
-allowed-tools: "Read Grep Glob"
+tools: Read, Glob, Grep
 ---
 
 # Finding Verifier Agent
