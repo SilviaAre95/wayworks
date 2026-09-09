@@ -17,6 +17,7 @@ Turn the current repo into a wayworks-configured workspace. Make each change vis
        "shared@wayworks": true,
        "harness@wayworks": true,
        "security@wayworks": true,
+       "qa@wayworks": true,
        "test-builder@wayworks": true,
        "feature-bank@wayworks": true,
        "superpowers@claude-plugins-official": true

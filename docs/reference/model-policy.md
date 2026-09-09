@@ -11,7 +11,7 @@ For what these loops depend on from Claude Code itself — hook contracts, bundl
 | Main loop / orchestration (`/harness:loop-dev`, `/harness:loop-deploy`) | Session model — whatever the user runs Claude Code with | Not pinned; inherits |
 | `security` grader | Session model — **never downgrade** | `loop-dev.md` step 5 |
 | `code-review` / `bugs` graders | Mid-tier (e.g. sonnet) when the dispatch tool supports per-subagent model selection | `loop-dev.md` step 5 |
-| Review sub-agents (`design-reviewer`, `vuln-scanner`, `regression-scanner`, `deploy-checker`, `security-reviewer`) | `sonnet` | `model:` frontmatter in each `agents/*.md` |
+| Review sub-agent (`design-reviewer`) | `sonnet` | `model:` frontmatter in `agents/design-reviewer.md` |
 | `finding-verifier` | Session model — **unpinned by design** | no `model:` frontmatter |
 | Skills | Inherit the session | No `model:` frontmatter by default |
 

@@ -14,7 +14,8 @@ A checklist for OWASP or React review is something a capable model produces on r
 
 ### Adopt — first-party does this better
 
-**`claude-security` vs `security:code-audit` + `@vuln-scanner` + `@finding-verifier`**
+**`claude-security` vs `security:code-audit` + `@finding-verifier`**  
+*(`@vuln-scanner` was removed in marketplace 5.0.0 — its OWASP list was a subset of `code-audit`'s own checklist, so it scanned the same ground twice.)*
 
 Its description: *"every finding challenged before it is reported and the verification tally computed in code… targeted patches, each verified by a panel of agents."* That is a superset of what `code-audit` does after XARI-92, and its tally is computed in code rather than asserted by a model — which is strictly more trustworthy than our version. It also offers effort tiers we don't have.
 
@@ -24,7 +25,8 @@ We shipped XARI-92 (2026-08-05) reimplementing the falsification pattern this pl
 
 ### Wrap — keep the interface, delegate the work
 
-**`pr-review-toolkit` / `code-review` vs `qa:bug-review`, `edge-case-finder`, `regression-check`, `@regression-scanner`**
+**`pr-review-toolkit` / `code-review` vs `qa:bug-review`, `edge-case-finder`, `regression-check`**  
+*(`@regression-scanner` was removed in marketplace 5.0.0 — its four steps were a strict subset of `regression-check`'s own.)*
 
 `pr-review-toolkit` ships review agents for comments, tests, error handling, type design, quality, and simplification. `code-review` adds confidence-based scoring to filter false positives. Together they cover most of what the `qa` plugin does, with more specialisation.
 

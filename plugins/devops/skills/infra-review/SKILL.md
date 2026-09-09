@@ -49,6 +49,8 @@ Review scope: **$ARGUMENTS**
    - [ ] CORS configured correctly
    - [ ] Rate limiting on public endpoints
    - [ ] Backup strategy for database
+   - [ ] No pending/unapplied migrations on the deploy branch
+   - [ ] No secrets committed — scan the diff, not just `.gitignore`
 
 ## Output Format
 
