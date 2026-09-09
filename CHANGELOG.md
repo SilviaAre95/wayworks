@@ -12,6 +12,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 6.0.1] — 2026-09-09
+
+### Changed
+- **`shared` `2.2.6`** — `linear-update` had grown to 712 words, well past the 300-450 house range, because three rounds of fixes each added a rule and none removed prose. Trimmed to **455** — a 36% cut, but **5 words over the ceiling, deliberately**. Every attempt to land under 450 cost a load-bearing property, so the rules won and the convention did not.
+
+  Every rule is intact: all seven event rows and the state each maps to, the 80-word comment cap, the marker-**and**-URL duplicate check with its marker line — which every comment **must** end with — the `links` attachment step, and all five Constraints bullets.
+
+  What was cut, complete: the worked `stood-down` example; the lead paragraph; the standalone paragraph after the output-format block; the rationale behind steps 2 and 5 (including step 5's note that re-attaching the same URL is idempotent); the explanatory second sentence of the first Constraints bullet; and the inline `` (`deployed`) ``/`` (`merged`) `` parentheticals in the third, whose event mapping the table already carries.
+
+  On the marker mandate specifically, since review pushed on it twice: `main` stated it descriptively in step 2 ("Every comment ends with the marker line") and normatively only in the standalone paragraph. Step 2 now says **must** end with it, so the mandate moved into the step rather than being lost — the standalone paragraph stays cut as redundant restatement, not as a second independent bound. The word "required" no longer appears in the file; the requirement does. Every other difference from the pre-trim revision is a reword that preserves meaning, checked sentence by sentence.
+
+  **Why 450 is not reachable.** Under `wc -w` the file decomposes, reconciling exactly to 455: frontmatter including its `---` delimiters (59), the four Markdown headings (10), the seven-row event table (113, of which 32 are the bare `|` tokens `wc -w` counts as words), the output-format block including its fences (41), the six steps (131), and the five Constraints bullets (101). That is **223 words of structure before a single rule is written**, against **232** for the rules themselves. Two trims did get under the ceiling, and review caught what each one cost: first the mandate that the marker line is *required* — which left `stood-down`, the one event carrying no URL, with no reliable suppression key and reopened the double-post that 2.2.5 shipped to fix — and then the instruction that the URL sits on its own line. Both are restored.
+
+  The range is a convention, not a gate: `lint-skills.sh` has no word-count check, so `make check` is green at 455, at 446, or at 712. If the range is meant to bind, it needs either a lint rule or an exemption for skills whose output contract is a table.
+
+  Still gone, and worth knowing: the reasons behind the rules. The argument that kept a future editor from re-simplifying the two-part duplicate check is no longer in the file, and nothing automated replaces it.
+
 ## [marketplace 6.0.0] — 2026-09-09
 
 `/simplify` was recommended as a grader. It applies its own fixes.
