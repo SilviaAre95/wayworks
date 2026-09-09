@@ -9,6 +9,7 @@
   },
   "enabledPlugins": {
     "shared@wayworks": true,
+    "architect@wayworks": true,
     "harness@wayworks": true,
     "security@wayworks": true,
     "qa@wayworks": true,

@@ -64,7 +64,7 @@ Two traps that first pass fell into, recorded so the next one does not. **Do not
 
 ## Pinning a model
 
-- **Agents**: `model: sonnet | opus | haiku` in the agent frontmatter. Five of the six wayworks agents pin `sonnet`. The exception is `security:finding-verifier`, which is deliberately unpinned so it inherits the session model: its job is to disprove a Critical/High security finding, and a cheaper model that either rubber-stamps or over-refutes is worse than running no verification at all — an over-eager refutation deletes a real vulnerability from the report. This is the same reasoning that keeps the `security` grader on the session model.
+- **Agents**: `model: sonnet | opus | haiku` in the agent frontmatter. `architect:design-reviewer` pins `sonnet`. The exception is `security:finding-verifier`, which is deliberately unpinned so it inherits the session model: its job is to disprove a Critical/High security finding, and a cheaper model that either rubber-stamps or over-refutes is worse than running no verification at all — an over-eager refutation deletes a real vulnerability from the report. This is the same reasoning that keeps the `security` grader on the session model.
 - **Skills**: same `model:` frontmatter field (see `shared:create-skill`). Pin only when a skill is deliberately mechanical (haiku) or deliberately heavyweight; unpinned is the right default — the user's session choice should win.
 - Model names are aliases, not versions — never write dated model IDs into skills or agents; they rot (this is why `security-scan` carries no model-version claims).
 
