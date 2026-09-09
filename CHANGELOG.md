@@ -12,6 +12,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 5.0.0] — 2026-09-09
+
+Four of the six sub-agents were never reachable. Removed.
+
+### Removed
+- **`security` `2.0.0`, `qa` `2.0.0`, `devops` `2.0.0`, `architect` `2.0.0`** — `@vuln-scanner`, `@regression-scanner`, `@deploy-checker` and `@security-reviewer` are deleted. **Breaking**: they were dispatchable by name, so anyone invoking one directly must stop.
+
+  Measured before deciding: across 102 local transcripts, 49 `Agent` calls, **not one** named a wayworks sub-agent. That was not just disuse — five of the six had **no dispatch site anywhere in the plugin tree**. Only `security:code-audit → @finding-verifier` was ever wired. The README advertised all six in four plugin sections and in its headline count.
+
+  Each was measured against the skill that should have owned it, using this repo's own rule (keep what costs a *gate*, drop what costs a *checklist*): `@regression-scanner`'s four steps were a strict subset of `regression-check`'s own; `@vuln-scanner`'s OWASP list was a subset of `code-audit`'s checklist, which then falsifies its findings anyway; `@deploy-checker` re-ran build/lint/types, which is the harness verify gate on every stop attempt; `@security-reviewer` overlapped both `@design-reviewer` and `code-audit`. All four restated a checklist their skill already had.
+
+### Added
+- **`architect` `2.0.0`** — `system-design` now dispatches `@design-reviewer` against the design it just produced, which is what the agent was written for and what nothing did. It attacks attack surface and auth boundaries, what breaks first at 10× load, zero-downtime deploy and rollback, race conditions and partial failure, and runaway cost. Same generate-then-falsify shape as `code-audit → @finding-verifier`, the one wiring that already existed. A design nobody argued with is a draft.
+- **`devops` `2.0.0`** — `infra-review`'s production checklist gains the two `@deploy-checker` checks nothing else covered: no pending migrations on the deploy branch, and no secrets committed (scan the diff, not just `.gitignore`).
+- **`.claude/settings.json`** — this repo now enables its own fleet. It had no settings file at all, so `.cc-dev.yaml`'s `security` and `bugs` graders resolved to plugins that were not enabled here, and per `loop-dev` step 1 a run would stop rather than grade with a short panel. The marketplace repo was not eating its own dog food. Note the caveat in `compatibility.md`: enabling is not installing, and the per-project registration still needs `/plugin install`.
+
+### Fixed
+- **`shared` `2.2.3`** — `/shared:wayworks-init`'s settings template omitted `qa@wayworks`. Marketplace 4.4.0 made `qa` core precisely because `loop-dev`'s `bugs` grader maps to `qa:bug-review` and silently does not run without it, but that fix landed in the README and never in the command that writes the file. Every repo bootstrapped since has been missing the grader the fix was about.
+
 ## [marketplace 4.8.2] — 2026-09-08
 
 Two gaps found by using the skill shipped in 4.8.1 on real work.

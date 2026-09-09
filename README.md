@@ -19,7 +19,7 @@ your agent plans, builds, reviews, tests, ships, and documents. You review and m
 
 ---
 
-Every project lives in a linked triangle — **repo ↔ second brain ↔ tracker** — and every feature travels a gated pipeline where the agent cannot declare "done" until something measurable agrees. 14 plugins, 47 skills (5 of them stack profiles), 6 commands, and 6 sub-agents.
+Every project lives in a linked triangle — **repo ↔ second brain ↔ tracker** — and every feature travels a gated pipeline where the agent cannot declare "done" until something measurable agrees. 14 plugins, 47 skills (5 of them stack profiles), 6 commands, and 2 sub-agents.
 
 - `/shared:wayworks-init` — bootstrap a repo: plugin fleet, CLAUDE.md header, verify gate
 - `/shared:wayworks-onboard` — link a project's triangle: repo ↔ second brain ↔ tracker
@@ -172,7 +172,7 @@ Ships hooks (auto-approve reads, `Stop`-gate loop enforcement, write-time qualit
 <details>
 <summary><b>security</b> — code and infrastructure security</summary>
 
-Includes `vuln-scanner` and `finding-verifier` sub-agents.
+Includes the `finding-verifier` sub-agent.
 
 | Skill | Description |
 |-------|-------------|
@@ -199,7 +199,7 @@ Includes `vuln-scanner` and `finding-verifier` sub-agents.
 <details>
 <summary><b>architect</b> — system design and architecture decisions</summary>
 
-Includes `design-reviewer` and `security-reviewer` sub-agents.
+Includes the `design-reviewer` sub-agent.
 
 | Skill | Description |
 |-------|-------------|
@@ -246,8 +246,6 @@ Includes `design-reviewer` and `security-reviewer` sub-agents.
 <details>
 <summary><b>qa</b> — quality assurance and regression analysis</summary>
 
-Includes `regression-scanner` sub-agent.
-
 | Skill | Description |
 |-------|-------------|
 | `/qa:edge-case-finder` | Identify edge cases, boundary conditions, and failure modes |
@@ -270,8 +268,6 @@ Includes `regression-scanner` sub-agent.
 
 <details>
 <summary><b>devops</b> — infrastructure, containers, and CI/CD</summary>
-
-Includes `deploy-checker` sub-agent.
 
 | Skill | Description |
 |-------|-------------|
@@ -307,12 +303,10 @@ Includes `deploy-checker` sub-agent.
 
 | Plugin | Agent | Purpose |
 |--------|-------|---------|
-| architect | `design-reviewer` | Reviews system designs for security, scalability, ops |
-| architect | `security-reviewer` | Focused security review of architecture decisions |
-| qa | `regression-scanner` | Traces code changes through dependency graph |
-| devops | `deploy-checker` | Pre-deployment validation (build, lint, env, migrations) |
-| security | `vuln-scanner` | OWASP Top 10 vulnerability scanning |
-| security | `finding-verifier` | Tries to disprove a claimed finding before it reaches a report |
+| architect | `design-reviewer` | Attacks a design `architect:system-design` just produced — dispatched by that skill |
+| security | `finding-verifier` | Tries to disprove a Critical/High finding before it reaches a report — dispatched by `security:code-audit` |
+
+Both are **dispatched by the skill that owns them**, not invoked directly. That is the bar an agent has to clear here: it must attack the output of a skill, not restate the skill's own checklist. Four agents that failed it were removed in marketplace 5.0.0.
 
 ## 🧰 Per-project setup
 
