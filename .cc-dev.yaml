@@ -1,5 +1,8 @@
 # /loop-dev config.
-graders: [code-review, security, bugs]
+# code-review + security-review are Claude Code bundled skills; security + bugs are wayworks.
+# security:code-audit stays alongside /security-review — it falsifies its own findings, which
+# the bundled pass does not; running both is the head-to-head first-party-overlap.md asked for.
+graders: [code-review, security, security-review, bugs]
 max_retries: 3
 base: main
 open_pr: true
