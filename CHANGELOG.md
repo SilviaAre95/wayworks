@@ -12,6 +12,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 6.0.1] — 2026-09-09
+
+### Changed
+- **`shared` `2.2.6`** — `linear-update` had grown to 712 words, well past the 300-450 house range, because three rounds of fixes each added a rule and none removed prose. Trimmed to **436**. Every load-bearing rule is intact: all seven event rows and the state each maps to, the 80-word comment cap, the marker-**and**-URL duplicate check with its required `_(linear-update: <event>)_` marker line, the `links` attachment step, and all five Constraints bullets — each diffed against the pre-trim revision during the edit and independently confirmed by the review panel.
+
+  What the range cost: the worked `stood-down` example, the lead paragraph, and the rationale behind steps 2 and 5. The rules survive; the reasons they exist do not — and that reasoning is what argued a future editor out of "simplifying" the two-part duplicate check back into the bug 6.0.0 had just fixed. **Nothing automated replaces it.** `lint-skills.sh` has no word-count or content check, so `make check` is green at 436 or at 712, and the range is an AGENTS.md convention rather than a gate.
+
+  Why the prose had to go rather than merely tighten: frontmatter (57 words), the seven-row event table (109, of which 32 are the bare `|` tokens `wc -w` counts as words), and the output-format block (35) are **201 words of required scaffolding** before a single step or constraint is written. That leaves roughly 235 words for six steps and five bullets inside a 450 ceiling, which the rules alone very nearly fill.
+
 ## [marketplace 6.0.0] — 2026-09-09
 
 `/simplify` was recommended as a grader. It applies its own fixes.
