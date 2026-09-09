@@ -12,6 +12,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 6.1.0] — 2026-09-09
+
+### Added
+- **`shared` `2.3.0`** — `commit-message` and `pr-description`. Neither artifact had a house format, so every run improvised one and both ran long. `commit-message` requires one logical change per commit, a conventional subject under 60 characters, and a body that gives the reason rather than the diff. `pr-description` fixes six sections — one-liner, what changed, why, type, files, tests — under 250 words.
+
+### Changed
+- **`shared` `2.3.0`** — `conventions` carried three commit bullets that nothing pointed at and that were ignored in practice. It now points at `commit-message` rather than restating them, so the rules live in one place.
+- **`harness` `2.1.0`** — `loop-dev` steps 4 and 8 wrote their own commit messages and PR bodies, which is where the overlong output came from. Both now delegate to the `shared` skills, and step 8 states that review chronology belongs in review threads, not the PR body.
+
 ## [marketplace 6.0.1] — 2026-09-09
 
 ### Changed
