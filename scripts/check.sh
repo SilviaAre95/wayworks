@@ -5,7 +5,14 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 fail=0
-err() { echo "ERROR: $*" >&2; fail=1; }
+# Errors are collected as well as printed. The loop gates run this command and
+# feed the agent only `tail -40` of the output, and the validation stages here
+# run BEFORE ~170 lines of passing shell-test assertions — so a manifest or
+# lint failure would otherwise fall outside the tail window and the agent would
+# be told "gate failed" with nothing but `ok` lines to look at. Re-printing the
+# collected errors immediately before CHECK FAILED puts them inside any tail.
+declare -a ERRORS=()
+err() { echo "ERROR: $*" >&2; ERRORS+=("$*"); fail=1; }
 
 echo "== JSON parses"
 jq empty .claude-plugin/marketplace.json || err ".claude-plugin/marketplace.json: invalid JSON"
@@ -109,5 +116,12 @@ for t in plugins/harness/test/*.test.sh; do
   bash "$t" || fail=1
 done
 
-if [ "$fail" -eq 0 ]; then echo "CHECK GREEN"; else echo "CHECK FAILED"; fi
+if [ "$fail" -eq 0 ]; then
+  echo "CHECK GREEN"
+else
+  echo
+  echo "== ${#ERRORS[@]} error(s), repeated here so they survive a tail window:"
+  for e in "${ERRORS[@]}"; do echo "  ERROR: $e"; done
+  echo "CHECK FAILED"
+fi
 exit $fail
