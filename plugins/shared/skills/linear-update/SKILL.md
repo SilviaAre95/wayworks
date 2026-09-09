@@ -12,7 +12,8 @@ One comment per event, and the state the event implies. The ticket records what 
 ## Steps
 
 1. **Parse** `$ARGUMENTS`: issue key, event, details (URL, breaker, attempts, branch, what failed).
-2. **Check for a duplicate — per event, not per URL.** `list_comments` on the issue. Suppress only when an existing comment is *this same event*: the same first line, or the same URL **posted for the same event**. A `merged` comment carries the URL `pr-opened` already posted, so a URL-only match would silently swallow it and the issue would reach Done with no record of the merge. A re-run of the same event must not double-post; a different event on the same PR must.
+2. **Check for a duplicate by the event marker.** Every comment ends with the marker line from the format below, e.g. `_(linear-update: pr-opened)_`. `list_comments`, then suppress only when a comment carries **this same marker and the same URL**; otherwise post.
+   Neither half alone works, and both failures are silent. Matching on URL alone swallows `merged`, whose URL `pr-opened` already posted, so the issue reaches Done with no record of the merge. Matching on the first line alone double-posts `pr-opened`, because `loop-dev` step 7 re-runs it after fixing red CI and the CI result in that first line has changed. The marker is the only signal in the comment text that survives both.
 3. **Write the comment** in the form below. Write it to a scratch file and `wc -w` it: under 80 words.
 4. **Set the state** from the table. Never guess a state name; if the workspace's names differ, read them with `list_issue_statuses`.
 5. **Attach the PR whenever the event names one** — `pr-opened`, `merged`, and any `corrected` or `blocked` whose comment cites a PR: `save_issue` with `links: [{url, title}]`. A bare URL in a comment is prose; the attachment is what shows on the issue and survives scrolling. Re-attaching the same URL updates the existing attachment rather than adding a second, so a re-run is safe.
@@ -24,7 +25,10 @@ One comment per event, and the state the event implies. The ticket records what 
 <What happened, one sentence, past tense, with the numbers that matter.>
 <bare URL on its own line — PR, deployment, or run — when there is one>
 Next: <the one thing a human must do, or "nothing">
+_(linear-update: <event>)_
 ```
+
+The marker line is required on every comment and is what step 2 matches on. It is the only thing that makes a re-run idempotent without making a *different* event on the same PR invisible.
 
 | Event | First sentence carries | State |
 |---|---|---|

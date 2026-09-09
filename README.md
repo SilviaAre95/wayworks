@@ -135,7 +135,7 @@ Between loops: `feature-bank` guards scope on every code edit; review/test/secur
 | `/shared:create-skill` | Generate a new SKILL.md with proper frontmatter and structure |
 | `/shared:linear-issue` | Write a Linear issue that fits on one screen — `type - App: sentence` title; problem, evidence, refs, risk, open questions, fix, acceptance; priority and dependencies in fields; one ticket by default; specs keep their decisions |
 | `/shared:linear-project` | Scaffold a Linear project — pointer-style description, one milestone, 3–5 starter issues via `linear-issue` |
-| `/shared:linear-update` | Post one comment per event to a Linear issue (PR opened, stood down, blocked, deployed, corrected) under 80 words, and set the state it implies |
+| `/shared:linear-update` | Post one comment per event to a Linear issue (started, PR opened, merged, stood down, blocked, deployed, corrected) under 80 words, attach the PR, and set the state the event implies |
 | `/shared:wayworks-init` | Bootstrap a repo as a wayworks workspace — plugin fleet in `.claude/settings.json`, CLAUDE.md header, harness handoff |
 | `/shared:wayworks-onboard` | Onboard a project from any starting point — create + link Linear project ↔ vault note ↔ repo, adapting to what exists |
 

@@ -135,8 +135,16 @@ d=$(newrepo mutating)
 echo "make check" > "$d/.cc-verify"
 printf 'graders: [code-review, simplify]\nbase: main\n' > "$d/.cc-dev.yaml"
 run "$d"
-echo "$OUT" | grep -q "BLOCK: grader 'simplify' applies its own fixes" \
-  && ok "mutating grader (simplify) is refused with a BLOCK" \
-  || bad "mutating grader (simplify) is refused with a BLOCK (rc=$RC: $OUT)"
+# Assert the EXIT CODE, not just the message. The first version of this test
+# grepped only for the string, which is exactly why the guard shipped calling
+# `echo` instead of `err`: it printed BLOCK, then printed PREFLIGHT OK, and
+# exited 0. This file's own header says a preflight that always exits 0 is
+# worse than none, because it reads as confirmation.
+{ [ "$RC" = "1" ] && echo "$OUT" | grep -q "applies its own fixes"; } \
+  && ok "mutating grader (simplify) blocks with exit 1" \
+  || bad "mutating grader (simplify) blocks with exit 1 (rc=$RC: $OUT)"
+echo "$OUT" | grep -q "PREFLIGHT OK" \
+  && bad "a blocked preflight must not also print PREFLIGHT OK" \
+  || ok "a blocked preflight does not also print PREFLIGHT OK"
 
 exit $fail

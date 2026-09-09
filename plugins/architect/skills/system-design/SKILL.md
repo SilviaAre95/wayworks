@@ -35,6 +35,8 @@ Design the architecture for: **$ARGUMENTS**
    - Caching strategy if needed
    - CI/CD pipeline shape
 
+6. **Critique it** — after writing the output below, run the *Critique before handing over* section. It is not optional; a design nobody argued with is a draft.
+
 ## Output Format
 
 ```markdown
