@@ -1,8 +1,8 @@
 ---
 name: linear-update
-description: "Use when posting to an existing Linear issue or moving its state — work started, a PR opened, a loop stood down, work blocked on a decision, a deploy landed, a wrong lead corrected — whether the user asked or a loop step calls for it"
+description: "Use when posting to an existing Linear issue or moving its state — work started, a PR opened or merged, a loop stood down, work blocked on a decision, a deploy landed, a wrong lead corrected — whether the user asked or a loop step calls for it"
 user-invocable: true
-argument-hint: "<issue-key> <started|pr-opened|stood-down|blocked|deployed|corrected> [details]"
+argument-hint: "<issue-key> <started|pr-opened|merged|stood-down|blocked|deployed|corrected> [details]"
 ---
 
 # Linear update
@@ -12,10 +12,10 @@ One comment per event, and the state the event implies. The ticket records what 
 ## Steps
 
 1. **Parse** `$ARGUMENTS`: issue key, event, details (URL, breaker, attempts, branch, what failed).
-2. **Check for a duplicate.** `list_comments` on the issue. If a comment already carries this event's URL or the same first line, post nothing and only set the state. A re-run must not double-post.
+2. **Check for a duplicate — per event, not per URL.** `list_comments` on the issue. Suppress only when an existing comment is *this same event*: the same first line, or the same URL **posted for the same event**. A `merged` comment carries the URL `pr-opened` already posted, so a URL-only match would silently swallow it and the issue would reach Done with no record of the merge. A re-run of the same event must not double-post; a different event on the same PR must.
 3. **Write the comment** in the form below. Write it to a scratch file and `wc -w` it: under 80 words.
 4. **Set the state** from the table. Never guess a state name; if the workspace's names differ, read them with `list_issue_statuses`.
-5. **Attach the PR** on `pr-opened` and `merged`: `save_issue` with `links: [{url, title}]`. A bare URL in a comment is prose — the attachment is what makes the PR show on the issue and survive scrolling. Append-only, so re-running never duplicates it.
+5. **Attach the PR whenever the event names one** — `pr-opened`, `merged`, and any `corrected` or `blocked` whose comment cites a PR: `save_issue` with `links: [{url, title}]`. A bare URL in a comment is prose; the attachment is what shows on the issue and survives scrolling. Re-attaching the same URL updates the existing attachment rather than adding a second, so a re-run is safe.
 6. **Submit**: `save_comment`, then `save_issue` with `state` (and `links` where step 5 applies).
 
 ## Output format

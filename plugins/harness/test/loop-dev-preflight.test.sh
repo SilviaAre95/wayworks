@@ -110,4 +110,33 @@ run "$d"
 { [ "$RC" = "0" ] && echo "$OUT" | grep -q "stale .cc-dev-reviews-passed"; } \
   && ok "stale marker warns without blocking" || bad "stale marker warns without blocking (rc=$RC)"
 
+# --- bundled graders resolve without a plugin -------------------------------
+# The graders list accepts Claude Code's bundled skills. Before 1.10.1 the case
+# block had no arm for them, so `security-review` fell through to "needs
+# whichever plugin provides it" and loop-dev step 1 sent the agent hunting for a
+# plugin that cannot exist — or halting the loop before it built anything.
+d=$(newrepo bundled)
+echo "make check" > "$d/.cc-verify"
+printf 'graders: [code-review, security, security-review, bugs]\nbase: main\n' > "$d/.cc-dev.yaml"
+run "$d"
+{ [ "$RC" = "0" ] && echo "$OUT" | grep -q "security-review -> /security-review"; } \
+  && ok "bundled security-review resolves without a plugin" \
+  || bad "bundled security-review resolves without a plugin (rc=$RC: $OUT)"
+echo "$OUT" | grep -q "security-review.*needs whichever plugin" \
+  && bad "security-review must not fall through to the unknown-grader arm" \
+  || ok "security-review does not fall through to the unknown-grader arm"
+
+# --- a mutating grader is refused ------------------------------------------
+# /simplify's contract is "review ... then apply the fixes". Graders run
+# concurrently and their edits are not findings the parent fixed, so a mutating
+# grader edits the tree mid-review and lands inside the marker fingerprint with
+# no grader having read it.
+d=$(newrepo mutating)
+echo "make check" > "$d/.cc-verify"
+printf 'graders: [code-review, simplify]\nbase: main\n' > "$d/.cc-dev.yaml"
+run "$d"
+echo "$OUT" | grep -q "BLOCK: grader 'simplify' applies its own fixes" \
+  && ok "mutating grader (simplify) is refused with a BLOCK" \
+  || bad "mutating grader (simplify) is refused with a BLOCK (rc=$RC: $OUT)"
+
 exit $fail

@@ -42,10 +42,10 @@ Every gate is a hook. If any of this changes, the loops stop enforcing and keep 
 
 ### Bundled skills
 
-`/harness:loop-dev`'s default `code-review` grader invokes Anthropic's **bundled** `/code-review` skill by name. Bundled-skill policy is Claude Code's, not ours:
+`/harness:loop-dev` invokes Anthropic's **bundled** skills by name for two graders now, not one: `code-review` and (where configured, as in this repo) `security-review`. Bundled-skill policy is Claude Code's, not ours, and the blast radius therefore includes a *security* grader:
 
 - **v2.1.215** stopped auto-running `/verify` and `/code-review` from description matching. That silently degraded the grader into an improvised generic review — the marker still stamped, so nothing downstream noticed (XARI-86).
-- `disableBundledSkills` turns them off entirely, which would break this grader outright.
+- `disableBundledSkills` turns them off entirely, which would break every bundled grader outright — including `security-review`, whose absence a reviews marker would still stamp over.
 
 Re-check after any Claude Code upgrade. A degraded grader looks identical to a working one from the outside.
 

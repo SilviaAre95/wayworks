@@ -28,7 +28,7 @@ Every project lives in a linked triangle — **repo ↔ second brain ↔ tracker
 
 > `security` and `qa` are core because `/harness:loop-dev`'s default graders need them: `security` → `security:code-audit`, `bugs` → `qa:bug-review`. Omit either and that grader silently does not run — the reviews marker still stamps, so nothing tells you the panel ran short.
 >
-> Graders are not limited to wayworks skills. Any name in `.cc-dev.yaml` `graders` resolves to the skill of that name, including Claude Code's **bundled** ones — `code-review` is already bundled, and `security-review` and `simplify` can be added the same way. This repo runs `[code-review, security, security-review, bugs]`, keeping `security:code-audit` (which falsifies its own findings) *beside* Anthropic's pass rather than instead of it.
+> Graders are not limited to wayworks skills. Any name in `.cc-dev.yaml` `graders` resolves to the skill of that name, including Claude Code's **bundled** ones — `code-review` is already bundled, and `security-review` can be added the same way. This repo runs `[code-review, security, security-review, bugs]`, keeping `security:code-audit` (which falsifies its own findings) *beside* Anthropic's pass rather than instead of it. **A grader must be read-only**: never configure one that applies its own fixes, such as `/simplify`, because the panel runs concurrently and its edits would land inside the reviews marker with no grader having read them.
 
 ## 🔁 The pipeline
 

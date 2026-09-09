@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "An open-source way of work for AI-assisted building — plugins, second-brain support, and tracker integration",
-    "version": "5.1.1",
+    "version": "5.1.2",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -14,7 +14,7 @@
       "name": "shared",
       "source": "./plugins/shared",
       "description": "Shared conventions, coding style, and meta-skills",
-      "version": "2.2.3",
+      "version": "2.2.4",
       "category": "conventions",
       "tags": [
         "conventions",
@@ -169,7 +169,7 @@
       "name": "harness",
       "source": "./plugins/harness",
       "description": "Tiered autonomy + build-test-fix, staged dev, and prod deploy loops for hands-off AI workflows",
-      "version": "1.10.0",
+      "version": "1.10.1",
       "category": "workflow",
       "tags": [
         "workflow",
