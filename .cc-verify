@@ -1,1 +1,1 @@
-for t in plugins/*/test/*.test.sh; do bash "$t" || exit 1; done
+make check
