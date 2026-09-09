@@ -27,6 +27,8 @@ Every project lives in a linked triangle — **repo ↔ second brain ↔ tracker
 **Core** (enable everywhere): `shared`, `harness`, `security`, `qa`, `test-builder`, `feature-bank`. **Extended** (enable per stack): everything else — `/shared:wayworks-init` picks the right set for a repo.
 
 > `security` and `qa` are core because `/harness:loop-dev`'s default graders need them: `security` → `security:code-audit`, `bugs` → `qa:bug-review`. Omit either and that grader silently does not run — the reviews marker still stamps, so nothing tells you the panel ran short.
+>
+> Graders are not limited to wayworks skills. Any name in `.cc-dev.yaml` `graders` resolves to the skill of that name, including Claude Code's **bundled** ones — `code-review` is already bundled, and `security-review` and `simplify` can be added the same way. This repo runs `[code-review, security, security-review, bugs]`, keeping `security:code-audit` (which falsifies its own findings) *beside* Anthropic's pass rather than instead of it.
 
 ## 🔁 The pipeline
 
@@ -179,7 +181,7 @@ Includes the `finding-verifier` sub-agent.
 | `/security:code-audit` | OWASP Top 10 code audit — injection, auth, data exposure |
 | `/security:dependency-check` | Audit dependencies for CVEs, outdated packages, bloat |
 | `/security:iam-review` | Review auth flows, RBAC, sessions, API key management |
-| `security-scan` | Supply-chain scan of agent configs (requires external `ecc-agentshield` via npx) |
+| `/security:security-scan` | Supply-chain scan of agent configs (requires external `ecc-agentshield` via npx) |
 
 </details>
 

@@ -12,6 +12,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 5.1.0] — 2026-09-09
+
+Anthropic's bundled review skills are graders now, and the README says what is actually on disk.
+
+### Added
+- **`harness` `1.10.0`** — `/harness:loop-dev` documents Claude Code's **bundled** skills as graders. The `graders` list always resolved any name to the skill of that name, so this needed no code — what it needed was saying so, and naming the trap. `security-review` and `simplify` join `code-review` in the template's mapping comment and in step 5, with the same warning `/code-review` already carries: **invoke a bundled skill by name**, never ask for "a security review" in prose. Bundled skills stopped auto-invoking by description in v2.1.215, so a prose ask gets an improvised review and the marker still stamps.
+
+  Step 5 is explicit that `security-review` runs *alongside* `security`, not instead of it: `security:code-audit` dispatches `@finding-verifier` to try to disprove every Critical/High finding, which the bundled pass does not do. This repo's own `.cc-dev.yaml` now runs `[code-review, security, security-review, bugs]` — the head-to-head trial `first-party-overlap.md` asked for in August and never got. The fan-out measurement in 4.8.1 is what makes a fourth grader affordable: subagents are 2.7% of spend.
+
+### Fixed
+- **README** — audited every reference against the plugin tree. Counts were already right (14 plugins, 47 skills, 6 commands, 2 sub-agents), nothing pointed at a skill that does not exist, and no skill was undocumented. One drift: `security-scan` was written bare while every sibling carries its namespace. That is the exact class of bug marketplace 4.5.5 fixed across 75 references, and this one was missed — the bare form is an unknown command.
+
 ## [marketplace 5.0.0] — 2026-09-09
 
 Four of the six sub-agents were never reachable. Removed.
