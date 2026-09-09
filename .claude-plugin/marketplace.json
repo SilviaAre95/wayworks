@@ -14,7 +14,7 @@
       "name": "shared",
       "source": "./plugins/shared",
       "description": "Shared conventions, coding style, and meta-skills",
-      "version": "2.2.6",
+      "version": "2.3.0",
       "category": "conventions",
       "tags": [
         "conventions",
