@@ -156,13 +156,29 @@ for f in plugins/*/agents/*.md; do
   [ -n "$desc" ] || err "$f: missing required field 'description'"
 
   [ -n "$bad_tools" ] && \
-    err "$f: uses 'allowed-tools' — that is a SKILL key and is silently ignored here, so this agent gets every tool. Use comma-separated 'tools:' instead (e.g. tools: Read, Glob, Grep)"
+    err "$f: uses 'allowed-tools' — that is a SKILL/COMMAND key and is silently ignored here, so this agent gets every tool. Use comma-separated 'tools:' instead (e.g. tools: Read, Glob, Grep)"
 
-  # A space-separated list parses as one bogus tool name rather than erroring.
-  if [ -n "$tools" ] && [ "${tools#*,}" = "$tools" ]; then
-    case "$tools" in
-      *[[:space:]]*) err "$f: 'tools' looks space-separated ($tools) — it must be comma-separated" ;;
-    esac
+  # `tools` is REQUIRED, not just correctly-spelled-when-present. Rejecting
+  # `allowed-tools` while allowing its absence leaves the identical hole: an
+  # agent with only name+description also resolves with every tool, and lints
+  # clean. AGENTS.md promises "read-only reviewers with a narrow tools list";
+  # this is what makes that promise enforced rather than aspirational.
+  if [ -z "$tools" ] && [ -z "$bad_tools" ]; then
+    err "$f: missing required field 'tools' — an agent with no tool list resolves with EVERY tool, including Write and Bash. Declare the narrow set, comma-separated (e.g. tools: Read, Glob, Grep)"
+  fi
+
+  # Whitespace inside any comma-separated element is the real failure: that
+  # element parses as one bogus tool name and the tools it meant to name are
+  # silently absent. Checking only values with NO comma missed
+  # `tools: Read, Glob Grep`, which passed while dropping Grep.
+  if [ -n "$tools" ]; then
+    IFS=',' read -r -a _tool_parts <<< "$tools"
+    for _t in "${_tool_parts[@]}"; do
+      _t="${_t#"${_t%%[![:space:]]*}"}"; _t="${_t%"${_t##*[![:space:]]}"}"   # trim
+      case "$_t" in
+        *[[:space:]]*) err "$f: 'tools' entry '$_t' contains whitespace — every tool needs its own comma (got: $tools)" ;;
+      esac
+    done
   fi
 done
 

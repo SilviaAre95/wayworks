@@ -32,7 +32,7 @@ Check [docs/reference/first-party-overlap.md](docs/reference/first-party-overlap
 
 ## Upstream changes
 
-[docs/reference/compatibility.md](docs/reference/compatibility.md) records the Claude Code version wayworks was last verified against and the specific contracts the gates depend on — hook events and output shapes, `${CLAUDE_PLUGIN_ROOT}` expansion, bundled-skill invocation, frontmatter keys. Read it before changing a hook or a loop command, and update the version line when you verify against a newer Claude Code.
+[docs/reference/compatibility.md](docs/reference/compatibility.md) records the Claude Code version wayworks was last verified against and the specific contracts the gates depend on — hook events and output shapes, `${CLAUDE_PLUGIN_ROOT}` expansion, bundled-skill invocation, frontmatter keys. Read it before changing a hook or a loop command. Its "Tested against" table has **two rows with different evidentiary bars**: *checks and docs* moves when `make check` and the doc audits pass on a new version, but *gates exercised live* moves **only** after a real `/harness:loop-dev` run drives the `Stop` hooks end to end. Never advance the second row on the strength of a green `make check` — that erases the only distinction the table exists to make.
 
 **Issues generated from release notes are leads, not specifications.** Three of five in the 2026-08-05 batch were materially wrong — a command that did not exist, a file deleted weeks earlier, a measurement nothing could produce. Verify the claim at its primary source, verify the repo still matches the description, and correct the issue when it is wrong. Confident phrasing is not evidence.
 

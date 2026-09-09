@@ -42,16 +42,18 @@ Every gate is a hook. If any of this changes, the loops stop enforcing and keep 
 
 ### Bundled skills
 
-`/harness:loop-dev`'s default `code-review` grader invokes Anthropic's **bundled** `/code-review` skill by name. Bundled-skill policy is Claude Code's, not ours:
+`/harness:loop-dev` invokes Anthropic's **bundled** skills by name for two graders now, not one: `code-review` and (where configured, as in this repo) `security-review`. Bundled-skill policy is Claude Code's, not ours, and the blast radius therefore includes a *security* grader:
 
 - **v2.1.215** stopped auto-running `/verify` and `/code-review` from description matching. That silently degraded the grader into an improvised generic review — the marker still stamped, so nothing downstream noticed (XARI-86).
-- `disableBundledSkills` turns them off entirely, which would break this grader outright.
+- `disableBundledSkills` turns them off entirely, which would break every bundled grader outright — including `security-review`, whose absence a reviews marker would still stamp over.
 
 Re-check after any Claude Code upgrade. A degraded grader looks identical to a working one from the outside.
 
 ### Frontmatter fields in use
 
-`description` (55), `name` (49), `user-invocable` (43), `argument-hint` (40), `allowed-tools` (12), `model` (5), `paths` (4). Enforced by `scripts/lint-skills.sh`, which checks *our* conformance — not whether Claude Code still honours these keys.
+`description`, `name`, `user-invocable`, `argument-hint`, `allowed-tools` (6, all in commands), `tools` (2, both agents), `model`, `paths`. Enforced by `scripts/lint-skills.sh`, which checks *our* conformance — not whether Claude Code still honours these keys. Counts are deliberately coarse now; the previous exact figures went stale silently.
+
+**Agent frontmatter is a different contract from skills, and getting it wrong fails silently.** Verified 2026-09-09 against 2.1.265: an agent takes a **comma-separated `tools:`** list; `allowed-tools` (the skill/command key) is *ignored* there, and so is an absent `tools`, and in both cases the agent resolves with **every** tool including `Write` and `Bash`. Confirmed by reading the live agent registry, which reported wayworks' two agents as "Tools: All tools" while an agent using `tools: Read, Glob, Grep` reported exactly those three. Whitespace inside a comma-separated element makes that element one bogus tool name and drops the tools it meant to grant. All three are now hard linter errors.
 
 Model values are aliases (`sonnet`/`opus`/`haiku`), never dated IDs, because dated IDs rot.
 

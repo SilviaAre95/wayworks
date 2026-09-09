@@ -28,7 +28,7 @@ Every project lives in a linked triangle — **repo ↔ second brain ↔ tracker
 
 > `security` and `qa` are core because `/harness:loop-dev`'s default graders need them: `security` → `security:code-audit`, `bugs` → `qa:bug-review`. Omit either and that grader silently does not run — the reviews marker still stamps, so nothing tells you the panel ran short.
 >
-> Graders are not limited to wayworks skills. Any name in `.cc-dev.yaml` `graders` resolves to the skill of that name, including Claude Code's **bundled** ones — `code-review` is already bundled, and `security-review` and `simplify` can be added the same way. This repo runs `[code-review, security, security-review, bugs]`, keeping `security:code-audit` (which falsifies its own findings) *beside* Anthropic's pass rather than instead of it.
+> Graders are not limited to wayworks skills. Any name in `.cc-dev.yaml` `graders` resolves to the skill of that name, including Claude Code's **bundled** ones — `code-review` is already bundled, and `security-review` can be added the same way. This repo runs `[code-review, security, security-review, bugs]`, keeping `security:code-audit` (which falsifies its own findings) *beside* Anthropic's pass rather than instead of it. **A grader must be read-only**: never configure one that applies its own fixes, such as `/simplify`, because the panel runs concurrently and its edits would land inside the reviews marker with no grader having read them.
 
 ## 🔁 The pipeline
 
@@ -135,7 +135,7 @@ Between loops: `feature-bank` guards scope on every code edit; review/test/secur
 | `/shared:create-skill` | Generate a new SKILL.md with proper frontmatter and structure |
 | `/shared:linear-issue` | Write a Linear issue that fits on one screen — `type - App: sentence` title; problem, evidence, refs, risk, open questions, fix, acceptance; priority and dependencies in fields; one ticket by default; specs keep their decisions |
 | `/shared:linear-project` | Scaffold a Linear project — pointer-style description, one milestone, 3–5 starter issues via `linear-issue` |
-| `/shared:linear-update` | Post one comment per event to a Linear issue (PR opened, stood down, blocked, deployed, corrected) under 80 words, and set the state it implies |
+| `/shared:linear-update` | Post one comment per event to a Linear issue (started, PR opened, merged, stood down, blocked, deployed, corrected) under 80 words, attach the PR, and set the state the event implies |
 | `/shared:wayworks-init` | Bootstrap a repo as a wayworks workspace — plugin fleet in `.claude/settings.json`, CLAUDE.md header, harness handoff |
 | `/shared:wayworks-onboard` | Onboard a project from any starting point — create + link Linear project ↔ vault note ↔ repo, adapting to what exists |
 

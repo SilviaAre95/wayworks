@@ -110,4 +110,41 @@ run "$d"
 { [ "$RC" = "0" ] && echo "$OUT" | grep -q "stale .cc-dev-reviews-passed"; } \
   && ok "stale marker warns without blocking" || bad "stale marker warns without blocking (rc=$RC)"
 
+# --- bundled graders resolve without a plugin -------------------------------
+# The graders list accepts Claude Code's bundled skills. Before 1.10.1 the case
+# block had no arm for them, so `security-review` fell through to "needs
+# whichever plugin provides it" and loop-dev step 1 sent the agent hunting for a
+# plugin that cannot exist — or halting the loop before it built anything.
+d=$(newrepo bundled)
+echo "make check" > "$d/.cc-verify"
+printf 'graders: [code-review, security, security-review, bugs]\nbase: main\n' > "$d/.cc-dev.yaml"
+run "$d"
+{ [ "$RC" = "0" ] && echo "$OUT" | grep -q "security-review -> /security-review"; } \
+  && ok "bundled security-review resolves without a plugin" \
+  || bad "bundled security-review resolves without a plugin (rc=$RC: $OUT)"
+echo "$OUT" | grep -q "security-review.*needs whichever plugin" \
+  && bad "security-review must not fall through to the unknown-grader arm" \
+  || ok "security-review does not fall through to the unknown-grader arm"
+
+# --- a mutating grader is refused ------------------------------------------
+# /simplify's contract is "review ... then apply the fixes". Graders run
+# concurrently and their edits are not findings the parent fixed, so a mutating
+# grader edits the tree mid-review and lands inside the marker fingerprint with
+# no grader having read it.
+d=$(newrepo mutating)
+echo "make check" > "$d/.cc-verify"
+printf 'graders: [code-review, simplify]\nbase: main\n' > "$d/.cc-dev.yaml"
+run "$d"
+# Assert the EXIT CODE, not just the message. The first version of this test
+# grepped only for the string, which is exactly why the guard shipped calling
+# `echo` instead of `err`: it printed BLOCK, then printed PREFLIGHT OK, and
+# exited 0. This file's own header says a preflight that always exits 0 is
+# worse than none, because it reads as confirmation.
+{ [ "$RC" = "1" ] && echo "$OUT" | grep -q "applies its own fixes"; } \
+  && ok "mutating grader (simplify) blocks with exit 1" \
+  || bad "mutating grader (simplify) blocks with exit 1 (rc=$RC: $OUT)"
+echo "$OUT" | grep -q "PREFLIGHT OK" \
+  && bad "a blocked preflight must not also print PREFLIGHT OK" \
+  || ok "a blocked preflight does not also print PREFLIGHT OK"
+
 exit $fail

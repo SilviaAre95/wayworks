@@ -12,6 +12,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 6.0.0] — 2026-09-09
+
+`/simplify` was recommended as a grader. It applies its own fixes.
+
+**Breaking**: `simplify` was a documented `graders` value in 5.1.0 and the preflight now refuses it, so a consumer who copied that advice gets a blocked loop. Hence the major bump rather than the patch this shipped as at first — caught on review.
+
+### Fixed
+- **`harness` `2.0.0`** — the `simplify` guard added earlier in this same release was **advisory only**. It called `echo` instead of `err`, so the preflight printed `BLOCK: …` and then `PREFLIGHT OK` and exited **0** — a BLOCK line and a proceed line in the same output. Reproduced before fixing. The test that was supposed to cover it grepped for the message and never asserted the exit code, which is exactly how it shipped green; it now asserts `RC=1` and that `PREFLIGHT OK` is absent.
+
+- **`scripts/lint-skills.sh`** — the agent section rejected `allowed-tools` but never *required* `tools`, leaving the identical hole: an agent with only `name` and `description` also resolves with every tool, and linted clean (verified). And the whitespace guard only fired when the value contained no comma at all, so `tools: Read, Glob Grep` passed with `Glob Grep` as one bogus tool name, silently dropping Grep. `tools` is now required, and every comma-split element is checked.
+
+- **`shared` `2.2.5`** — `create-skill`'s frontmatter table, which is where `allowed-tools: "Read Grep Glob"` came from, still documented that key as "space-separated" and named no `tools` key at all, so the next author reproduces the bug the rest of this release fixes. The row now says comma-separated, says it is skills and commands only, and a new section covers agent frontmatter. All six `allowed-tools` uses left under `plugins/` are commands, and all are comma-separated.
+
+- **`architect` `2.0.2`** — moving `system-design`'s critique after the output format (correct, since the reviewer needs a design to read) left `## Steps` ending at 5, so a run could satisfy every numbered instruction and stop without ever dispatching `design-reviewer`. A step 6 now points at it.
+
+- **`shared` `2.2.5`** — `linear-update`'s new per-event duplicate rule was not decidable from the data it had. `list_comments` returns text, and nothing in the comment identified the event, so the only usable signal was the first line — which for `pr-opened` carries the CI result and *changes* when `loop-dev` step 7 re-runs after fixing red CI, double-posting. Every comment now ends with a required `_(linear-update: <event>)_` marker, and suppression matches marker **and** URL. `loop-dev` step 7 described the replaced URL-only rule and now matches.
+
+- **`docs/reference/compatibility.md`** — agent frontmatter is a Claude Code contract that fails silently, which is what that file exists to record, and it was not in there. Now documented with the verification: comma-separated `tools:` required, `allowed-tools` ignored, absent `tools` means every tool, whitespace inside an element drops the tools it meant to grant. The exact frontmatter-key census was also stale, so it is coarse now.
+
+- **`README.md`** — the `linear-update` row still listed five events, missing `started` and `merged`.
+
+- **`harness` `2.0.0`** — **5.1.0 recommended a mutating skill as a review grader, and that is a hole in the marker.** `/simplify`'s own contract is "review the changed code … **then apply the fixes**", unlike `/code-review` whose `--fix` is opt-in. Graders are dispatched as one concurrent batch, so a mutating grader edits the tree the other graders are mid-review on; worse, its self-applied edits are not findings *the agent* fixed, so the re-run rule never fires on them and they land inside the reviews marker's fingerprint with **no grader having read them**. That is exactly what the anchor-plus-fingerprint marker exists to prevent. `simplify` is removed from the template, the README and `loop-dev` step 5, replaced by an explicit read-only requirement, and the preflight now emits a `BLOCK:` for it.
+
+- **`harness` `2.0.0`** — 5.1.0 added `security-review` to three prose surfaces and missed the only machine-readable one. `loop-dev-preflight.sh`'s `GRADERS_TO_RESOLVE` case block had no arm for it, so it fell through to "needs whichever plugin provides it" — and `loop-dev` step 1 tells the agent to **STOP** when a grader does not resolve, suggesting `/plugin install`. An agent would hunt for a plugin that cannot exist, or halt before building. This was visible in the arm output of the first real loop run and read past. Four tests added covering both new arms; the previous "verified with a live gate run" exercised `loop-dev-gate.sh`, which echoes the graders string verbatim and never maps names.
+
+- **`harness` `2.0.0`, `docs/reference/model-policy.md`** — the never-downgrade rule named only `security`, so a dispatcher tiering `security-review` by analogy with the other slash-command grader would have run an adversarial security pass on a cheaper model. Both security graders now inherit the session model.
+
+- **`docs/reference/compatibility.md`** — the bundled-skill section still described a single affected grader. After 5.1.0 the blast radius of `disableBundledSkills` or another description-matching change includes a *security* grader, whose absence a reviews marker would still stamp over.
+
+- **`shared` `2.2.4`** — the `merged` event added in 4.8.2 was both unreachable and self-suppressing. Its `description` and `argument-hint` never listed it, so neither a typing user nor a model routing a merge could reach it; and step 2's duplicate check matched on URL alone, so the `merged` comment — which carries the URL `pr-opened` already posted — was silently swallowed and the issue reached Done with no record of the merge. The check is now per *event*, not per URL. Step 5's attachment rule also only fired on two events while the constraint demanded it for any event naming a PR, which skipped the very case that motivated it: XARI-93, corrected with a link to PR #52.
+
+- **`harness` `2.0.0`** — `/harness:loop-dev` had no abort path. Every instruction to stop before the marker is stamped — a `BLOCK:` line, an unresolvable grader, a spec mismatch, an unreadable task — fired *after* the loop had already armed itself, so the `Stop` hook refused the stop on any branch with a diff and the agent was caught between a command ordering it to stop and a hook forbidding it. The only ways out were an undocumented manual disarm or burning three attempts to trip the review breaker, which writes a stand-down line recording work that failed to converge rather than a config never got past. The disarm command is now written out at the `BLOCK:` bullet and referenced from the grader-resolution stop, matching the precedent `/harness:loop-deploy` already set for a denied deploy. Hit for real earlier today.
+
+- **`AGENTS.md`** — still said to "update the version line" after 4.8.2 split `compatibility.md`'s table into two rows with different evidentiary bars. As written, an agent that ran `make check` could advance *gates exercised live*, erasing the only distinction the table exists to make.
+
+- **`CHANGELOG.md`** — the 5.1.0 entry misquoted its own cited source (2.7% where every other record says 2.6%) and used cost to justify a fourth grader, inverting what 4.8.1 concluded: panel decisions rest on latency and review noise, **not** cost. Corrected in place with a note.
+
 ## [marketplace 5.1.1] — 2026-09-09
 
 Both surviving sub-agents were running with every tool. The restriction was an inert key.
@@ -38,7 +75,7 @@ Anthropic's bundled review skills are graders now, and the README says what is a
 ### Added
 - **`harness` `1.10.0`** — `/harness:loop-dev` documents Claude Code's **bundled** skills as graders. The `graders` list always resolved any name to the skill of that name, so this needed no code — what it needed was saying so, and naming the trap. `security-review` and `simplify` join `code-review` in the template's mapping comment and in step 5, with the same warning `/code-review` already carries: **invoke a bundled skill by name**, never ask for "a security review" in prose. Bundled skills stopped auto-invoking by description in v2.1.215, so a prose ask gets an improvised review and the marker still stamps.
 
-  Step 5 is explicit that `security-review` runs *alongside* `security`, not instead of it: `security:code-audit` dispatches `@finding-verifier` to try to disprove every Critical/High finding, which the bundled pass does not do. This repo's own `.cc-dev.yaml` now runs `[code-review, security, security-review, bugs]` — the head-to-head trial `first-party-overlap.md` asked for in August and never got. The fan-out measurement in 4.8.1 is what makes a fourth grader affordable: subagents are 2.7% of spend.
+  Step 5 is explicit that `security-review` runs *alongside* `security`, not instead of it: `security:code-audit` dispatches `@finding-verifier` to try to disprove every Critical/High finding, which the bundled pass does not do. This repo's own `.cc-dev.yaml` now runs `[code-review, security, security-review, bugs]` — the head-to-head trial `first-party-overlap.md` asked for in August and never got. *(Corrected in 5.1.2: this entry originally said subagents are "2.7% of spend" — every other source says **2.6%** — and used cost to justify the fourth grader, which inverts what 4.8.1 actually concluded. Panel decisions are justified by latency and review noise, **not** cost.)*
 
 ### Fixed
 - **README** — audited every reference against the plugin tree. Counts were already right (14 plugins, 47 skills, 6 commands, 2 sub-agents), nothing pointed at a skill that does not exist, and no skill was undocumented. One drift: `security-scan` was written bare while every sibling carries its namespace. That is the exact class of bug marketplace 4.5.5 fixed across 75 references, and this one was missed — the bare form is an unknown command.

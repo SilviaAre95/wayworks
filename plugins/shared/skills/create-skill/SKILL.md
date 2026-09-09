@@ -63,11 +63,15 @@ argument-hint: "<placeholder args the user passes, e.g. [target] [options]>"
 | `user-invocable` | No | `true` (default) = user can call via `/skill-name` |
 | `disable-model-invocation` | No | `true` = only user can trigger, Claude won't auto-invoke |
 | `argument-hint` | No | Shown in autocomplete, e.g. `[file] [--verbose]` |
-| `allowed-tools` | No | Space-separated tool names Claude can use without prompts |
+| `allowed-tools` | No | **Comma**-separated tool grants usable without prompts, e.g. `Read, Edit, Bash(git:*)`. Skills and commands only — **agents use `tools:` instead, and `allowed-tools` is silently ignored there**, which left both shipped agents with every tool until 2026-09-09 |
 | `model` | No | Force a specific model: `sonnet`, `opus`, `haiku` |
 | `effort` | No | `low`, `medium`, `high`, `max` |
 | `context` | No | `fork` = run in isolated subagent |
 | `paths` | No | Glob patterns for auto-loading |
+
+## Agents are not skills
+
+If you are scaffolding an `agents/*.md` file rather than a skill, the frontmatter differs: `name` must match the **filename**, and the tool grant is `tools:` — comma-separated, and **required**, because an agent with no tool list resolves with every tool including `Write` and `Bash`. `allowed-tools` is silently ignored in agent frontmatter. `scripts/lint-skills.sh` enforces all three.
 
 ## Verbosity note (Claude 5+ models)
 
