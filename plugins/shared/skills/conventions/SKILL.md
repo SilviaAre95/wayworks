@@ -26,9 +26,7 @@ Apply these conventions to all code you write or review, in any language. Stack-
 
 ## Git & Commits
 
-- Conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`
-- Commit messages explain *why*, not *what*
-- One logical change per commit
+Commit and pull-request text have their own skills — use them rather than restating the rules here: `shared:commit-message` for a commit, `shared:pr-description` for a PR body.
 
 ## Code Review Checklist
 
