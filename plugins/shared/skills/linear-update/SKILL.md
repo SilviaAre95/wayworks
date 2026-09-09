@@ -10,7 +10,7 @@ argument-hint: "<issue-key> <started|pr-opened|merged|stood-down|blocked|deploye
 ## Steps
 
 1. **Parse** `$ARGUMENTS`: issue key, event, details (URL, breaker, attempts, branch, what failed).
-2. **Check for a duplicate by the event marker.** Every comment ends with a marker line, e.g. `_(linear-update: pr-opened)_`. `list_comments`, then suppress only when a comment carries **this same marker and the same URL**; otherwise post.
+2. **Check for a duplicate by the event marker.** Every comment must end with the marker line from the format below, e.g. `_(linear-update: pr-opened)_`. `list_comments`, then suppress only when a comment carries **this same marker and the same URL**; otherwise post.
 3. **Write the comment** in the form below, to a scratch file, and `wc -w` it: under 80 words.
 4. **Set the state** from the table. Never guess a state name; if the workspace's names differ, read them with `list_issue_statuses`.
 5. **Attach the PR whenever the event names one** — `pr-opened`, `merged`, any `corrected` or `blocked` citing a PR: `save_issue` with `links: [{url, title}]`.
@@ -20,7 +20,7 @@ argument-hint: "<issue-key> <started|pr-opened|merged|stood-down|blocked|deploye
 
 ```
 <What happened, one sentence, past tense, with the numbers that matter.>
-<bare URL — PR, deployment, or run — if there is one>
+<bare URL on its own line — PR, deployment, or run — when there is one>
 Next: <the one thing a human must do, or "nothing">
 _(linear-update: <event>)_
 ```
