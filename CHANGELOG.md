@@ -12,6 +12,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 6.2.0] — 2026-09-10
+
+### Added
+- **`harness` `2.2.0`** — `loop-dev` step 5 now isolates the grader panel, and verifies the read-only claim where it cannot. Preferred: dispatch each grader with per-subagent worktree isolation (`isolation: "worktree"` on Claude Code's Agent tool), so a grader that writes damages only its own copy. Graders read the committed diff against `base`, which a worktree checkout carries, so isolation costs nothing. Where the dispatcher cannot isolate, step 5 verifies instead of trusting. The existing rule only refused graders whose *contract* is to mutate (`/simplify`); it did nothing when a grader that promises to read writes anyway. In a real run the bundled `/code-review` staged and applied a revert of every changed file mid-panel, seen independently by two other graders, one of which restored the tree before finishing. The panel is concurrent, so a grader reviewing a tree another grader is rewriting reviews bytes that were never yours — and the marker would have stamped that as clean. The hazard is broader than a rogue grader: while this very change was being written, a second Claude session checked out its own branch in the same repo, and four just-made commits vanished from the working tree (they were committed and pushed, so nothing was lost — but the tree no longer matched what had been reviewed). A shared checkout is the common cause; a worktree is the fix. Step 5 records `HEAD` and a diff fingerprint before each round and re-checks after; if either moved, the round is re-run and nothing is stamped. Grader prompts also now ask for `git status --porcelain` before and after.
+- **`scripts/lint-skills.sh`** — warns when a skill falls outside the 300-450 word house range. Nothing checked it before, so the range read as a rule while behaving as a suggestion. It is a **warning**, matching the description-length precedent: a table-shaped skill pays a large structural cost before its first rule, and a terse skill can sit under the floor without being wrong. **17 of 49 skills currently warn**, which is the finding — either the range is wrong or a third of the repo is.
+
+### Changed
+- **`.claude/settings.json`** — deny list gains `dd` and `mkfs`. AgentShield asked for `> /dev/` to be blocked; Bash rules here are prefix-matched, so a `Bash(> /dev/:*)` entry would match only a command *beginning* with a redirect, i.e. nothing. Denying the device-writing commands themselves covers the same risk in a form the matcher actually applies.
+
 ## [marketplace 6.1.2] — 2026-09-10
 
 ### Fixed

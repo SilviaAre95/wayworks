@@ -25,6 +25,16 @@ warn() { echo "warning: $*" >&2; warn_count=$((warn_count+1)); }
 # failing a build over.
 MAX_DESC=250
 
+# The AGENTS.md skill length range. Advisory for the same reason MAX_DESC is:
+# a skill whose output contract is a wide table pays a large structural cost
+# before its first rule (linear-update spends 223 words on frontmatter, a
+# seven-row table and the output block), and a genuinely terse skill can sit
+# under the floor without being wrong. Until 6.1.2 nothing checked this at all,
+# so the range read as a rule while behaving as a suggestion — the warning
+# exists to make the drift visible, not to fail a build over it.
+MIN_WORDS=300
+MAX_WORDS=450
+
 # Files allowed to contain positional-looking tokens because they *document*
 # the prohibition rather than use it. Keep this list as short as possible.
 positional_exempt() {
@@ -95,6 +105,15 @@ while IFS= read -r f; do
     if [ "${#bare}" -gt "$MAX_DESC" ]; then
       warn "$rel: description is ${#bare} chars (house guidance: $MAX_DESC)"
     fi
+  fi
+
+  # Skill length against the house range. Counted with wc -w over the whole
+  # file, which is how AGENTS.md and every measurement in CHANGELOG state it —
+  # markdown table pipes count as words, and that is deliberate: they are real
+  # budget a table-shaped skill spends.
+  words=$(wc -w < "$f" | tr -d ' ')
+  if [ "$words" -lt "$MIN_WORDS" ] || [ "$words" -gt "$MAX_WORDS" ]; then
+    warn "$rel: $words words (house range: $MIN_WORDS-$MAX_WORDS)"
   fi
 
   # user-invocable gates the argument-hint rules, so it must be explicit rather
