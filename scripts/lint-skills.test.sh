@@ -187,8 +187,8 @@ $LONGBODY"
 run; { [ "$RC" = "0" ] && ! echo "$OUT" | grep -q "house ceiling"; } \
   && ok "recorded length exemption suppresses its warning" || bad "linear-update should be exempt (out: $OUT)"
 
-reset; mkskill plugins/shared/skills/linear-project/SKILL.md "---
-name: linear-project
+reset; mkskill plugins/shared/skills/linear-issue/SKILL.md "---
+name: linear-issue
 description: \"d\"
 user-invocable: true
 argument-hint: \"<a>\"

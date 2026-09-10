@@ -58,6 +58,22 @@ length_accepted() {
     # own line" placement. Structure alone is 223 words before a rule is
     # written. See CHANGELOG marketplace 6.1.2.
     plugins/shared/skills/linear-update/SKILL.md) return 0 ;;
+
+    # 520 words. Its templates are already external (templates/ruleset-*.json)
+    # and there is no commodity block left to extract — every step is a
+    # distinct API operation with a named failure mode attached: a required
+    # context that no job produces blocks every PR forever, an empty
+    # bypass_actors locks a solo maintainer out of merging, and ruleset must be
+    # applied before settings because each depends on the one before. The 70
+    # words over the ceiling are those failure modes, not explanation.
+    plugins/devops/skills/repo-protection/SKILL.md) return 0 ;;
+
+    # 513 words, of which 132 are the output format — the shape of the artifact
+    # the skill exists to produce, which is specification rather than prose.
+    # The remainder is a 189-word procedure and 96 words of constraints, with
+    # no reference-shaped block to move out. 13% over, and the only way down is
+    # to cut a rule.
+    plugins/shared/skills/linear-project/SKILL.md) return 0 ;;
     *) return 1 ;;
   esac
 }

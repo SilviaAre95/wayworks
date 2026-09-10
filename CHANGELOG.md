@@ -12,7 +12,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
-## [marketplace 6.2.2] — 2026-09-10
+## [marketplace 6.2.3] — 2026-09-10
 
 ### Fixed
 - **`shared` `2.3.4`** — `create-skill` never said to quote the description. An unquoted one is a hard error in `lint-skills.sh` and silently drops every frontmatter key, so the skill stops resolving — yet the skill that scaffolds every new skill only showed quotes inside a template example. Found by baselining its rules manifest before a trim, which is the same shape as the `allowed-tools` bug this file already propagated into both shipped agents.
@@ -23,7 +23,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 - **`shared` `2.3.4`** — `create-skill` 647 → **441 words**, frontmatter tables and Claude 5+ verbosity guidance to `references/frontmatter.md`, with the two load-bearing rules repeated in the body.
 - **`scripts/lint-skills.sh`** — accepted overruns are recorded with their reason rather than warning forever, which is how the length gap went unnoticed for a month. Two entries: `linear-update` (455, the measured floor — every version under 450 lost a rule) and `feature-bank`'s description (the trigger surface for a gate that must fire on many phrasings). The self-test covers both directions, including that an exemption does not leak to a sibling skill.
 
-Warnings are down 18 → 4 across these releases. The four that remain — `heuristic-eval` 527, `repo-protection` 520, `linear-project` 513, `ci-pipeline` 503 — are all 10-17% over, are real, and are untouched: roughly 60 words each, bought at the cost of a manifest, a trim and a review round apiece.
+- **`design` `1.0.3`** — `heuristic-eval` 527 → **221 words**. Nielsen's ten heuristics are a published external standard, so they move to `references/nielsen-heuristics.md` for the same reason the OWASP list left `code-audit`.
+- **`devops` `2.0.1`** — `ci-pipeline` 503 → **412 words**; the GitHub Actions pipeline template moves to `references/templates.md`. The `pull_request_target` / `workflow_run` check stays in the body and is asserted — it is the security gate, not boilerplate.
+
+**Warnings are 18 → 0.** The last two are recorded exemptions rather than trims, each with its argument in `lint-skills.sh`: `repo-protection` (520) has already externalised its templates and every remaining step carries a named failure mode — a required context nothing produces blocks every PR forever, an empty `bypass_actors` locks a solo maintainer out; `linear-project` (513) spends 132 of its words on the output format, which is the specification of the artifact it produces rather than prose. Recording one means arguing it in that comment; a skill that cannot be argued gets trimmed instead.
 
 ## [marketplace 6.2.1] — 2026-09-10
 
