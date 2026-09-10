@@ -16,6 +16,7 @@ Apply these conventions to all code you write or review, in any language. Stack-
 - **No speculative abstractions** — three similar lines > a premature abstraction
 - **Delete dead code** — no `_unused` vars, no `// removed` comments, no re-exports for backwards compat
 - **Delegate exploration, not editing or review** — when the question is *where does X live* or *does Y exist anywhere*, send it to a subagent and take the answer; the parent pays one small turn instead of many large ones. Read files directly when you are about to **edit** them (the edit needs the file in your own context) or **review** them (a reviewer must see the code, never a summary of it)
+- **For a sweep, reach for an agent before an inline skill** — a skill runs in the caller's context and leaves its whole working set behind; an agent runs in a sidechain and returns only its conclusion. Measured across these transcripts: subagent turns cost ~7x less than interactive ones and carry ~1/6th the context. Use `Explore`/`explorer` for *where is X*, `security-auditor` for an audit pass, `qa:regression-scanner` for blast radius. The editing and review carve-outs above still apply
 
 ## Error Handling
 
