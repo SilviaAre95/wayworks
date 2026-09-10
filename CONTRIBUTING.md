@@ -5,7 +5,7 @@ Thanks for considering a contribution. wayworks is an opinionated way of work �
 ## Philosophy
 
 - **Conventions-first, minimal abstractions.** Skills encode opinions and workflows, not knowledge the model already has (no language tutorials).
-- **Skills are small.** House pattern: frontmatter (`name`, quoted `description`, `user-invocable`, `argument-hint`) → `Steps → Output Format → Constraints`, ~300–450 words. Anything bigger uses progressive disclosure (`references/` files loaded on demand).
+- **Skills are small.** House pattern: frontmatter (`name`, quoted `description`, `user-invocable`, `argument-hint`) → `Steps → Output Format → Constraints`, ~300–450 words. Anything bigger uses progressive disclosure (`references/` files loaded on demand) — `lint-skills.sh` warns past 450 and treats a `references/` directory as opting into that design. Being under 300 is fine and is not linted; the ceiling exists because the model reads the whole skill, so length competes with itself for attention.
 - **`$ARGUMENTS` only** — never positional `$0`/`$1` (they leak literally when a skill is model-invoked).
 - **Portable by default.** No hardcoded personal paths, no undeclared external dependencies, no assumptions about which tracker or vault the user has.
 
