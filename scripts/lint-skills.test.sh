@@ -148,6 +148,56 @@ argument-hint: \"<a>\"
 run; { [ "$RC" = "0" ] && echo "$OUT" | grep -q "warning:"; } \
   && ok "long description warns without failing" || bad "long description warns without failing (rc=$RC)"
 
+# --- length ceiling: over warns, under does not ---
+LONGBODY=$(printf 'word %.0s' $(seq 1 500))
+reset; mkskill plugins/p/skills/x/SKILL.md "---
+name: x
+description: \"d\"
+user-invocable: true
+argument-hint: \"<a>\"
+---
+
+$LONGBODY"
+run; { [ "$RC" = "0" ] && echo "$OUT" | grep -q "house ceiling"; } \
+  && ok "over-ceiling skill warns without failing" || bad "over-ceiling should warn (rc=$RC out: $OUT)"
+
+# --- references/ opts out of the ceiling ---
+reset; mkskill plugins/p/skills/x/SKILL.md "---
+name: x
+description: \"d\"
+user-invocable: true
+argument-hint: \"<a>\"
+---
+
+$LONGBODY"
+mkdir -p "$TMP/plugins/p/skills/x/references"; echo detail > "$TMP/plugins/p/skills/x/references/r.md"
+run; { [ "$RC" = "0" ] && ! echo "$OUT" | grep -q "house ceiling"; } \
+  && ok "references/ exempts the ceiling" || bad "references/ should exempt (out: $OUT)"
+
+# --- a recorded exemption suppresses the warning, and ONLY for that path ---
+# Guards against an exemption pattern that accidentally matches everything.
+reset; mkskill plugins/shared/skills/linear-update/SKILL.md "---
+name: linear-update
+description: \"d\"
+user-invocable: true
+argument-hint: \"<a>\"
+---
+
+$LONGBODY"
+run; { [ "$RC" = "0" ] && ! echo "$OUT" | grep -q "house ceiling"; } \
+  && ok "recorded length exemption suppresses its warning" || bad "linear-update should be exempt (out: $OUT)"
+
+reset; mkskill plugins/shared/skills/linear-project/SKILL.md "---
+name: linear-project
+description: \"d\"
+user-invocable: true
+argument-hint: \"<a>\"
+---
+
+$LONGBODY"
+run; { [ "$RC" = "0" ] && echo "$OUT" | grep -q "house ceiling"; } \
+  && ok "exemption does not leak to a sibling skill" || bad "sibling should still warn (out: $OUT)"
+
 # --- positional arguments ---
 reset; mkskill plugins/p/skills/x/SKILL.md '---
 name: x

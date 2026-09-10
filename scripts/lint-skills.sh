@@ -46,6 +46,34 @@ MAX_DESC=250
 # references/ has opted into that design and is exempt.
 MAX_WORDS=450
 
+# Accepted overruns. A standing warning nobody acts on is how the length gap
+# survived unnoticed for a month, so an overrun is either fixed or recorded
+# here WITH ITS REASON — never left to warn forever. Adding an entry means
+# arguing the case in this comment; if you cannot, trim the skill instead.
+length_accepted() {
+  case "$1" in
+    # 455 words, five over. Measured twice: every version under 450 lost a
+    # load-bearing rule — first the marker line's mandate (leaving stood-down,
+    # the one event with no URL, without a suppression key), then the "on its
+    # own line" placement. Structure alone is 223 words before a rule is
+    # written. See CHANGELOG marketplace 6.1.2.
+    plugins/shared/skills/linear-update/SKILL.md) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Accepted long descriptions, same contract as length_accepted.
+desc_accepted() {
+  case "$1" in
+    # The description IS the trigger surface for a skill that must fire on
+    # "add a feature", "implement X", "remove Y", "refactor Z", "change how X
+    # works" and more. Shortening it buys 700 characters and loses the
+    # invocations the gate exists to catch.
+    plugins/feature-bank/skills/feature-bank/SKILL.md) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # Stack profiles are auto-loaded reference material, not invoked procedures:
 # they carry stack opinions, deliberately have no Steps/Output/Constraints,
 # and are exempt from both checks. Judging them by a procedure's shape is a
@@ -124,7 +152,7 @@ while IFS= read -r f; do
   else
     is_quoted "$desc" || err "$rel: description must be quoted"
     bare=$(unquote "$desc")
-    if [ "${#bare}" -gt "$MAX_DESC" ]; then
+    if [ "${#bare}" -gt "$MAX_DESC" ] && ! desc_accepted "$rel"; then
       warn "$rel: description is ${#bare} chars (house guidance: $MAX_DESC)"
     fi
   fi
@@ -135,7 +163,7 @@ while IFS= read -r f; do
   # that is deliberate: they are real budget a table-shaped skill spends.
   if ! reference_shaped "$rel"; then
     words=$(wc -w < "$f" | tr -d ' ')
-    if [ "$words" -gt "$MAX_WORDS" ] && [ ! -d "$(dirname "$f")/references" ]; then
+    if [ "$words" -gt "$MAX_WORDS" ] && [ ! -d "$(dirname "$f")/references" ] && ! length_accepted "$rel"; then
       warn "$rel: $words words (house ceiling: $MAX_WORDS; use references/ for progressive disclosure)"
     fi
 
