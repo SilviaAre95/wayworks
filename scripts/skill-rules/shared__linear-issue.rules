@@ -1,0 +1,40 @@
+# Load-bearing rules for shared:linear-issue.
+# Each line survives any trim. Prose, rationale and the worked example do not.
+# Patterns are deliberately loose on wording and strict on the operative token,
+# so a rewrite passes and a deletion fails.
+
+title format is "<type> - <App>: <sentence>" :: <type>` ?- ?`?<App>|<type> - <App>
+all six issue types are named :: bug.*feat.*chore.*docs.*spec.*trend
+spec is decided by the presence of decisions, not by findings or a fix :: spec.*only if.*decisions
+priority lives in the field, never the body :: [Pp]riority.*field
+priority 1 covers production users, data, money or security now :: `?1`? Urgent
+priority 4 covers docs, chore and trend :: `?4`? Low
+a blocking issue inherits the blocked issue's priority :: blocks.*takes|takes the blocked
+relations go in fields, never prose :: [Rr]elations.*field|blockedBy
+a non-issue dependency becomes an Open or Risk line :: (Open|Risk).*line
+the short-form word cap is 180 and is measured with wc -w :: 180 words
+the cut order is rationale, narrative, restated code, filler :: rationale.*narrative|rationale, the narrative
+instructions are never cut to make the cap :: never cut
+over the cap with only instructions left, it stays one ticket and you say so :: stays one ticket|runs over
+one ticket by default; split needs independent closure AND ordering :: closed without the others
+a split issue is linked with blocks :: link(ed)? it with `?blocks|linked with `?blocks
+length alone never splits a ticket :: not length|not bullet count
+submit with save_issue :: save_issue
+sub-issues only for a spec with ordered slices, or on request :: [Ss]ub-issues.*spec|only for a spec
+sub-issues attach via parentId :: parentId
+sub-issue title format is "feat - <App>: <slice>" :: feat - <App>: <slice>
+sub-issues carry no Decisions table and no Risk line :: no Decisions table
+a bug or task is never split into sub-issues :: never split into sub-issues
+the short form carries Evidence, Refs, Risk, Open, Fix and Acceptance :: Evidence:.*|Refs:|Risk:|Open:
+acceptance is capped at three :: at most three
+the Open line is capped at two :: at most two
+a spec adds a Decisions table of Question, Decision, Why :: Question \| Decision \| Why
+the Decisions table sits between Open and Fix :: between the Open line and Fix
+a spec has no word cap :: No word cap|no word cap
+no Context, Why it matters, or How this was found sections :: ## Context
+severity is not repeated in the body :: [Ss]everity lives in the priority field
+never lower a spec by deleting its decisions :: [Nn]ever lower a spec
+never raise a bug to a spec to keep rationale :: never raise a bug
+the count is measured, not estimated :: measured, not estimated
+the cap bounds explanation, never scope :: bounds explanation
+a sub-issue never repeats the parent's Problem or Evidence :: never repeats the parent

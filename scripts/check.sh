@@ -110,6 +110,12 @@ bash scripts/lint-skills.sh || err "frontmatter lint failed"
 echo "== Frontmatter linter self-test"
 bash scripts/lint-skills.test.sh || err "lint-skills.test.sh failed"
 
+echo "== Skill load-bearing rules"
+bash scripts/check-skill-rules.sh || err "a skill lost a load-bearing rule"
+
+echo "== Skill-rules checker self-test"
+bash scripts/check-skill-rules.test.sh || err "check-skill-rules.test.sh failed"
+
 echo "== Harness shell tests"
 for t in plugins/harness/test/*.test.sh; do
   echo "-- $t"

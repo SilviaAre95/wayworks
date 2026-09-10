@@ -25,15 +25,37 @@ warn() { echo "warning: $*" >&2; warn_count=$((warn_count+1)); }
 # failing a build over.
 MAX_DESC=250
 
-# The AGENTS.md skill length range. Advisory for the same reason MAX_DESC is:
-# a skill whose output contract is a wide table pays a large structural cost
-# before its first rule (linear-update spends 223 words on frontmatter, a
-# seven-row table and the output block), and a genuinely terse skill can sit
-# under the floor without being wrong. Until 6.1.2 nothing checked this at all,
-# so the range read as a rule while behaving as a suggestion — the warning
-# exists to make the drift visible, not to fail a build over it.
-MIN_WORDS=300
+# Skill length. Only a CEILING is checked, and only as a warning.
+#
+# The house range is ~300-450, but the floor measured the wrong thing. Its
+# stated purpose (create-skill, from XARI-94) is that skills stay explicit
+# enough for older and local models — and what those models need is the
+# structure, not more prose. Every skill under 300 here carries a full
+# Steps / Output Format / Constraints set; padding them to a number would add
+# exactly the "over-explained rationale" that same section calls redundant.
+# So there is no floor. A structure check was tried in its place and reverted:
+# matching literal `## Steps` / `## Output format` headings warned on 14 skills
+# that use equally valid shapes (bug-review's Diagnose/Verify-Fix modes), which
+# is more noise than the floor it replaced. Catching real under-specification
+# needs something smarter than heading names.
+#
+# The ceiling is real: the model reads the whole skill, so a long one competes
+# with itself for attention and gets partially followed. CONTRIBUTING.md
+# already names the escape hatch — "anything bigger uses progressive
+# disclosure (references/ files loaded on demand)" — so a skill that ships
+# references/ has opted into that design and is exempt.
 MAX_WORDS=450
+
+# Stack profiles are auto-loaded reference material, not invoked procedures:
+# they carry stack opinions, deliberately have no Steps/Output/Constraints,
+# and are exempt from both checks. Judging them by a procedure's shape is a
+# category error, not a finding.
+reference_shaped() {
+  case "$1" in
+    plugins/shared/skills/stack-profiles/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 # Files allowed to contain positional-looking tokens because they *document*
 # the prohibition rather than use it. Keep this list as short as possible.
@@ -107,13 +129,16 @@ while IFS= read -r f; do
     fi
   fi
 
-  # Skill length against the house range. Counted with wc -w over the whole
-  # file, which is how AGENTS.md and every measurement in CHANGELOG state it —
-  # markdown table pipes count as words, and that is deliberate: they are real
-  # budget a table-shaped skill spends.
-  words=$(wc -w < "$f" | tr -d ' ')
-  if [ "$words" -lt "$MIN_WORDS" ] || [ "$words" -gt "$MAX_WORDS" ]; then
-    warn "$rel: $words words (house range: $MIN_WORDS-$MAX_WORDS)"
+  # Length ceiling, and the structure check that replaces the old floor.
+  # Counted with wc -w over the whole file, which is how AGENTS.md and every
+  # CHANGELOG measurement state it — markdown table pipes count as words, and
+  # that is deliberate: they are real budget a table-shaped skill spends.
+  if ! reference_shaped "$rel"; then
+    words=$(wc -w < "$f" | tr -d ' ')
+    if [ "$words" -gt "$MAX_WORDS" ] && [ ! -d "$(dirname "$f")/references" ]; then
+      warn "$rel: $words words (house ceiling: $MAX_WORDS; use references/ for progressive disclosure)"
+    fi
+
   fi
 
   # user-invocable gates the argument-hint rules, so it must be explicit rather

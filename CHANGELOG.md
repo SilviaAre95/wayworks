@@ -12,6 +12,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 6.2.1] — 2026-09-10
+
+### Added
+- **`scripts/check-skill-rules.sh`** — asserts a skill still contains its load-bearing rules, from a manifest per skill in `scripts/skill-rules/`. Trimming has twice dropped a rule while every word-count and frontmatter check stayed green: `linear-update` lost the marker line's mandate and the `In Review` placement clause, and only a four-grader panel reading the diff caught them. Patterns match the operative token rather than the sentence, so rewording passes and deletion fails. Its self-test proves it can fail — dropped rule, empty manifest, comments-only manifest, missing target, malformed line, bad filename — because a checker that always passes is the failure mode it exists to prevent. It is **not** an eval: it verifies text survived, not that behaviour held. `claude plugin eval --ablation with-without` is the real measurement and is gated behind early access on this account; when it lands, these manifests become its grader criteria.
+
+### Changed
+- **`shared` `2.3.3`** — `linear-issue` trimmed 952 → 682 words. The 188-word worked example moved to `references/example-short-form.md`, so it loads only when a writer wants it instead of on every invocation, and the prose around the rules is cut. All 35 rules are asserted by the new check and verified intact — it caught one regression during the trim, which turned out to be an over-tight pattern rather than a lost rule, and the pattern was loosened. It does not reach 450 and should not: what remains is 35 distinct rules, not explanation, and `references/` is the documented escape hatch for that.
+
 ## [marketplace 6.2.0] — 2026-09-10
 
 ### Added

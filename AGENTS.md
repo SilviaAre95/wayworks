@@ -49,7 +49,7 @@ Docs-only changes outside `plugins/` (this file, `docs/`, README wording) need n
 
 ## Conventions
 
-- Skills follow the house pattern: frontmatter (`name`, quoted `description`, `user-invocable`, `argument-hint`) then `Steps → Output Format → Constraints`, ~300–450 words. Scaffold with `shared:create-skill`.
+- Skills follow the house pattern: frontmatter (`name`, quoted `description`, `user-invocable`, `argument-hint`) then `Steps → Output Format → Constraints`, ~300–450 words. Scaffold with `shared:create-skill`. **Only the 450 ceiling is linted, and only as a warning** — a skill past it either trims or moves detail into `references/` (progressive disclosure), which exempts it. There is no floor: brevity is not a defect, and the six skills under 300 all carry the full pattern. Stack profiles are exempt from both, being auto-loaded reference rather than invoked procedures.
 - Use `$ARGUMENTS` for argument substitution in skills, never positional `$0`/`$1` (positional only populates for typed slash commands, and leaks literally when model-invoked).
 - Agents are read-only reviewers with a narrow `tools:` list — **comma-separated**, e.g. `tools: Read, Glob, Grep`. `allowed-tools` is a *skill* key and is silently ignored in agent frontmatter, which left both shipped reviewers running with every tool until 2026-09-09; `lint-skills.sh` now rejects it. Hooks reference scripts via `${CLAUDE_PLUGIN_ROOT}`.
 - Never commit loop-state files (`.cc-loop-*`, `.cc-dev-reviews-passed`) or `.superpowers/` working artifacts.
