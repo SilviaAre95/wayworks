@@ -12,6 +12,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 6.1.2] — 2026-09-10
+
+### Fixed
+- **`shared` `2.3.2`** — `conventions`' new sweep bullet named three agents a consumer does not have. `qa:regression-scanner` was removed in marketplace 5.0.0 and no `plugins/qa/agents/` directory exists; `explorer` and `security-auditor` are user-level agents in the author's `~/.claude/agents`, not shipped by this marketplace. wayworks ships exactly two agents, `security:finding-verifier` and `architect:design-reviewer`. The bullet now names `Explore` and a general-purpose agent, both of which every caller has, and says why. Its cost figures were re-measured and are correct as written.
+- **`docs/reference/model-policy.md`** — still documented the `design-reviewer` model pin that `architect` 2.0.3 removed, in both the tiers table and the pinning section. No agent in this repo pins a model now, and the file says so.
+
+### Changed
+- **`docs/reference/model-policy.md`** — fan-out, session-growth and read-shunt figures refreshed against one run of `scripts/measure-token-spend.py` (161 transcripts, 11,243 turns). The section carried three tables from different runs, so its own numbers disagreed with the `shared` skill quoting them. Subagents are 5.1% of spend at ~7x cheaper per turn and ~1/6th the context; a perfect read-shunt would address 0.73%. A claim that the largest session was 57% of spend against 53% of turns is dropped — the script prints no per-session spend, so it cannot be re-derived.
+
 ## [marketplace 6.1.1] — 2026-09-10
 
 Both changes come from a token-spend audit of local transcripts, run with `scripts/measure-token-spend.py`.
