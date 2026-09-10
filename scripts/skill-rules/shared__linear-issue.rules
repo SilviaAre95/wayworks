@@ -17,7 +17,7 @@ the cut order is rationale, narrative, restated code, filler :: rationale.*narra
 instructions are never cut to make the cap :: never cut
 over the cap with only instructions left, it stays one ticket and you say so :: stays one ticket|runs over
 one ticket by default; split needs independent closure AND ordering :: closed without the others
-a split issue is linked with blocks :: linked with `?blocks
+a split issue is linked with blocks :: link(ed)? it with `?blocks|linked with `?blocks
 length alone never splits a ticket :: not length|not bullet count
 submit with save_issue :: save_issue
 sub-issues only for a spec with ordered slices, or on request :: [Ss]ub-issues.*spec|only for a spec
