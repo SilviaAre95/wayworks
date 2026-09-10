@@ -42,6 +42,8 @@ What `create-skill` uniquely carries is the *house pattern* — `Steps → Outpu
 
 **Action:** keep `create-skill` as the house-conformance layer, and point it at `skill-creator` for evals and benchmarking, which we have no answer to. Worth adding a line to that effect rather than leaving the gap silent.
 
+**Update 2026-09-10.** The first-party answer is `claude plugin eval`, not `skill-creator`: it runs eval cases against a plugin and, with `--ablation with-without`, scores it against a no-plugin baseline and reports the delta. That is the measurement this repo has been missing — it answers "did trimming this skill deteriorate it" empirically rather than by intuition. It is **gated behind early access** on this account (`claude plugin eval init --bare` exits with "currently in early access" and writes nothing), so nothing here can use it yet, and no plugin ships an `evals/` directory. The stopgap is `scripts/check-skill-rules.sh`, which verifies a rule's *text* survived rather than that behaviour held; its manifests are written to become grader criteria when eval access lands, not to be thrown away.
+
 ### Keep — no real first-party equivalent
 
 **`claude plugin validate` vs `scripts/lint-skills.sh`** — checked 2026-09-08 against Claude Code 2.1.263 (XARI-109).
