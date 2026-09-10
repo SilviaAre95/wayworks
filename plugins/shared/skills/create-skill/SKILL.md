@@ -14,6 +14,7 @@ Create a new skill from: `$ARGUMENTS` (expected: skill-name, plugin-name, and op
 1. Create the directory: `plugins/<plugin-name>/skills/<skill-name>/`
 2. Create the `SKILL.md` there using the template below
 3. If a description was provided, use it verbatim in the frontmatter
+4. **Quote the description.** A bare scalar containing a colon or a `#` breaks the YAML parse silently — the runtime drops every frontmatter key and the skill stops resolving. `scripts/lint-skills.sh` rejects an unquoted description outright; this is an error, not a warning.
 
 ## SKILL.md Template
 
@@ -54,33 +55,13 @@ argument-hint: "<placeholder args the user passes, e.g. [target] [options]>"
 - <Guard rails, things to avoid, scope limits>
 ```
 
-## Frontmatter Reference
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | Yes | Kebab-case identifier |
-| `description` | Yes | When Claude should invoke this (max 250 chars) |
-| `user-invocable` | No | `true` (default) = user can call via `/skill-name` |
-| `disable-model-invocation` | No | `true` = only user can trigger, Claude won't auto-invoke |
-| `argument-hint` | No | Shown in autocomplete, e.g. `[file] [--verbose]` |
-| `allowed-tools` | No | **Comma**-separated tool grants usable without prompts, e.g. `Read, Edit, Bash(git:*)`. Skills and commands only — **agents use `tools:` instead, and `allowed-tools` is silently ignored there**, which left both shipped agents with every tool until 2026-09-09 |
-| `model` | No | Force a specific model: `sonnet`, `opus`, `haiku` |
-| `effort` | No | `low`, `medium`, `high`, `max` |
-| `context` | No | `fork` = run in isolated subagent |
-| `paths` | No | Glob patterns for auto-loading |
-
 ## Agents are not skills
 
 If you are scaffolding an `agents/*.md` file rather than a skill, the frontmatter differs: `name` must match the **filename**, and the tool grant is `tools:` — comma-separated, and **required**, because an agent with no tool list resolves with every tool including `Write` and `Bash`. `allowed-tools` is silently ignored in agent frontmatter. `scripts/lint-skills.sh` enforces all three.
 
-## Verbosity note (Claude 5+ models)
+## Frontmatter reference
 
-Anthropic's context-engineering research (2026-07) shows newer Claude model families tolerate significantly less system prompt verbosity — deleting ~80% of Claude Code's system instructions with no eval loss. The house pattern's ~300–450-word structure remains mandatory so skills work across all models (including local/older ones), but be aware:
-
-- **Load-bearing structure** (keep explicit): gating conditions, tool constraints, output schemas, `$ARGUMENTS` handling — these prevent real failures regardless of model capability
-- **Likely redundant on Claude 5+**: over-explained rationales, repeated warnings, step-by-step prose rephrasing the same point — frontier models infer these from terse instructions
-
-When writing for exclusively frontier-model consumers, consider trimming rationale and repetition while keeping guardrails explicit. For marketplace-wide skills (like this plugin), lean toward the full structure so less-capable models don't misbehave. Use `claude doctor` (`/doctor` in Claude Code session) to detect redundant or conflicting instructions before shipping.
+Field-by-field tables for skills, commands and agents, and the Claude 5+ verbosity guidance: `references/frontmatter.md`. Two rules from it are load-bearing enough to repeat here: agents take a comma-separated `tools:` list (`allowed-tools` is a skill key, silently ignored in agent frontmatter, so the agent resolves with every tool), and the description must be quoted.
 
 ## Tips
 

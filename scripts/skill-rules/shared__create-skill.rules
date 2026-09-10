@@ -1,0 +1,15 @@
+# Load-bearing rules for shared:create-skill.
+# This skill teaches the house pattern, so an error here propagates into every
+# skill scaffolded afterwards — that is exactly how `allowed-tools` reached
+# both shipped agents. The frontmatter table and verbosity guidance are lookup
+# material and live in references/; the rules that must not drift are here.
+
+the house pattern is Steps then Output format then Constraints :: Steps.*Output format.*Constraints|## Steps
+name must match the skill's directory :: name.*match|matches the directory|match.*directory
+description must be quoted :: quoted
+user-invocable is explicit :: user-invocable
+argument-hint is required when the skill reads $ARGUMENTS :: argument-hint
+$ARGUMENTS is the only valid substitution, never positional :: ARGUMENTS
+positional $0/$1 are rejected :: \$0|positional
+agents take comma-separated tools:, not allowed-tools :: comma-separated|tools:
+allowed-tools is silently ignored in agent frontmatter :: silently ignored|ignored
