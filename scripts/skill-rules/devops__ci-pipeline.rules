@@ -1,0 +1,8 @@
+# Load-bearing rules for devops:ci-pipeline.
+# Platform config templates are reference material; the security gate is not.
+
+pull_request_target and workflow_run run with the base repo's token :: pull_request_target
+a workflow checking out fork-controlled code is flagged high severity :: high severity
+the dangerous pattern is a ref resolving to the PR head :: head\.\*|pull_request\.head
+executing what was checked out is what makes it exploitable :: executes what was checked out|lifecycle scripts
+quality gates are added to the pipeline :: quality gate

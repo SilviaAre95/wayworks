@@ -12,6 +12,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 6.2.3] — 2026-09-10
+
+### Fixed
+- **`shared` `2.3.4`** — `create-skill` never said to quote the description. An unquoted one is a hard error in `lint-skills.sh` and silently drops every frontmatter key, so the skill stops resolving — yet the skill that scaffolds every new skill only showed quotes inside a template example. Found by baselining its rules manifest before a trim, which is the same shape as the `allowed-tools` bug this file already propagated into both shipped agents.
+
+### Changed
+- **`security` `2.0.2`** — `code-audit` 616 → **433 words**. Steps 1-5 were an OWASP checklist, which is precisely what `first-party-overlap.md` calls commodity: *"if deleting a skill would cost a gate, keep it; if it would only cost a checklist, delegate it."* The checklist moves to `references/owasp-checklist.md` and the body keeps the falsification pass — the gate `/harness:loop-dev`'s `security` grader depends on, and the only reason this skill is worth owning over a first-party one. Nineteen rules are now asserted, including the subtle ones: the verifier gets the claim, severity and `file:line` but **not** the reasoning, because a verifier shown the argument tends to agree with it; and a refuted finding moves to **Refuted** rather than being deleted, because a verifier can be wrong.
+- **`security` `2.0.2`** — `security-scan` 873 → **445 words**. Install commands, output formats, `--fix`, the `--opus` pipeline, `init`, the GitHub Action and the grade scale are lookup material that loaded on every invocation; they move to `references/agentshield-cli.md`. The argument-parsing and honesty rules — never interpolate `$ARGUMENTS`, stop on shell metacharacters, report what the command actually returned — stay in the body and are now asserted by a manifest.
+- **`shared` `2.3.4`** — `create-skill` 647 → **441 words**, frontmatter tables and Claude 5+ verbosity guidance to `references/frontmatter.md`, with the two load-bearing rules repeated in the body.
+- **`scripts/lint-skills.sh`** — accepted overruns are recorded with their reason rather than warning forever, which is how the length gap went unnoticed for a month. Two entries: `linear-update` (455, the measured floor — every version under 450 lost a rule) and `feature-bank`'s description (the trigger surface for a gate that must fire on many phrasings). The self-test covers both directions, including that an exemption does not leak to a sibling skill.
+
+- **`design` `1.0.3`** — `heuristic-eval` 527 → **221 words**. Nielsen's ten heuristics are a published external standard, so they move to `references/nielsen-heuristics.md` for the same reason the OWASP list left `code-audit`.
+- **`devops` `2.0.1`** — `ci-pipeline` 503 → **412 words**; the GitHub Actions pipeline template moves to `references/templates.md`. The `pull_request_target` / `workflow_run` check stays in the body and is asserted — it is the security gate, not boilerplate.
+
+**Warnings are 18 → 0.** The last two are recorded exemptions rather than trims, each with its argument in `lint-skills.sh`: `repo-protection` (520) has already externalised its templates and every remaining step carries a named failure mode — a required context nothing produces blocks every PR forever, an empty `bypass_actors` locks a solo maintainer out; `linear-project` (513) spends 132 of its words on the output format, which is the specification of the artifact it produces rather than prose. Recording one means arguing it in that comment; a skill that cannot be argued gets trimmed instead.
+
 ## [marketplace 6.2.1] — 2026-09-10
 
 ### Added

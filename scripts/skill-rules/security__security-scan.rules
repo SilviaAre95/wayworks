@@ -1,0 +1,17 @@
+# Load-bearing rules for security:security-scan.
+# This skill builds a shell command from user input and shells out to a
+# third-party npm package, so its parsing and honesty rules are the ones that
+# matter. CLI reference material lives in references/ and is not asserted here.
+
+the external dependency is declared as not bundled :: [Ee]xternal dependency
+a failed download or tool run is reported, not improvised around :: do not improvise|could not run
+never interpolate $ARGUMENTS into the command :: never interpolate
+a bare path becomes --path :: bare path.*--path|--path "<path>"
+a non-existent path stops rather than falling back to the cwd :: never fall back to the current directory
+--min-severity accepts only low, medium, high :: low.*medium.*high
+an empty argument scans the current project's .claude :: [Ee]mpty.*scan
+shell metacharacters stop the run :: metacharacters
+unrecognized flags and extra positionals stop the run :: unrecognized flags
+never guess at an unmatched argument :: Never guess
+report what the command actually returned :: what the command actually returned
+never claim a scan was filtered or scoped when the flag was not applied :: never describe a scan as filtered|Never describe a scan as filtered

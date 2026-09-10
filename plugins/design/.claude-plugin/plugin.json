@@ -1,6 +1,6 @@
 {
   "name": "design",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Design review — layout + responsive behavior, design systems, usability heuristics, and user flows (merger of ui-designer + ux-researcher)",
   "author": {
     "name": "Silvia Arellano"

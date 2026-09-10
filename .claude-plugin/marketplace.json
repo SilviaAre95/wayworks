@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "An open-source way of work for AI-assisted building — plugins, second-brain support, and tracker integration",
-    "version": "6.2.1",
+    "version": "6.2.3",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -14,7 +14,7 @@
       "name": "shared",
       "source": "./plugins/shared",
       "description": "Shared conventions, coding style, and meta-skills",
-      "version": "2.3.3",
+      "version": "2.3.4",
       "category": "conventions",
       "tags": [
         "conventions",
@@ -102,7 +102,7 @@
       "name": "design",
       "source": "./plugins/design",
       "description": "Design review — layout + responsive behavior, design systems, usability heuristics, and user flows",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "category": "design",
       "tags": [
         "design",
@@ -117,7 +117,7 @@
       "name": "devops",
       "source": "./plugins/devops",
       "description": "Dockerfiles, CI/CD pipelines, and infrastructure review",
-      "version": "2.0.0",
+      "version": "2.0.1",
       "category": "infrastructure",
       "tags": [
         "devops",
@@ -130,7 +130,7 @@
       "name": "security",
       "source": "./plugins/security",
       "description": "Code audits, dependency checks, and IAM reviews",
-      "version": "2.0.1",
+      "version": "2.0.2",
       "category": "security",
       "tags": [
         "security",

@@ -1,0 +1,8 @@
+# Load-bearing rules for design:heuristic-eval.
+# Nielsen's ten heuristics are a published external standard and live in
+# references/. What must not drift is how findings are scored and reported.
+
+evaluates against Nielsen's ten heuristics :: Nielsen
+severity scale is used to rank findings :: severity|Severity
+critical issues are called out separately :: [Cc]ritical
+findings cite the screen or flow they were found in :: screen|flow
