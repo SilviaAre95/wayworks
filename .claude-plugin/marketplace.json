@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "An open-source way of work for AI-assisted building — plugins, second-brain support, and tracker integration",
-    "version": "6.1.1",
+    "version": "6.1.0",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -14,7 +14,7 @@
       "name": "shared",
       "source": "./plugins/shared",
       "description": "Shared conventions, coding style, and meta-skills",
-      "version": "2.3.1",
+      "version": "2.3.0",
       "category": "conventions",
       "tags": [
         "conventions",
@@ -26,7 +26,7 @@
       "name": "architect",
       "source": "./plugins/architect",
       "description": "System design, tradeoff analysis, and architecture decision records",
-      "version": "2.0.3",
+      "version": "2.0.2",
       "category": "design",
       "tags": [
         "architecture",
