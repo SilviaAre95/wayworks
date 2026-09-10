@@ -1,0 +1,25 @@
+# Load-bearing rules for security:code-audit.
+# This skill is a GATE — /harness:loop-dev's `security` grader dispatches it,
+# and its findings block the loop. What makes it worth owning over a
+# first-party checklist is the falsification pass, not the OWASP list, which
+# is commodity and lives in references/. These are the rules that must survive.
+
+verification runs on Critical and High only :: Critical.*High
+one finding-verifier subagent per finding :: finding-verifier
+verifiers are dispatched in one concurrent batch :: concurrent batch
+the verifier gets the claim, severity and file:line only :: claim, its severity
+the verifier is NOT given the reasoning that produced the finding :: not your reasoning
+the reason: a verifier shown the argument tends to agree with it :: tends to agree
+Medium and Low skip verification :: Medium and Low skip
+a standing finding is reported, applying any CORRECTION :: CORRECTION
+a refuted finding moves to Refuted and is never deleted :: never delete it
+the reason a refuted finding is kept: a verifier can be wrong :: verifier can be wrong
+--no-verify skips the pass :: --no-verify
+the Risk Summary states how many were verified and how many refuted :: verified and how many were refuted
+prioritise by exploitability, not theoretical severity :: exploitability
+fixes are specific code, not "sanitize input" :: sanitize input
+check the actual data flow, not pattern matching :: data flow
+do not flag framework-handled security :: framework-handled
+a critical vulnerability is flagged at the top :: flag it clearly at the top
+uncertainty is not refutation :: uncertainty is not refutation
+exploit difficulty is a severity question, not an existence one :: severity question

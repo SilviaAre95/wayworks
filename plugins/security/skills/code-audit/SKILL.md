@@ -11,43 +11,15 @@ Audit: **$ARGUMENTS** (focus defaults to all)
 
 ## Steps
 
-### 1. Injection Vulnerabilities
-- **SQL Injection**: raw SQL with string concatenation/interpolation? (Prisma's parameterized queries are safe; raw queries are not)
-- **XSS**: user input rendered as HTML without sanitization? `dangerouslySetInnerHTML`?
-- **Command Injection**: user input passed to `exec`, `spawn`, `eval`?
-- **Path Traversal**: user input in file paths without sanitization? (`../../../etc/passwd`)
-- **SSRF**: user-controlled URLs in server-side fetch/requests?
+### 1. Checklist pass
 
-### 2. Authentication & Authorization
-- Are all protected routes checking auth?
-- Is session management secure (httpOnly, secure, sameSite cookies)?
-- Are passwords hashed with bcrypt/argon2 (not MD5/SHA)?
-- Is there rate limiting on login endpoints?
-- Are JWTs validated properly (algorithm, expiry, issuer)?
-- Is there proper RBAC — not just "is authenticated" but "has permission"?
+Work through `references/owasp-checklist.md` against the target: injection (SQL, XSS, command, path traversal, SSRF), authentication and authorization, data exposure, configuration and secrets, and dependencies. Honour the focus argument; `all` covers every section.
 
-### 3. Data Exposure
-- Are API responses leaking sensitive fields (password hash, internal IDs, PII)?
-- Are error messages exposing internal details (stack traces, SQL queries)?
-- Are logs capturing sensitive data (passwords, tokens, credit cards)?
-- Is PII encrypted at rest?
-- Are database queries returning `SELECT *` instead of specific fields?
+This pass is commodity — a capable model produces it on request, and first-party tools ship it free. It is a single pass and inherits that pass's false-positive rate, which is what step 2 exists to correct.
 
-### 4. Configuration & Secrets
-- Are secrets in environment variables (not hardcoded)?
-- Is `.env` in `.gitignore`?
-- Are there any API keys, tokens, or passwords in the codebase?
-- Is CORS configured restrictively (not `*`)?
-- Are security headers set (CSP, X-Frame-Options, HSTS)?
+### 2. Verification pass (Critical and High only)
 
-### 5. Dependencies
-- Are there known vulnerable dependencies? (`npm audit`)
-- Are dependencies pinned to specific versions?
-- Are there unnecessary dependencies with broad system access?
-
-### 6. Verification pass (Critical and High only)
-
-The checklist is a single pass and inherits that pass's false-positive rate. Before reporting, dispatch one `security:finding-verifier` subagent per **Critical** and **High** finding — all in one concurrent batch — to try to disprove it.
+Before reporting, dispatch one `security:finding-verifier` subagent per **Critical** and **High** finding — all in one concurrent batch — to try to disprove it.
 
 Give each verifier only the claim, its severity, and its `file:line` — **not your reasoning.** A verifier shown the argument that produced a finding tends to agree with it; the point is a fresh read of the code. Medium and Low skip this; the cost outweighs their blast radius.
 
