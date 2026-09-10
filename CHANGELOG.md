@@ -12,18 +12,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
-## [marketplace 6.1.1] — 2026-09-10
-
-Both changes come from a token-spend audit of local transcripts, run with `scripts/measure-token-spend.py`.
-
-### Changed
-- **`shared` `2.3.1`** — `conventions` gains a bullet on reaching for an agent rather than an inline skill when the task is a sweep. The existing delegation bullet said *what* to delegate; it did not say that the choice of vehicle matters. A skill runs in the caller's context and leaves its whole working set behind, an agent runs in a sidechain and returns only its conclusion: measured across 159 transcripts and 10,886 turns, subagent turns cost ~7x less than interactive ones and carry ~1/6th the context (5.2% of spend against 94.8%). The editing and review carve-outs are unchanged — a reviewer must see the code, never a summary of it.
-
-### Fixed
-- **`architect` `2.0.3`** — `design-reviewer` no longer pins `model: sonnet`. Claude Code resolves the alias before dispatch, verified directly: with `ANTHROPIC_BASE_URL` pointed at a local Ollama, `claude --model sonnet` fails with *"There's an issue with the selected model (claude-sonnet-5)"*. Under a ristretto local tier that variable covers the whole process, so the pin asked Ollama for a model it does not serve and the subagent failed mid-stage. It failed *closed* — there is no route from that process to the Anthropic API — but it failed, and preflight could not catch it, because the ristretto check validates the provider's configured model against the endpoint and never sees agent frontmatter.
-
-  Ollama aliases (`ollama cp qwen... claude-sonnet-5`) and conditional dispatch prose were both considered and rejected once the prize was measured: pinning Sonnet across every subagent saves ~3% of spend, which does not buy a cross-provider failure mode. An unpinned agent inherits the run's model and works against any provider — the right default for a plugin that ships to other people. This was the only pinned model in the repo.
-
 ## [marketplace 6.1.0] — 2026-09-09
 
 ### Added
