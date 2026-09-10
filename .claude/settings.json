@@ -19,6 +19,7 @@
     "superpowers@claude-plugins-official": true
   },
   "permissions": {
+    "defaultMode": "acceptEdits",
     "deny": [
       "Bash(rm -rf:*)",
       "Bash(sudo:*)",
