@@ -1,7 +1,7 @@
 ---
 description: Shape a feature before code — discover, scope, attack, questions, plan, what-ifs, byproducts, map, lock — into a gated design loop-dev will build
 argument-hint: <topic|slug> [--stage <name>] [--publish]
-allowed-tools: Read, Write, Edit, Glob, Grep, Skill, Agent, Bash(${CLAUDE_PLUGIN_ROOT}/scripts/design-check.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/render-map.sh:*), Bash(open .wayworks/maps/:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Skill, Agent, Bash(${CLAUDE_PLUGIN_ROOT}/scripts/design-check.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/render-map.sh:*)
 ---
 
 Shape the feature below into a locked design at `docs/designs/<slug>/design.md` + `plan.md`. All human supervision happens here, before code, so the coding loop can run unattended. This command orchestrates; each stage's skill owns its own procedure.
@@ -53,7 +53,7 @@ Shape the feature below into a locked design at `docs/designs/<slug>/design.md` 
 
 ## --publish
 
-Run `"${CLAUDE_PLUGIN_ROOT}/scripts/render-map.sh" docs/designs/<slug>` from the repo root, then `open` the path it prints where `open` exists (macOS); elsewhere, print the path for the user to open. The page lands in `.wayworks/maps/`, which is never committed.
+Run `"${CLAUDE_PLUGIN_ROOT}/scripts/render-map.sh" --open docs/designs/<slug>` from the repo root. It opens the page with `open` (macOS) or `xdg-open` where present, and always prints the path — relay it so the user can open it by hand where neither exists. It needs `jq`. The page lands in `.wayworks/maps/`, which is never committed.
 
 ## Constraints
 

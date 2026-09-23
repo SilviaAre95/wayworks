@@ -48,6 +48,10 @@ flowchart TB
   app --> syncworker
 ```
 
+```text
+## not a tab
+```
+
 ## Scope board
 | Item | State |
 |---|---|
@@ -88,6 +92,17 @@ grep -q "securityLevel: 'strict'" "$TEMPLATE" && ok "mermaid runs in strict mode
 urls=$(grep -oE 'https://cdn\.jsdelivr\.net/npm/[^"]+' "$TEMPLATE")
 [ "$(printf '%s\n' "$urls" | grep -c .)" = "3" ] && ok "three CDN libraries" || bad "expected 3 CDN urls: $urls"
 printf '%s\n' "$urls" | grep -vqE '@[0-9]+\.[0-9]+\.[0-9]+/' && bad "unpinned CDN url: $urls" || ok "every CDN url pins x.y.z"
+# Pinning a version does not pin the bytes a CDN serves; SRI does. A script
+# tag without integrity runs whatever jsdelivr returns, with the design in scope.
+tags=$(grep -E '<script src="https://' "$TEMPLATE")
+[ "$(printf '%s\n' "$tags" | grep -cE 'integrity="sha384-[A-Za-z0-9+/=]{64}" crossorigin="anonymous"')" = "3" ] \
+  && ok "every CDN script carries a sha384 integrity + crossorigin" || bad "CDN scripts need SRI: $tags"
+
+# --- a '## ' line inside a code fence is content, not a tab ------------------
+grep -qF '"title":"not a tab"' "$html" && bad "a fenced '## ' line became a tab" || ok "a fenced '## ' line is not a tab boundary"
+data_json=$(awk '/<script id="design-data"/{f=1;next} f&&/<\/script>/{exit} f' "$html")
+printf '%s' "$data_json" | jq -e '.[] | select(.title=="Components") | .md | contains("## not a tab")' >/dev/null 2>&1 \
+  && ok "fenced content stays in its section" || bad "fenced '## ' content left the Components section"
 
 # --- bad input fails ---------------------------------------------------------
 bash "$SCRIPT" >/dev/null 2>&1; [ "$?" = "2" ] && ok "no args is a usage error" || bad "no args should exit 2"
@@ -96,6 +111,27 @@ E="$TMP/docs/designs/evil"; mkdir -p "$E"
 printf -- '---\nslug: ../../escape\nstatus: draft\n---\n## Decisions\n' > "$E/design.md"
 bash "$SCRIPT" "$E" "$OUT_DIR" >/dev/null 2>&1; rc=$?
 { [ "$rc" = "1" ] && [ ! -e "$TMP/escape.html" ]; } && ok "path-traversal slug is refused" || bad "unsafe slug accepted (rc=$rc)"
+# --- never write through a symlink -------------------------------------------
+# .wayworks/maps is a predictable path; a pre-planted symlink there would turn a
+# render into an overwrite of whatever file it points at.
+L="$TMP/linkout"; mkdir -p "$L"; echo "original" > "$TMP/victim.txt"
+ln -s "$TMP/victim.txt" "$L/offline-stamp.html"
+bash "$SCRIPT" "$D" "$L" >/dev/null 2>&1; rc=$?
+{ [ "$rc" = "1" ] && [ "$(cat "$TMP/victim.txt")" = "original" ]; } \
+  && ok "an output path that is a symlink is refused, target untouched" || bad "wrote through a symlink (rc=$rc)"
+
+# --- --open ------------------------------------------------------------------
+# Stubs stand in for the viewer so no test ever launches one.
+STUB="$TMP/stub"; mkdir -p "$STUB"
+for v in open xdg-open; do printf '#!/bin/sh\necho "$1" > "%s/opened"\n' "$TMP" > "$STUB/$v"; chmod +x "$STUB/$v"; done
+out=$(PATH="$STUB:$PATH" bash "$SCRIPT" --open "$D" "$OUT_DIR" 2>&1); rc=$?
+{ [ "$rc" = "0" ] && [ "$out" = "$html" ] && [ "$(cat "$TMP/opened" 2>/dev/null)" = "$html" ]; } \
+  && ok "--open prints the path and opens it" || bad "--open (rc=$rc: $out)"
+PATH="$STUB:$PATH" bash "$SCRIPT" --open "$TMP/nope" "$OUT_DIR" >/dev/null 2>&1; [ "$?" = "1" ] \
+  && ok "--open with a missing design fails" || bad "--open missing design should exit 1"
+PATH="$STUB:$PATH" bash "$SCRIPT" --bogus "$D" "$OUT_DIR" >/dev/null 2>&1; [ "$?" = "2" ] \
+  && ok "an unknown flag is a usage error" || bad "unknown flag should exit 2"
+
 N="$TMP/docs/designs/from-dir"; mkdir -p "$N"
 printf -- '---\nstatus: draft\n---\n## Decisions\n' > "$N/design.md"
 bash "$SCRIPT" "$N" "$OUT_DIR" >/dev/null 2>&1 && [ -f "$OUT_DIR/from-dir.html" ] \

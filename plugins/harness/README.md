@@ -26,7 +26,7 @@ Moves human supervision *before* code, so `/harness:loop-dev` can build unattend
 
 **`require_design`** in `.cc-dev.yaml` gates `/harness:loop-dev` on a shaped design: `never` (absent key defaults here — existing repos are unaffected) does no classification; `features` has the agent classify the task as feature vs. fix/chore/docs and blocks a feature with no `--plan`; `always` blocks any build without one. In every mode, a `--plan` that *does* point inside `docs/designs/` must be a locked design passing `design-check.sh`, and must resolve to a real path inside the repo — an out-of-repo or symlinked-out design is blocked before anything else runs. A design already folded and shipped on the current branch (a re-run of the same `--plan`) passes without `--require-locked` instead of blocking forever on `shipped != locked`.
 
-**`--publish`** renders `design.md` itself — the Mermaid flow, components, and scope board — to a local HTML page via `scripts/render-map.sh`, opened with `open` where available. The page lands in `.wayworks/maps/`, which is git-ignored; nothing is hosted or committed.
+**`--publish`** renders `design.md` itself — the Mermaid flow, components, and scope board — to a local HTML page via `scripts/render-map.sh --open`, which opens it with `open` (macOS) or `xdg-open` where present and otherwise just prints the path. It needs `jq`. The page lands in `.wayworks/maps/`, which is git-ignored; nothing is hosted or committed, and it never writes through a symlink there. The page's three CDN scripts are version-pinned and carry SRI hashes.
 
 ### `/harness:loop-dev <task> [--check-plan]`
 
