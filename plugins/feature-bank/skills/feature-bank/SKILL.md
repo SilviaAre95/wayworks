@@ -64,7 +64,7 @@ If `/docs/features/` doesn't exist: create it and `INDEX.md` from `templates/IND
 
 - Never skip preflight because "the change is tiny" — tiny changes are where drift hides.
 - Never code first and update the feature file to match after — that is drift.
-- Never rewrite the feature body during postflight — history goes in the CHANGELOG; the body changes only via Gate 2. One exception: folding a design locked by `/harness:shape`, whose lock was the Gate 2 approval — show the fold as a diff.
+- Never rewrite the feature body during postflight — history goes in the CHANGELOG; the body changes only via Gate 2. One additive-only exception: appending a `/harness:shape` design's decided `W`/`Q` items to `acceptance_criteria` and its out-of-scope items to `non_goals` — its lock was the Gate 2 approval. Nothing else in the body changes; show the fold as a diff.
 - Never leave `non_goals` empty — a feature without boundaries scope-creeps forever.
 - No vague acceptance criteria ("works well", "is fast") — criteria must be checkable.
 - Don't merge feature-bank contents into `/docs/architecture/` — different skills own different folders.
