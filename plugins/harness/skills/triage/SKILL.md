@@ -16,7 +16,7 @@ Batch-decision protocol shared by `/harness:shape`'s attack, question, what-if a
 4. **Discuss every `?` item one at a time**, before writing anything else. An item stays `[ ]` until its `?` resolves or the user drops it.
 5. **Write each resolved item to `design.md`'s `## Decisions` section** — never only in chat. If the user abandons triage partway, unaddressed items stay `- [ ]` and the design stays `draft`.
 
-## Output format
+## Output Format
 
 Grammar: `- [x|~| ] <A|Q|W|B><n> · <severity|byproduct> · <text> · <decided-by: you|accepted-default | ack · decided-by: … | deferred: <reason> | open>`
 

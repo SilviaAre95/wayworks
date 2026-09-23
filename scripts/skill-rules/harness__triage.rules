@@ -4,14 +4,14 @@ every item is presented with a proposed decision :: proposed decision
 the user answers in one batch reply like "ok 1-7, 8: …, 9: ?" :: ok 1-7
 "?" items are discussed one at a time before anything else is written :: one at a time
 accepting a proposal unchanged records accepted-default :: accepted-default
-an item the user changed or discussed records decided-by: you :: decided-by: you
+an item the user changed or discussed records decided-by: you :: decided-by: you.*changed the outcome
 decided items are written as "- [x]" lines :: - \[x\]
 deferred items are written as "- [~]" with "deferred: <reason>" :: \[~\].*deferred:
 unanswered items stay "- [ ]" and the design stays draft :: \[ \].*(open|draft)
-byproduct (B) items need ack :: `?ack`?
+byproduct (B) items need ack :: `ack`
 the ID prefixes are A, Q, W, B :: `A`.*`Q`.*`W`.*`B`
 the separator is " · " :: ·
-at most 15 items per triage round; the rest go deferred with a one-line reason :: 15
+at most 15 items per triage round; the rest go deferred with a one-line reason :: [Cc]ap.*15
 deferred items can be pulled back into a later round :: pull(ed)? back
 decisions are written to design.md's Decisions section, not left in chat :: ## Decisions
 never write decided-by: you for an item the user did not address :: [Nn]ever.*decided-by: you|did not (address|name)
