@@ -36,7 +36,7 @@ For any request/spec mismatch, or an intentional feature change:
 
 1. Do NOT edit code yet.
 2. Produce a unified diff of the proposed feature-file change plus a one-line behavioral impact summary (example: `references/examples.md`).
-3. Wait for explicit approval in chat ("yes", "approved", "go"). Never assume.
+3. Wait for explicit approval in chat ("yes", "approved", "go"). Never assume. One exception: building from the `plan.md` of a design locked by `/harness:shape` that passed loop-dev's design gate — that lock is the approval, but only for what the design's decisions and out-of-scope rows imply. Apply it without waiting; the diff goes in the PR body.
 4. On approval: apply the diff, bump `last_modified`, append a changelog entry, then code. If rejected/modified, iterate on the spec — never code against an unsigned spec.
 
 ## Gate 3 — Postflight (MANDATORY after writing code)
@@ -54,7 +54,7 @@ When the user describes new behavior:
 2. Fill `acceptance_criteria` (concrete, testable behaviors — not implementation) and `depends_on`. Propose a `test_plan` — how an agent verifies this in dev (flows to drive, commands over sample data), per project type.
 3. `non_goals` is the most important anti-drift field: list what the feature will NOT do. Push the user; suggest 3–5 plausible ones if needed (`references/examples.md`).
 4. Add an INDEX.md entry (status=`proposed`, summary, top 2 non_goals); create `<id>.CHANGELOG.md` with an initial entry.
-5. Show the user the file; get confirmation before implementing.
+5. Show the user the file; get confirmation before implementing (a locked design is that confirmation — Gate 2 step 3).
 
 ## Bootstrap and backfill
 
@@ -64,7 +64,7 @@ If `/docs/features/` doesn't exist: create it and `INDEX.md` from `templates/IND
 
 - Never skip preflight because "the change is tiny" — tiny changes are where drift hides.
 - Never code first and update the feature file to match after — that is drift.
-- Never rewrite the feature body during postflight — history goes in the CHANGELOG; the body changes only via Gate 2. One additive-only exception: appending a `/harness:shape` design's decided `W`/`Q` items to `acceptance_criteria` and its out-of-scope items to `non_goals` — its lock was the Gate 2 approval. Nothing else in the body changes; show the fold as a diff.
+- Never rewrite the feature body during postflight — history goes in the CHANGELOG; the body changes only via Gate 2. One additive-only exception: appending a locked design's decided `W`/`Q` items to `acceptance_criteria` and its out-of-scope items to `non_goals` (Gate 2 step 3). Nothing else in the body changes; show the fold as a diff.
 - Never leave `non_goals` empty — a feature without boundaries scope-creeps forever.
 - No vague acceptance criteria ("works well", "is fast") — criteria must be checkable.
 - Don't merge feature-bank contents into `/docs/architecture/` — different skills own different folders.
