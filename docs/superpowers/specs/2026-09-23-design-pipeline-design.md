@@ -19,7 +19,7 @@ Move all human supervision to *before* code. A feature goes through a design pip
 | 5 | **Plan** | `superpowers:writing-plans` → `docs/designs/<slug>/plan.md` | review |
 | 6 | **What-ifs** | `harness:attack --target plan` (failure lenses) | triage |
 | 7 | **Byproducts** | Diff plan against scope: everything built that nobody explicitly asked for | triage (ack) |
-| 8 | **Map** | Render diagrams into `design.md`; optionally publish | no |
+| 8 | **Map** | Write the flow + what-ifs and components diagrams (Mermaid) and the scope board (table) into `design.md` | no |
 | 9 | **Lock** | `design-check.sh` green + user says lock → `status: locked`; print the `loop-dev` handoff | confirm |
 
 Handoff: `/harness:loop-dev --plan docs/designs/<slug>/plan.md`, which executes via subagents. The superpowers skills are **wrapped**, not replaced: stage 4 follows brainstorming's one-topic-at-a-time discipline, stage 5 invokes writing-plans with a fixed output path. superpowers is already in `wayworks-init`'s fleet; `/harness:shape` stops with a clear message if it is not installed.
@@ -33,6 +33,7 @@ Handoff: `/harness:loop-dev --plan docs/designs/<slug>/plan.md`, which executes 
 | `triage` | `harness` | skill | Batch-decision protocol shared by stages 3, 4, 6, 7. |
 | `shape` | `harness` | command | Orchestrator above. Named after Shape Up's shaping; `design` would read as the UI-design plugin. |
 | `design-check.sh` | `harness` | script | Deterministic gate over `design.md` + `plan.md`. |
+| `render-map.sh` | `harness` | script | `--publish`: renders `design.md` itself into a local tabbed HTML page. No model step. |
 
 Skills are drafted with `anthropic-skills:skill-creator`, then made to pass `make check` (quoted description, explicit `user-invocable`, `argument-hint` where `$ARGUMENTS` is read, ≤450 words or `references/`), and each gets a rules manifest in `scripts/skill-rules/` **written and baselined before the body is final**.
 
@@ -55,8 +56,9 @@ slug: offline-stamp
 status: draft | locked | shipped
 stage: what-ifs            # first unfinished stage
 discovery: [04-Knowledge/offline-qr.md]   # or docs/discovery/… when no vault
-map_url:                   # set by --publish when an artifact exists
 ```
+
+The `discovery:` links resolve only where that vault or path exists (a vault path means nothing to another reader). That is acceptable because nothing depends on them: the design freezes a copy of each brief's "What this changes" section, so the claims the design rests on travel with it.
 
 Sections: Discovery (links + frozen copy of each brief's "What this changes"), Scope (in / out table), Flow & what-ifs (Mermaid), Components (Mermaid), Scope board (table), Decisions.
 
@@ -90,12 +92,16 @@ require_design: features   # never | features | always
 
 ## Map
 
-Canonical view is **Mermaid + a markdown table inside `design.md`**. It renders in GitHub PRs, Obsidian, and VS Code, and cannot drift from what the gate reads. `--publish` produces a tabbed interactive HTML view (flow + what-ifs, components, scope board) generated from `design.md`:
+Canonical view is **Mermaid + a markdown table inside `design.md`**. It cannot drift from what the gate reads. GitHub (including the PR) and Obsidian render Mermaid natively; VS Code's preview needs an extension (e.g. *Markdown Preview Mermaid Support*).
 
-- **Artifact tool available:** a private claude.ai artifact, and its URL is written to `map_url`. Republish keeps the same URL.
-- **Otherwise:** `.wayworks/maps/<slug>.html` (gitignored), opened locally.
+`--publish` runs `render-map.sh`, which **renders `design.md` itself** rather than generating a map from it:
 
-GitHub Pages is excluded: it is public by default and would leak unreleased designs.
+- Output: `.wayworks/maps/<slug>.html`, gitignored (`harness-init` adds `.wayworks/`), opened locally. Never committed, never hosted. No URL is stored anywhere, so nothing goes stale.
+- A fixed template embeds `design.md` verbatim (JSON-escaped) and renders it client-side: markdown via `marked`, sanitized with `DOMPurify`, diagrams via `mermaid`, from jsdelivr at pinned versions. Opening the map needs internet; bundling the libraries is deferred until that is a real problem.
+- Tabs are the design's sections: Flow & what-ifs, Components, Scope board, Decisions. A Decisions filter ("open / decided / deferred") works over the checklist markers.
+- Because the page shows exactly the diagrams the gate reads, a model never redraws them and there is nothing to review.
+
+No hosted option: GitHub Pages is public by default and would leak unreleased designs, and a claude.ai artifact is private to its owner, can be deleted, and changes under a URL that a frozen record would point to.
 
 ## Durable memory
 
@@ -124,18 +130,20 @@ The vault is found the way `wayworks-onboard` finds it: declared in the user's g
 
 - `decided-by: you` is written by the model; the gate cannot prove the human said it. The per-item record plus the triage transcript is the audit trail, not a guarantee.
 - The `features` classification is a model judgement (logged, not enforced).
-- Mermaid gets cramped past ~25 nodes; `--publish` is the escape hatch.
+- Mermaid gets cramped past ~25 nodes; the rendered page gives it full width, but a design that large is usually a sign to split it.
+- The rendered map is local only; phone review relies on GitHub rendering the Mermaid in the PR.
 
 ## Testing
 
 - `design-check.test.sh` with fixtures, and it **proves it can fail**: an open item, a missing `decided-by`, an unacked byproduct, a `W` ID absent from the plan, a wrong status, and malformed lines. The same contract as `check-skill-rules.test.sh`.
+- `render-map.test.sh`: a fixture `design.md` renders to a page containing every section as a tab, every Mermaid block, and every decision line; a `design.md` containing `<script>` must not survive sanitizing.
 - `loop-dev-preflight.test.sh` extended for `require_design` in all three modes.
 - Rules manifests for `discover`, `attack`, `triage`.
 - A live `/harness:shape` → `loop-dev` run on one real kaffecard feature before release. The compatibility "gates exercised live" row moves only on that run.
 
 ## Release
 
-`shared` minor (new `discover`), `harness` minor (new command, skills, script, config key), marketplace minor, CHANGELOG, README counts. All in one PR per the release rule.
+`shared` minor (new `discover`), `harness` minor (new command, skills, two scripts, config key, `.wayworks/` gitignore line), marketplace minor, CHANGELOG, README counts. All in one PR per the release rule.
 
 ## Out of scope (this spec)
 
