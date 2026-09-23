@@ -19,7 +19,7 @@ your agent plans, builds, reviews, tests, ships, and documents. You review and m
 
 ---
 
-Every project lives in a linked triangle — **repo ↔ second brain ↔ tracker** — and every feature travels a gated pipeline where the agent cannot declare "done" until something measurable agrees. 14 plugins, 49 skills (5 of them stack profiles), 6 commands, and 2 sub-agents.
+Every project lives in a linked triangle — **repo ↔ second brain ↔ tracker** — and every feature travels a gated pipeline where the agent cannot declare "done" until something measurable agrees. 14 plugins, 52 skills (5 of them stack profiles), 7 commands, and 2 sub-agents.
 
 - `/shared:wayworks-init` — bootstrap a repo: plugin fleet, CLAUDE.md header, verify gate
 - `/shared:wayworks-onboard` — link a project's triangle: repo ↔ second brain ↔ tracker
@@ -35,7 +35,7 @@ Every project lives in a linked triangle — **repo ↔ second brain ↔ tracker
 ```mermaid
 flowchart LR
     subgraph front["🧠 Think first"]
-        A[Brainstorm → spec<br/>→ written plan] --> B{{Feature bank<br/>preflight gate}}
+        A[/harness:shape<br/>discover → attack → triage<br/>→ plan → lock] --> B{{Design gate +<br/>feature bank preflight}}
     end
     subgraph loop["⚙️ /harness:loop-dev — Stop-hook enforced"]
         B --> C[Build] --> D[Parallel review graders<br/>code · security · bugs · design]
@@ -115,7 +115,7 @@ claude --plugin-dir ./plugins/shared --plugin-dir ./plugins/architect --plugin-d
 
 | Loop | What it does |
 |------|--------------|
-| Front half | superpowers `brainstorming` → spec → `writing-plans`, then hand the plan to the loop: `/harness:loop-dev --plan docs/superpowers/plans/<plan>.md` |
+| Front half | `/harness:shape <topic>` → locked `docs/designs/<slug>/`, then hand the plan to the loop: `/harness:loop-dev --plan docs/designs/<slug>/plan.md` |
 | `/harness:loop-build` | Build-test-fix until the verify gate is green |
 | `/harness:loop-dev` | Full feature loop: spec preflight → plan → build → parallel review/security/bug (+ optional design) subagents → dev test → docs postflight → PR + CI watch |
 | `/harness:loop-deploy` | Deploy → watch → verify prod → fix/redeploy or roll back → sync repo docs, vault log, and Linear |
@@ -140,6 +140,7 @@ Between loops: `feature-bank` guards scope on every code edit; review/test/secur
 | `/shared:pr-description` | Write a PR body — one-liner, what changed, why, type, files, tests; under 250 words, no review chronology |
 | `/shared:wayworks-init` | Bootstrap a repo as a wayworks workspace — plugin fleet in `.claude/settings.json`, CLAUDE.md header, harness handoff |
 | `/shared:wayworks-onboard` | Onboard a project from any starting point — create + link Linear project ↔ vault note ↔ repo, adapting to what exists |
+| `/shared:discover` | Research a topic through parallel lenses (code/article/talk presets); brief ends with "What this changes", saved to the vault or docs/discovery/ |
 
 **Stack profiles** (auto-loaded based on project files — this is where language/stack opinions live):
 - `nextjs-vercel` — Next.js App Router + TypeScript style + Tailwind/Prisma + Vercel conventions
@@ -155,9 +156,12 @@ Between loops: `feature-bank` guards scope on every code edit; review/test/secur
 
 Ships hooks (auto-approve reads, `Stop`-gate loop enforcement, write-time quality checks — stray-doc gate, TS type-check on edit, console.log sweep), templates, and its own test suite. See [plugins/harness/README.md](plugins/harness/README.md).
 
-| Command | Description |
+| Command / skill | Description |
 |---------|-------------|
 | `/harness:harness-init` | Set up the harness in a project — verify gate (`.cc-verify`), loop configs, gitignore |
+| `/harness:shape` | Gated design pipeline: discover → scope → attack → questions → plan → what-ifs → byproducts → map → lock, writing `docs/designs/<slug>/design.md` + `plan.md` |
+| `harness:attack` | Adversarial review of a design's scope or plan — scaled panel, top 15 findings handed to `triage` |
+| `harness:triage` | Batch-decide review items with the user, written to `design.md` as gate-parseable checklist lines |
 | `/harness:loop-build` | Build-test-fix loop that runs until the verify gate is green |
 | `/harness:loop-dev` | Staged dev loop: spec preflight → plan (`--plan <path>`) → build → review subagents → dev test → docs postflight → PR + CI watch |
 | `/harness:loop-deploy` | Prod deploy loop: deploy → watch → verify → fix/redeploy until healthy, rollback on exhaustion; knowledge sync on success |

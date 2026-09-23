@@ -49,6 +49,10 @@ Every gate is a hook. If any of this changes, the loops stop enforcing and keep 
 
 Re-check after any Claude Code upgrade. A degraded grader looks identical to a working one from the outside.
 
+### Third-party skills invoked by name
+
+`/harness:shape` stages 4–5 invoke `superpowers:brainstorming` and `superpowers:writing-plans` by name — a design's feature-questions stage follows brainstorming's one-topic-at-a-time discipline, and the plan stage hands off to writing-plans outright. A rename of either in the `superpowers` marketplace breaks `shape`, not silently: its own precondition checks that `superpowers:writing-plans` resolves before stage 1 runs, and stops loudly with an install hint when it doesn't. Unlike the bundled-skill risk above, there is no marker to stamp over a missing dependency here — the command simply refuses to start.
+
 ### Frontmatter fields in use
 
 `description`, `name`, `user-invocable`, `argument-hint`, `allowed-tools` (6, all in commands), `tools` (2, both agents), `model`, `paths`. Enforced by `scripts/lint-skills.sh`, which checks *our* conformance — not whether Claude Code still honours these keys. Counts are deliberately coarse now; the previous exact figures went stale silently.

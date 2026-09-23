@@ -18,6 +18,16 @@ Tiered autonomy + a build-test-fix loop, so development becomes "kick off a work
 Claude stop until it's green — fixing and retrying up to 5 times, then summarizing.
 Read-only tools are auto-approved in every tier so exploration never stalls.
 
+### `/harness:shape <topic> [--stage <name>] [--publish]`
+
+Moves human supervision *before* code, so `/harness:loop-dev` can build unattended. Walks a topic through nine stages — discover (`shared:discover`, code preset) → scope (in/out review) → attack scope (`harness:attack --target scope`) → feature questions (brainstorming discipline) → plan (`superpowers:writing-plans`) → what-ifs (`harness:attack --target plan`) → byproducts (undirected work, acknowledged) → map (Mermaid flow + component diagrams) → lock — writing `docs/designs/<slug>/design.md` and `plan.md`. Attack and triage stages produce numbered findings and batch-decided lines (`- [x|~| ] <A|Q|W|B><n> · ... · decided-by: ...`); resumable via frontmatter `stage:`, and `--stage <name>` re-opens from any point (re-opening `plan` re-runs what-ifs and byproducts too, since a new plan can create new ones).
+
+**The gate**, `scripts/design-check.sh`, is deterministic — no model in the loop — and blocks on four things: any open (`- [ ]`) item, a decided item with no `decided-by: you|accepted-default`, an unacknowledged byproduct, and a decided what-if (`W`) with no matching task in `plan.md`. Locking requires the gate green **and** the user's explicit yes; a `shipped` design never re-opens.
+
+**`require_design`** in `.cc-dev.yaml` gates `/harness:loop-dev` on a shaped design: `never` (absent key defaults here — existing repos are unaffected) does no classification; `features` has the agent classify the task as feature vs. fix/chore/docs and blocks a feature with no `--plan`; `always` blocks any build without one. In every mode, a `--plan` that *does* point inside `docs/designs/` must be a locked design passing `design-check.sh`, and must resolve to a real path inside the repo — an out-of-repo or symlinked-out design is blocked before anything else runs. A design already folded and shipped on the current branch (a re-run of the same `--plan`) passes without `--require-locked` instead of blocking forever on `shipped != locked`.
+
+**`--publish`** renders `design.md` itself — the Mermaid flow, components, and scope board — to a local HTML page via `scripts/render-map.sh`, opened with `open` where available. The page lands in `.wayworks/maps/`, which is git-ignored; nothing is hosted or committed.
+
 ### `/harness:loop-dev <task> [--check-plan]`
 
 Extends `/harness:loop-build` into a full staged dev loop: read the task (a bare

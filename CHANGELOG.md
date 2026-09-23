@@ -12,6 +12,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 6.3.0] — 2026-09-23
+
+### Added
+- **`harness` `2.3.0`** — `/harness:shape`: a gated design pipeline (discover → scope → attack → questions → plan → what-ifs → byproducts → map → lock) that writes `docs/designs/<slug>/design.md` + `plan.md`. `scripts/design-check.sh` blocks any open item, a decision without `decided-by`, an unacknowledged byproduct, a decided what-if with no task in the plan, and — from `loop-dev` — an unlocked design. `scripts/render-map.sh --publish` renders `design.md` itself to a local page; nothing is hosted. New skills `attack` (scaled adversarial panel, capped at 15) and `triage` (batch decisions). Both scripts have self-tests that prove they can fail.
+- **`harness` `2.3.0`** — `.cc-dev.yaml` `require_design: never | features | always`. The template and `harness-init` write `features`; **an absent key means `never`**, so existing repos are unaffected until they opt in. A `--plan` inside `docs/designs/` is gated in every mode, must resolve inside the repo (an out-of-repo or symlinked-out design is blocked before anything else runs), and a re-run of `loop-dev` against a design already folded and shipped on the same branch passes without `--require-locked` (`DESIGN_ALREADY_FOLDED`) instead of blocking forever on `shipped != locked`.
+- **`shared` `2.4.0`** — `discover`: lens-parallel research with code/article/talk presets; briefs end in "What this changes" and are reused for 30 days.
+
+### Changed
+- **`feature-bank` `1.2.3`** — postflight may fold a design locked by `/harness:shape` into the feature body (its lock was the Gate 2 approval), shown as a diff.
+
 ## [marketplace 6.2.3] — 2026-09-10
 
 ### Fixed

@@ -42,7 +42,21 @@ What `create-skill` uniquely carries is the *house pattern* — `Steps → Outpu
 
 **Action:** keep `create-skill` as the house-conformance layer, and point it at `skill-creator` for evals and benchmarking, which we have no answer to. Worth adding a line to that effect rather than leaving the gap silent.
 
+### Wrap — keep the interface, delegate the work
+
+**`shared:discover` vs `superpowers:brainstorming`** — audited 2026-09-23 alongside `attack`/`triage` below.
+
+The proposed keep argument was that `discover`'s `## What this changes` section is frozen verbatim into `design.md` by `/harness:shape`, and briefs are reused across repos through the vault (30-day cache). That argument doesn't survive contact with the rule this file opened with: **`design-check.sh` never parses or requires that section** — it checks decision lines (`A/Q/W/B`) and the plan cross-check only. Freezing the text into `design.md` is a workflow step `shape.md` performs, not something the gate enforces; a discovery brief that were empty, wrong, or missing entirely would not fail the Lock stage. That makes `discover` exactly the shape this file calls commodity: *"a checklist... is something a capable model produces on request"* — here, a research checklist. `superpowers:brainstorming` already covers the human-facing half (one-topic-at-a-time exploration); `discover`'s distinguishing feature is the automated parallel-lens dispatch (technical/product/prior-art/etc.) plus the vault brief cache, and no first-party plugin audited so far reproduces that combination.
+
+**Action:** record as **Wrap**, honestly incomplete — no first-party delegate target has been identified yet for the parallel-lens dispatch itself, so nothing changes today. Keep the interface (`shape` stage 1's contract: a brief ending in "What this changes"), and re-run this line item if the official marketplace ships a research/discovery plugin that does lens-parallel dispatch with a reusable brief artifact.
+
 ### Keep — no real first-party equivalent
+
+**`harness:attack` + `harness:triage` vs `superpowers:brainstorming`** — audited 2026-09-23.
+
+Both are gated, not checklists. `attack`'s numbered findings and `triage`'s decision lines (`- [x|~| ] <A|Q|W|B><n> · ... · decided-by: ...`) *are* the grammar `design-check.sh` parses deterministically at Lock — a malformed line, an open item, a decision with no `decided-by`, an unacknowledged byproduct, or a decided what-if missing from `plan.md` all `BLOCK:`. `superpowers:brainstorming` is the nearest first-party neighbor, but it is conversational and produces no parseable grammar; a script cannot gate on its output the way it gates on `triage`'s. Deleting either skill would not cost a checklist — it would cost the Lock gate itself, since nothing else produces input the gate script understands.
+
+**Action:** keep both, unconditionally. This is the same "moat" reasoning the harness entry below already makes for the loops themselves.
 
 **`claude plugin validate` vs `scripts/lint-skills.sh`** — checked 2026-09-08 against Claude Code 2.1.263 (XARI-109).
 
