@@ -80,6 +80,20 @@ run "$d"
 { [ "$RC" = "1" ] && echo "$OUT" | grep -q "no value"; } \
   && ok "empty graders list blocks" || bad "empty graders list blocks (rc=$RC)"
 
+# --- config without a graders key uses the defaults ---------------------------
+# Only a PRESENT key with no value is the silent-skip trap above. A .cc-dev.yaml
+# written just to set require_design (harness-init does exactly that) has no
+# graders key at all, and must fall back to the documented defaults.
+d=$(newrepo nograderskey)
+echo "make check" > "$d/.cc-verify"
+printf 'require_design: features\n' > "$d/.cc-dev.yaml"
+run "$d"
+{ [ "$RC" = "0" ] \
+  && echo "$OUT" | grep -q "code-review -> /code-review" \
+  && echo "$OUT" | grep -q "security -> security:code-audit" \
+  && echo "$OUT" | grep -q "bugs -> qa:bug-review"; } \
+  && ok "config with no graders key uses the default graders" || bad "no graders key uses defaults (rc=$RC: $OUT)"
+
 # --- tracked loop state (livelocks the gate) --------------------------------
 d=$(newrepo tracked)
 echo "make check" > "$d/.cc-verify"
@@ -210,7 +224,7 @@ git -C "$d" add -A
 git -C "$d" -c user.email=t@t -c user.name=t commit -q -m "ship design"
 run "$d" --plan "$PLANREL"
 { [ "$RC" = "0" ] && grep -q "DESIGN_ALREADY_FOLDED: offline-stamp" <<<"$OUT"; } \
-  && ok "design shipped on this branch: rc 0 + DESIGN_ALREADY_FOLDED" \
+  && ok "(e) locked on main, shipped on this branch: rc 0 + DESIGN_ALREADY_FOLDED" \
   || bad "design shipped on this branch (rc=$RC: $OUT)"
 
 # A design already shipped ON BASE (no diff introduced by this branch) is a
@@ -248,8 +262,8 @@ other=$(newrepo rd-outside-rel-external)
 mkdesign_at "$other/docs/designs/offline-stamp" shipped
 cfg "$d" "require_design: always"
 run "$d" --plan "../$(basename "$other")/docs/designs/offline-stamp/plan.md"
-{ [ "$RC" = "1" ] && ! grep -q "DESIGN_ALREADY_FOLDED" <<<"$OUT"; } \
-  && ok "relative --plan escaping the repo (../) blocks" \
+{ [ "$RC" = "1" ] && ! grep -q "DESIGN_ALREADY_FOLDED" <<<"$OUT" && grep -q "outside this repo" <<<"$OUT"; } \
+  && ok "relative --plan escaping the repo (../) blocks as outside this repo" \
   || bad "relative --plan escaping the repo (rc=$RC: $OUT)"
 
 # (d) absolute --plan into a second repo, status LOCKED (not shipped) — this
@@ -265,5 +279,71 @@ run "$d" --plan "$other2/docs/designs/offline-stamp/plan.md"
 { [ "$RC" = "1" ] && ! grep -q "DESIGN_ALREADY_FOLDED" <<<"$OUT"; } \
   && ok "absolute --plan into a second repo blocks (even when validly locked there)" \
   || bad "absolute --plan into a second repo (rc=$RC: $OUT)"
+
+# --- path normalisation and the plan.md requirement --------------------------
+# `docs/./designs/` and `docs//designs/` are the same directory as
+# `docs/designs/`, but a lexical match on the raw string missed both and so
+# skipped the design gate entirely: under never/features a DRAFT design built.
+for mode in never features; do
+  for p in docs/./designs/offline-stamp/plan.md docs//designs/offline-stamp/plan.md; do
+    d=$(newrepo "rd-norm-$mode"); cfg "$d" "require_design: $mode"; mkdesign "$d" draft
+    run "$d" --plan "$p"
+    [ "$RC" = "1" ] && ok "$mode: --plan $p to a draft design blocks" || bad "$mode: --plan $p (rc=$RC: $OUT)"
+  done
+done
+
+# Any file in a locked design's folder is not that design's plan: loop-dev
+# would build whatever evil.md says while design-check vouched for plan.md.
+d=$(newrepo rd-evil); cfg "$d" "require_design: never"; mkdesign "$d" locked
+printf '### Task 1: something else entirely\n' > "$d/docs/designs/offline-stamp/evil.md"
+run "$d" --plan docs/designs/offline-stamp/evil.md
+{ [ "$RC" = "1" ] && grep -q "plan.md" <<<"$OUT"; } \
+  && ok "--plan to a non-plan.md file in a design folder blocks" || bad "--plan evil.md (rc=$RC: $OUT)"
+
+# --- DESIGN_ALREADY_FOLDED needs a locked history and a committed flip -------
+# The fold is only real when some committed version of the design was locked
+# (the merge-base version or a commit on this branch) AND the committed shipped
+# version at HEAD differs from the merge-base. Without the first, a design
+# committed straight as `shipped` skips locking; without the second, an
+# uncommitted flip in the working tree reads as a fold.
+commit() { git -C "$1" add -A; git -C "$1" -c user.email=t@t -c user.name=t commit -q -m "$2"; }
+flip() { sed -i.bak "s/status: $2/status: $3/" "$1/docs/designs/offline-stamp/design.md"; rm -f "$1/docs/designs/offline-stamp/design.md.bak"; }
+
+# (f) shaped on the same branch: locked commit, then shipped commit, both on it.
+d=$(newrepo rd-fold-samebranch); cfg "$d" "require_design: always"; commit "$d" cfg
+git -C "$d" checkout -q -b feature
+mkdesign "$d" locked; commit "$d" "design locked"
+flip "$d" locked shipped; commit "$d" "ship design"
+run "$d" --plan "$PLANREL"
+{ [ "$RC" = "0" ] && grep -q "DESIGN_ALREADY_FOLDED: offline-stamp" <<<"$OUT"; } \
+  && ok "(f) locked then shipped, both on this branch: FOLDED" || bad "(f) same-branch fold (rc=$RC: $OUT)"
+
+# (g) committed straight as shipped on the branch, never locked.
+d=$(newrepo rd-fold-neverlocked); cfg "$d" "require_design: always"; commit "$d" cfg
+git -C "$d" checkout -q -b feature
+mkdesign "$d" shipped; commit "$d" "design shipped, never locked"
+run "$d" --plan "$PLANREL"
+{ [ "$RC" = "1" ] && ! grep -q "DESIGN_ALREADY_FOLDED" <<<"$OUT"; } \
+  && ok "(g) shipped but never locked in history blocks" || bad "(g) never locked (rc=$RC: $OUT)"
+
+# (h) locked committed on the branch, flip to shipped left UNCOMMITTED.
+d=$(newrepo rd-fold-uncommitted); cfg "$d" "require_design: always"; commit "$d" cfg
+git -C "$d" checkout -q -b feature
+mkdesign "$d" locked; commit "$d" "design locked"
+flip "$d" locked shipped
+run "$d" --plan "$PLANREL"
+{ [ "$RC" = "1" ] && ! grep -q "DESIGN_ALREADY_FOLDED" <<<"$OUT"; } \
+  && ok "(h) uncommitted flip to shipped blocks" || bad "(h) uncommitted flip (rc=$RC: $OUT)"
+
+# FOLDED still runs design-check: an open item added with the flip blocks.
+d=$(newrepo rd-fold-open); cfg "$d" "require_design: always"
+mkdesign "$d" locked; commit "$d" "design locked"
+git -C "$d" checkout -q -b feature
+flip "$d" locked shipped
+echo '- [ ] Q2 · med · reopened after ship · open' >> "$d/docs/designs/offline-stamp/design.md"
+commit "$d" "ship design with an open item"
+run "$d" --plan "$PLANREL"
+{ [ "$RC" = "1" ] && grep -q "BLOCK: design: Q2" <<<"$OUT" && ! grep -q "DESIGN_ALREADY_FOLDED" <<<"$OUT"; } \
+  && ok "folded design that fails design-check blocks" || bad "folded + open item (rc=$RC: $OUT)"
 
 exit $fail

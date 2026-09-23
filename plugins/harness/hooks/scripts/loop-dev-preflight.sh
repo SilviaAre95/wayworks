@@ -47,9 +47,16 @@ if [ ! -f "$CFG" ]; then
   base="main"
 else
   ok ".cc-dev.yaml found"
-  graders=$(grep -E '^graders:' "$CFG" | head -1 | sed -E 's/^graders:[[:space:]]*//; s/[[:space:]]*#.*$//; s/^\[//; s/\]$//')
   base=$(grep -E '^base:' "$CFG" | head -1 | sed -E 's/^base:[[:space:]]*//; s/[[:space:]]*#.*$//')
-  [ -n "$graders" ] || err ".cc-dev.yaml has a 'graders:' key with no value — every review stage would be skipped silently"
+  # An ABSENT graders key means the defaults (a config written only to set
+  # require_design has none). A PRESENT key with no value is the trap: every
+  # review stage would be skipped silently.
+  if grep -qE '^graders:' "$CFG"; then
+    graders=$(grep -E '^graders:' "$CFG" | head -1 | sed -E 's/^graders:[[:space:]]*//; s/[[:space:]]*#.*$//; s/^\[//; s/\]$//')
+    [ -n "$graders" ] || err ".cc-dev.yaml has a 'graders:' key with no value — every review stage would be skipped silently"
+  else
+    graders="code-review, security, bugs"
+  fi
 fi
 base="${base:-main}"
 
@@ -107,73 +114,95 @@ case "$require_design" in
   never|features|always) ;;
   *) err "require_design '$require_design' is not never|features|always"; require_design=never ;;
 esac
+# The --plan path is resolved to a real (symlink-free) path BEFORE anything is
+# matched against it: `docs/./designs/` and `docs//designs/` name the same
+# directory as `docs/designs/`, and a lexical match on the raw string missed
+# both — skipping the design gate for a draft design. Containment comes first
+# and applies to every --plan in every mode: a relative --plan can walk out of
+# the repo with `../`, an absolute one can point into a different repo, and
+# neither is something loop-dev should build from.
 design_dir=""
 if [ -n "$PLAN" ]; then
   case "$PLAN" in /*) plan_path="$PLAN" ;; *) plan_path="$DIR/$PLAN" ;; esac
-  case "$plan_path" in */docs/designs/*/*) design_dir=$(dirname "$plan_path") ;; esac
+  plan_dir_real=$(cd "$(dirname "$plan_path")" 2>/dev/null && pwd -P)
+  repo_real=$(cd "$DIR" 2>/dev/null && pwd -P)
+  if [ -z "$plan_dir_real" ] || [ -z "$repo_real" ]; then
+    err "--plan does not resolve to an existing directory: $PLAN"
+  else
+    plan_real="$plan_dir_real/$(basename "$plan_path")"
+    case "$plan_real" in
+      "$repo_real/"*)
+        case "$plan_real" in "$repo_real/docs/designs/"*/*) design_dir="$plan_dir_real" ;; esac ;;
+      *) err "--plan is outside this repo: $PLAN" ;;
+    esac
+  fi
 fi
+# Prints the frontmatter status of a design.md read on stdin.
+fm_status() {
+  awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1{print}' \
+    | sed -nE 's/^status:[[:space:]]*([A-Za-z]+).*/\1/p' | head -1
+}
 if [ -n "$design_dir" ]; then
-  if [ ! -f "$DESIGN_CHECK" ]; then
+  # design-check vouches for plan.md; any other file in the folder is a plan
+  # nobody checked, built under the design's name.
+  if [ "$(basename "$plan_real")" != "plan.md" ]; then
+    err "--plan must be the design's plan.md, not $(basename "$plan_real")"
+  elif [ ! -f "$DESIGN_CHECK" ]; then
     err "design-check.sh not found at $DESIGN_CHECK — the harness install is incomplete"
   else
-    # Containment, checked before anything else and in every mode (never,
-    # features, always): a relative --plan can walk out of the repo with
-    # `../`, and an absolute --plan can point straight into a different repo's
-    # docs/designs/. Neither is something loop-dev should ever build from —
-    # resolve both to real (symlink-free) paths and require the design to be
-    # under the repo. This also closes the door the diff-exit-code check below
-    # cannot: a foreign design that is genuinely `locked` never touches that
-    # check at all and would otherwise pass design-check as if it were local.
-    design_real=$(cd "$design_dir" 2>/dev/null && pwd -P)
-    repo_real=$(cd "$DIR" 2>/dev/null && pwd -P)
-    contained=0
-    if [ -n "$design_real" ] && [ -n "$repo_real" ]; then
-      case "$design_real/" in "$repo_real/"*) contained=1 ;; esac
-    fi
-    if [ "$contained" -ne 1 ]; then
-      err "--plan design is outside this repo: $design_dir"
-    else
-      # loop-dev's own postflight flips design.md to `status: shipped` and
-      # commits it on the feature branch (see loop-dev.md step 7). Re-running
-      # loop-dev with the same --plan — the caller must converge to ONE PR —
-      # would otherwise BLOCK forever under --require-locked, since shipped !=
-      # locked. Only treat it as "already folded here" when the flip happened
-      # ON THIS BRANCH: design.md differs from the merge-base with $base. A
-      # design that was already shipped back when this branch forked (no
-      # diff) is a different design entirely as far as this branch is
-      # concerned, and still blocks like any other non-locked status.
-      #
-      # `git diff --quiet` exits 1 when it differs, 0 when it does not, and
-      # >1 (128 for an unreadable/foreign path, among others) on error — the
-      # first version here read "non-zero" as "differs" and so read every
-      # error as a fold, fail-open. Only rc=1 means folded; any other rc falls
-      # through to the normal --require-locked path, which blocks.
-      already_folded=0
-      design_file="$design_dir/design.md"
-      if [ -f "$design_file" ] && git -C "$DIR" rev-parse --git-dir >/dev/null 2>&1; then
-        status_now=$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1{print}' "$design_file" | sed -nE 's/^status:[[:space:]]*([A-Za-z]+).*/\1/p' | head -1)
-        if [ "$status_now" = "shipped" ]; then
-          mb=$(git -C "$DIR" merge-base "$base" HEAD 2>/dev/null) || mb=""
-          if [ -n "$mb" ]; then
-            git -C "$DIR" diff --quiet "$mb" -- "$design_file" 2>/dev/null; dr=$?
-            [ "$dr" -eq 1 ] && already_folded=1
-          fi
+    # loop-dev's postflight flips design.md to `status: shipped` and commits
+    # it with the fold on the feature branch (loop-dev.md step 7). Re-running
+    # loop-dev with the same --plan — the caller must converge to ONE PR —
+    # would otherwise BLOCK forever under --require-locked, since shipped !=
+    # locked. It counts as "already folded here" only when ALL hold:
+    #   - the COMMITTED design at HEAD is shipped, and the working tree matches
+    #     it (an uncommitted flip is not a fold, and a shipped design does not
+    #     change afterwards);
+    #   - some committed version was locked — the merge-base version or one of
+    #     this branch's commits touching it (committed straight as shipped
+    #     means it skipped locking, and so skipped the design gate);
+    #   - HEAD's version differs from the merge-base: `git diff --quiet` exits
+    #     1 for that, 0 for no diff, and >1 on error. Only rc=1 counts — the
+    #     first version read any non-zero as "differs", so every error was a
+    #     fold, fail-open. A design already shipped when this branch forked is
+    #     a different design as far as this branch is concerned.
+    # Anything else falls through to --require-locked, which blocks.
+    already_folded=0
+    design_file="$design_dir/design.md"
+    top=$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null) && top=$(cd "$top" && pwd -P) || top=""
+    if [ -f "$design_file" ] && [ -n "$top" ]; then
+      rel="${design_file#"$top"/}"
+      mb=$(git -C "$top" merge-base "$base" HEAD 2>/dev/null) || mb=""
+      if [ -n "$mb" ] \
+         && [ "$(fm_status < "$design_file")" = "shipped" ] \
+         && [ "$(git -C "$top" show "HEAD:$rel" 2>/dev/null | fm_status)" = "shipped" ] \
+         && git -C "$top" diff --quiet HEAD -- "$rel" 2>/dev/null; then
+        ever_locked=0
+        [ "$(git -C "$top" show "$mb:$rel" 2>/dev/null | fm_status)" = "locked" ] && ever_locked=1
+        if [ "$ever_locked" -eq 0 ]; then
+          for c in $(git -C "$top" rev-list "$mb..HEAD" -- "$rel" 2>/dev/null); do
+            [ "$(git -C "$top" show "$c:$rel" 2>/dev/null | fm_status)" = "locked" ] && { ever_locked=1; break; }
+          done
+        fi
+        if [ "$ever_locked" -eq 1 ]; then
+          git -C "$top" diff --quiet "$mb" HEAD -- "$rel" 2>/dev/null; dr=$?
+          [ "$dr" -eq 1 ] && already_folded=1
         fi
       fi
-      if [ "$already_folded" -eq 1 ]; then
-        if dc=$(bash "$DESIGN_CHECK" "$design_dir" 2>&1); then
-          ok "design $(basename "$design_dir") already shipped on this branch — design-check passes without --require-locked"
-          echo "DESIGN_ALREADY_FOLDED: $(basename "$design_dir")"
-        else
-          while IFS= read -r l; do err "design: ${l#BLOCK: }"; done < <(printf '%s\n' "$dc" | grep '^BLOCK:')
-          err "design $(basename "$design_dir") failed design-check even though already shipped on this branch"
-        fi
-      elif dc=$(bash "$DESIGN_CHECK" "$design_dir" --require-locked 2>&1); then
-        ok "design $(basename "$design_dir") is locked and passes design-check"
+    fi
+    if [ "$already_folded" -eq 1 ]; then
+      if dc=$(bash "$DESIGN_CHECK" "$design_dir" 2>&1); then
+        ok "design $(basename "$design_dir") already shipped on this branch — design-check passes without --require-locked"
+        echo "DESIGN_ALREADY_FOLDED: $(basename "$design_dir")"
       else
         while IFS= read -r l; do err "design: ${l#BLOCK: }"; done < <(printf '%s\n' "$dc" | grep '^BLOCK:')
-        err "design $(basename "$design_dir") is not ready — finish it with /harness:shape $(basename "$design_dir")"
+        err "design $(basename "$design_dir") failed design-check even though already shipped on this branch"
       fi
+    elif dc=$(bash "$DESIGN_CHECK" "$design_dir" --require-locked 2>&1); then
+      ok "design $(basename "$design_dir") is locked and passes design-check"
+    else
+      while IFS= read -r l; do err "design: ${l#BLOCK: }"; done < <(printf '%s\n' "$dc" | grep '^BLOCK:')
+      err "design $(basename "$design_dir") is not ready — finish it with /harness:shape $(basename "$design_dir")"
     fi
   fi
 elif [ "$require_design" = "always" ]; then
