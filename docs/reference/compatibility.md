@@ -51,7 +51,7 @@ Re-check after any Claude Code upgrade. A degraded grader looks identical to a w
 
 ### Third-party skills invoked by name
 
-`/harness:shape` stages 4–5 invoke `superpowers:brainstorming` and `superpowers:writing-plans` by name — a design's feature-questions stage follows brainstorming's one-topic-at-a-time discipline, and the plan stage hands off to writing-plans outright. A rename of either in the `superpowers` marketplace breaks `shape`, not silently: its own precondition checks that `superpowers:writing-plans` resolves before stage 1 runs, and stops loudly with an install hint when it doesn't. Unlike the bundled-skill risk above, there is no marker to stamp over a missing dependency here — the command simply refuses to start.
+`/harness:shape` invokes one third-party skill by name: `superpowers:writing-plans`, in stage 5 (plan). Stage 4 (feature questions) follows `superpowers:brainstorming`'s one-topic-at-a-time discipline as written in `shape.md` — it does not invoke that skill. A rename of `writing-plans` in the `superpowers` marketplace breaks `shape`. The guard is `shape.md`'s precondition, a model instruction rather than a hard check: it tells the agent to confirm `superpowers:writing-plans` resolves before stage 1 and to stop with an install hint when it doesn't. No script enforces it, so a model that skips the check reaches stage 5 and fails there. Unlike the bundled-skill risk above, there is still no marker to stamp over the missing dependency — the plan stage cannot produce `plan.md`, and `design-check.sh` blocks the lock without it.
 
 ### Frontmatter fields in use
 
