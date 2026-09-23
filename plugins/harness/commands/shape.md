@@ -34,7 +34,7 @@ Shape the feature below into a locked design at `docs/designs/<slug>/design.md` 
 
 `stage:` names, in order: `discover`, `scope`, `attack-scope`, `questions`, `plan`, `what-ifs`, `byproducts`, `map`, `lock`.
 
-1. **Discover** — `/shared:discover <topic> --preset code`. Add the brief's path to frontmatter `discovery:` and freeze a verbatim copy of its `## What this changes` under `## Discovery`, below a link line to the brief. If the brief reports `partial`, append `· discovery: partial` to that link line. A partial result does not stop the pipeline.
+1. **Discover** — `/shared:discover <topic> --preset code`. Add the brief's path to frontmatter `discovery:` and freeze a verbatim copy of its `## What this changes` under `## Discovery`, below a link line to the brief. If the brief reports `partial`, add the frontmatter key `discovery-status: partial` (absent means complete). A partial result does not stop the pipeline.
 2. **Scope** — draft the In/Out table from the topic, the brief and `docs/features/` (when present). The user reviews it before you continue.
 3. **Attack scope** — `/harness:attack --target scope docs/designs/<slug>`, then `harness:triage` on its list.
 4. **Feature questions** — follow brainstorming's discipline: one topic at a time. Record each open functional question as a `Q` item, then `harness:triage`.
