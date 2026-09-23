@@ -227,4 +227,43 @@ run "$d" --plan "$PLANREL"
   && ok "design already shipped on base still blocks" \
   || bad "design already shipped on base still blocks (rc=$RC: $OUT)"
 
+# --- containment: --plan must resolve inside this repo -----------------------
+# A relative --plan can walk out of the repo with `../`, and an absolute
+# --plan can point straight into a different repo's docs/designs/ entirely.
+# Before this fix, `! git -C "$DIR" diff --quiet "$mb" -- "$design_file"`
+# treated ANY non-zero exit (including git's own error exit, typically 128,
+# for a path outside the repo) as "differs" -> already_folded=1 -> fail-open:
+# an out-of-repo shipped design would print DESIGN_ALREADY_FOLDED and pass.
+mkdesign_at() { # $1=absolute target dir $2=status
+  mkdir -p "$1"
+  printf -- '---\nslug: offline-stamp\nstatus: %s\nstage: lock\n---\n## Decisions\n- [x] W1 · high · offline scan queues · decided-by: you\n' "$2" > "$1/design.md"
+  printf '### Task 1: queue (W1)\n' > "$1/plan.md"
+}
+
+# (c) relative --plan escaping the repo via `../`, status shipped — the exact
+# fail-open shape reported: reproduces the "outside the repo, status shipped"
+# case via a relative path.
+d=$(newrepo rd-outside-rel)
+other=$(newrepo rd-outside-rel-external)
+mkdesign_at "$other/docs/designs/offline-stamp" shipped
+cfg "$d" "require_design: always"
+run "$d" --plan "../$(basename "$other")/docs/designs/offline-stamp/plan.md"
+{ [ "$RC" = "1" ] && ! grep -q "DESIGN_ALREADY_FOLDED" <<<"$OUT"; } \
+  && ok "relative --plan escaping the repo (../) blocks" \
+  || bad "relative --plan escaping the repo (rc=$RC: $OUT)"
+
+# (d) absolute --plan into a second repo, status LOCKED (not shipped) — this
+# one never touches the shipped/diff-exit-code path at all, so it only ever
+# blocks via containment. It shows containment is load-bearing on its own,
+# not just a second guard on the same shipped-fold bug: a foreign design that
+# is genuinely, validly locked must still not be treated as this repo's.
+d=$(newrepo rd-outside-abs)
+other2=$(newrepo rd-outside-abs-external)
+mkdesign_at "$other2/docs/designs/offline-stamp" locked
+cfg "$d" "require_design: always"
+run "$d" --plan "$other2/docs/designs/offline-stamp/plan.md"
+{ [ "$RC" = "1" ] && ! grep -q "DESIGN_ALREADY_FOLDED" <<<"$OUT"; } \
+  && ok "absolute --plan into a second repo blocks (even when validly locked there)" \
+  || bad "absolute --plan into a second repo (rc=$RC: $OUT)"
+
 exit $fail
