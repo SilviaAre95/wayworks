@@ -8,7 +8,7 @@ Move all human supervision to *before* code. A feature goes through a design pip
 
 ## Pipeline
 
-`/harness:design <topic|slug> [--stage <name>] [--publish]` walks the stages in order, writes each into `docs/designs/<slug>/design.md`, and resumes at the first unfinished stage on re-run. `--stage` re-opens one stage (e.g. re-attack after the plan changed).
+`/harness:shape <topic|slug> [--stage <name>] [--publish]` walks the stages in order, writes each into `docs/designs/<slug>/design.md`, and resumes at the first unfinished stage on re-run. `--stage` re-opens one stage (e.g. re-attack after the plan changed).
 
 | # | Stage | Does | Human? |
 |---|---|---|---|
@@ -22,7 +22,7 @@ Move all human supervision to *before* code. A feature goes through a design pip
 | 8 | **Map** | Render diagrams into `design.md`; optionally publish | no |
 | 9 | **Lock** | `design-check.sh` green + user says lock → `status: locked`; print the `loop-dev` handoff | confirm |
 
-Handoff: `/harness:loop-dev --plan docs/designs/<slug>/plan.md`, which executes via subagents. The superpowers skills are **wrapped**, not replaced: stage 4 follows brainstorming's one-topic-at-a-time discipline, stage 5 invokes writing-plans with a fixed output path. superpowers is already in `wayworks-init`'s fleet; `/harness:design` stops with a clear message if it is not installed.
+Handoff: `/harness:loop-dev --plan docs/designs/<slug>/plan.md`, which executes via subagents. The superpowers skills are **wrapped**, not replaced: stage 4 follows brainstorming's one-topic-at-a-time discipline, stage 5 invokes writing-plans with a fixed output path. superpowers is already in `wayworks-init`'s fleet; `/harness:shape` stops with a clear message if it is not installed.
 
 ## Components
 
@@ -31,7 +31,7 @@ Handoff: `/harness:loop-dev --plan docs/designs/<slug>/plan.md`, which executes 
 | `discover` | `shared` | skill, user-invocable | Topic-agnostic research. Lenses inferred from topic, `--lens` overrides. Presets: code = technical + product; article = prior art + counter-arguments + evidence; talk = prior art + audience. One parallel subagent per lens. Brief ends with **"What this changes"**. |
 | `attack` | `harness` | skill | Adversarial review of a written artifact. `--target scope` lenses: ambiguity, missing actors, feature-bank conflicts, cheapest cut. `--target plan` lenses: connectivity, concurrency/races, auth/session expiry, partial failure, data limits, abuse. Scaled panel (below). |
 | `triage` | `harness` | skill | Batch-decision protocol shared by stages 3, 4, 6, 7. |
-| `design` | `harness` | command | Orchestrator above. |
+| `shape` | `harness` | command | Orchestrator above. Named after Shape Up's shaping; `design` would read as the UI-design plugin. |
 | `design-check.sh` | `harness` | script | Deterministic gate over `design.md` + `plan.md`. |
 
 Skills are drafted with `anthropic-skills:skill-creator`, then made to pass `make check` (quoted description, explicit `user-invocable`, `argument-hint` where `$ARGUMENTS` is read, ≤450 words or `references/`), and each gets a rules manifest in `scripts/skill-rules/` **written and baselined before the body is final**.
@@ -86,7 +86,7 @@ Exit non-zero (with a `BLOCK:` line naming the item) when any of:
 require_design: features   # never | features | always
 ```
 
-`features`: the loop classifies the task first; fixes, chores, and docs pass, and anything adding behavior without a locked design is blocked with "run /harness:design first". The classification is a model judgement, so every "classified as fix, design skipped" is logged in the PR body for audit. `harness-init` writes `features` as the default.
+`features`: the loop classifies the task first; fixes, chores, and docs pass, and anything adding behavior without a locked design is blocked with "run /harness:shape first". The classification is a model judgement, so every "classified as fix, design skipped" is logged in the PR body for audit. `harness-init` writes `features` as the default.
 
 ## Map
 
@@ -131,7 +131,7 @@ The vault is found the way `wayworks-onboard` finds it: declared in the user's g
 - `design-check.test.sh` with fixtures, and it **proves it can fail**: an open item, a missing `decided-by`, an unacked byproduct, a `W` ID absent from the plan, a wrong status, and malformed lines. The same contract as `check-skill-rules.test.sh`.
 - `loop-dev-preflight.test.sh` extended for `require_design` in all three modes.
 - Rules manifests for `discover`, `attack`, `triage`.
-- A live `/harness:design` → `loop-dev` run on one real kaffecard feature before release. The compatibility "gates exercised live" row moves only on that run.
+- A live `/harness:shape` → `loop-dev` run on one real kaffecard feature before release. The compatibility "gates exercised live" row moves only on that run.
 
 ## Release
 
@@ -139,6 +139,6 @@ The vault is found the way `wayworks-onboard` finds it: declared in the user's g
 
 ## Out of scope (this spec)
 
-- Command renames and the `/wayworks:*` command family: sub-project B. Note that `/harness:design` sits next to an existing `design` plugin (UI skills); B decides the final name.
+- Renaming the existing commands and designing the rest of the command family: sub-project B. Bare names collide in practice (`/deploy` is ambiguous with `vercel:deploy`), so B keeps the plugin prefix and picks unambiguous verbs.
 - Repo-level generated map from feature-bank: B.
 - Version-drift detection across repos: A.
