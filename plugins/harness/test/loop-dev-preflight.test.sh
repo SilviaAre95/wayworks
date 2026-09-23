@@ -190,4 +190,41 @@ d=$(newrepo rd-bad); cfg "$d" "require_design: sometimes"; run "$d"
 d=$(newrepo rd-noval); cfg "$d" ""; run "$d" --plan
 [ "$RC" = "1" ] && ok "--plan without a path blocks" || bad "--plan no value (rc=$RC: $OUT)"
 
+# --- shipped-on-this-branch: the postflight fold must not self-block ---------
+# loop-dev's postflight flips design.md to `status: shipped` and commits it on
+# the feature branch. Re-running loop-dev with the same --plan (supported: PRs
+# must converge to ONE) would otherwise BLOCK forever under --require-locked,
+# since shipped != locked. When the flip happened ON THIS BRANCH (design.md
+# differs from `git merge-base <base> HEAD`), design-check runs WITHOUT
+# --require-locked instead (still validates every decision line) and the script
+# prints DESIGN_ALREADY_FOLDED so loop-dev step 7 knows to skip the fold again.
+d=$(newrepo rd-folded-branch)
+cfg "$d" "require_design: always"
+mkdesign "$d" locked
+git -C "$d" add -A
+git -C "$d" -c user.email=t@t -c user.name=t commit -q -m "design locked"
+git -C "$d" checkout -q -b feature
+sed -i.bak 's/status: locked/status: shipped/' "$d/docs/designs/offline-stamp/design.md"
+rm -f "$d/docs/designs/offline-stamp/design.md.bak"
+git -C "$d" add -A
+git -C "$d" -c user.email=t@t -c user.name=t commit -q -m "ship design"
+run "$d" --plan "$PLANREL"
+{ [ "$RC" = "0" ] && grep -q "DESIGN_ALREADY_FOLDED: offline-stamp" <<<"$OUT"; } \
+  && ok "design shipped on this branch: rc 0 + DESIGN_ALREADY_FOLDED" \
+  || bad "design shipped on this branch (rc=$RC: $OUT)"
+
+# A design already shipped ON BASE (no diff introduced by this branch) is a
+# different case: the fold did not happen here, so it still blocks — shipped
+# is not locked.
+d=$(newrepo rd-shipped-on-base)
+cfg "$d" "require_design: always"
+mkdesign "$d" shipped
+git -C "$d" add -A
+git -C "$d" -c user.email=t@t -c user.name=t commit -q -m "design shipped on main"
+git -C "$d" checkout -q -b feature2
+run "$d" --plan "$PLANREL"
+{ [ "$RC" = "1" ] && ! grep -q "DESIGN_ALREADY_FOLDED" <<<"$OUT"; } \
+  && ok "design already shipped on base still blocks" \
+  || bad "design already shipped on base still blocks (rc=$RC: $OUT)"
+
 exit $fail
