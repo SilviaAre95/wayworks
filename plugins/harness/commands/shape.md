@@ -15,7 +15,7 @@ Shape the feature below into a locked design at `docs/designs/<slug>/design.md` 
    - `docs/designs/<slug>/design.md` exists → resume at its frontmatter `stage:`.
    - Otherwise Read `${CLAUDE_PLUGIN_ROOT}/templates/design.md` and Write it to `docs/designs/<slug>/design.md` (Write creates the directory), replacing `__SLUG__` with the slug and `__TITLE__` with a short title for the topic.
 5. **Status rules.**
-   - `shipped` → never re-open. Stop and say to start a new slug; a shipped design is an immutable decision record.
+   - `shipped` → never re-open. `shipped` means loop-dev built from this design and folded it — it sets the status just before opening the PR. Stop and say the way forward is a new slug; a shipped design is an immutable decision record.
    - `locked` with no `--stage` → re-run the Lock stage's check and print the handoff line; nothing else.
    - `--stage <name>` with a name not in the stage list below → stop and list the valid names.
    - `--stage <name>` → set frontmatter `stage: <name>` (and `status: draft` if it was `locked`) and **save before doing anything else**, then walk on in order from there. Re-opening `plan` therefore re-runs `what-ifs` and `byproducts` too — a new plan can create new ones — and a walk-away resumes at the re-opened stage, not at `lock`.
@@ -36,7 +36,7 @@ Shape the feature below into a locked design at `docs/designs/<slug>/design.md` 
 
 `stage:` names, in order: `discover`, `scope`, `attack-scope`, `questions`, `plan`, `what-ifs`, `byproducts`, `map`, `lock`.
 
-1. **Discover** — `/shared:discover <topic> --preset code`. Add the brief's path to frontmatter `discovery:` and freeze a verbatim copy of its `## What this changes` under `## Discovery`, below a link line to the brief. If the brief reports `partial`, add the frontmatter key `discovery-status: partial` (absent means complete). A partial result does not stop the pipeline.
+1. **Discover** — `/shared:discover <topic> --preset code`. Add the brief's path to frontmatter `discovery:` and freeze a verbatim copy of the body of its `## What this changes` section — not the heading itself — under `## Discovery`, below a link line to the brief. If the brief reports `partial`, add the frontmatter key `discovery-status: partial` (absent means complete). A partial result does not stop the pipeline.
 2. **Scope** — draft the In/Out table from the topic, the brief and `docs/features/` (when present). The user reviews it before you continue.
 3. **Attack scope** — `/harness:attack --target scope docs/designs/<slug>`, then `harness:triage` on its list.
 4. **Feature questions** — follow brainstorming's discipline: one topic at a time. Record each open functional question as a `Q` item, then `harness:triage`.
@@ -47,6 +47,7 @@ Shape the feature below into a locked design at `docs/designs/<slug>/design.md` 
 9. **Lock** — run `"${CLAUDE_PLUGIN_ROOT}/scripts/design-check.sh" docs/designs/<slug>`.
    - Any `BLOCK:` → return to the stage that owns the item (`A`→3, `Q`→4, `W`→6, `B`→7) and set `stage:` to it. Missing `plan.md` → stage 5. Bad frontmatter/status or a malformed decision line → fix it in place and re-run the check.
    - Green → ask *"lock?"*. A "no" leaves the design `draft` and stops. Only on an explicit yes: set `status: locked` (`stage:` stays `lock`). Then, if the user's global CLAUDE.md declares a vault, append one line to the project note's `## Log` (the note the repo's CLAUDE.md names), written per the vault's `_agent/INSTRUCTIONS.md`. No vault or no project note → skip silently.
+   - Do not commit anything: loop-dev commits the locked design on its own branch before it builds.
    - Only once `status: locked`, print the handoff as the last line: `/harness:loop-dev --plan docs/designs/<slug>/plan.md`
 
 **After each stage**, set frontmatter `stage:` to the next unfinished stage and save `design.md`. That is what makes the command resumable when the user walks away mid-triage — unaddressed items stay `- [ ]` and the design stays `draft`.
