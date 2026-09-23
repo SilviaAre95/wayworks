@@ -97,6 +97,66 @@ d=$(mk fenced locked <<<"$GOOD
 \`\`\`"); run "$d"
 [ "$RC" = "0" ] && ok "checklist lines inside a code fence are ignored" || bad "fenced lines ignored (rc=$RC: $OUT)"
 
+# --- section scoping: only ## Decisions is parsed ---------------------------
+# mkdoc <name>; the whole body (after frontmatter) on stdin.
+mkdoc() {
+  d="$TMP/$1"; rm -rf "$d"; mkdir -p "$d"
+  { printf -- '---\nslug: %s\nstatus: locked\nstage: lock\n---\n# t\n\n' "$1"; cat; } > "$d/design.md"
+  cp "$TMP/good/plan.md" "$d/plan.md"
+  echo "$d"
+}
+d=$(mkdoc othersections <<EOF
+## Discovery
+- [[kaffecard]] is the prior art
+- [pilot notes](notes/pilot.md)
+- [ ] verify with shop owners
+
+## Decisions
+$GOOD
+
+## Scope
+- [ ] verify with shop owners
+EOF
+); run "$d"
+[ "$RC" = "0" ] && ok "checkbox-looking lines outside ## Decisions are ignored" \
+  || bad "lines outside Decisions ignored (rc=$RC: $OUT)"
+d=$(mkdoc nodecisions <<<"## Discovery
+$GOOD"); run "$d"
+expect_block "a design with no ## Decisions section blocks" "Decisions"
+for variant in '  - [ ] Q9 · med · indented' '* [ ] Q9 · med · star' '+ [ ] Q9 · med · plus' \
+               '1. [ ] Q9 · med · ordered' '1) [ ] Q9 · med · paren'; do
+  d=$(mk variant locked <<<"$GOOD
+$variant"); run "$d"
+  expect_block "non-canonical checkbox inside Decisions is malformed: '$variant'" "malformed"
+done
+d=$(mk fakefence locked <<<"$GOOD
+\`\`\` \`x\`
+- [ ] Q9 · med · hidden behind a fake fence · open
+\`\`\`"); run "$d"
+expect_block "a fake fence (backtick in info string) does not hide an open item" "BLOCK: Q9"
+d=$(mk tildefence locked <<<"$GOOD
+~~~ text
+- [ ] Q9 · med · example inside a tilde fence · open
+~~~"); run "$d"
+[ "$RC" = "0" ] && ok "checklist lines inside a ~~~ fence are ignored" || bad "tilde fence ignored (rc=$RC: $OUT)"
+d=$(mk unclosed locked <<<"$GOOD
+\`\`\`
+- [ ] Q9 · med · everything after an unclosed fence is hidden · open"); run "$d"
+expect_block "an unclosed fence blocks" "fence"
+
+# --- anchored markers and bounded echo --------------------------------------
+d=$(mk undecided locked <<<"$GOOD
+- [x] Q8 · med · x → y · undecided-by: you"); run "$d"
+expect_block "'undecided-by: you' does not count as decided-by" "BLOCK: Q8"
+d=$(mk undeferred locked <<<"$GOOD
+- [~] A8 · low · x · undeferred: later"); run "$d"
+expect_block "'undeferred:' does not count as a deferral reason" "BLOCK: A8"
+long=$(printf 'z%.0s' $(seq 1 300))
+d=$(mk longline locked <<<"$GOOD
+- [x] X1 · $long"); run "$d"
+{ [ "$RC" = "1" ] && ! grep -q "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" <<<"$OUT"; } \
+  && ok "a malformed line is echoed truncated to 80 chars" || bad "malformed echo truncated (rc=$RC: $OUT)"
+
 # --- invocation ------------------------------------------------------------
 run "$TMP/does-not-exist"
 expect_block "missing design dir blocks" "design.md"

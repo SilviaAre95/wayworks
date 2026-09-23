@@ -45,23 +45,44 @@ if [ "$REQUIRE_LOCKED" -eq 1 ] && [ "$status" != "locked" ]; then
 fi
 
 # --- decision lines --------------------------------------------------------
+# Only the `## Decisions` section is parsed: the Discovery and Scope sections
+# legitimately hold wikilink bullets (`- [[x]]`), links (`- [a](b)`) and plain
+# to-dos that are not decisions. Inside it, anything that looks like a checkbox
+# but is not the canonical `- [` at column 0 is malformed rather than skipped —
+# a skipped `  - [ ] Q9` would be an open question the gate never saw.
 re_line='^- \[([ x~])\] ([AQWB][0-9]+) · (.+)$'
-re_by='decided-by: (you|accepted-default)( |$)'
+re_box='^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]+\['
+re_by='(^|· )decided-by: (you|accepted-default)( |$)'
 re_ack='(^|· )ack( ·|$)'
+re_defer='(^|· )deferred: [^[:space:]]'
+# A fence opener/closer is ``` or ~~~ plus an info string with no backticks;
+# "``` `x`" is inline code, not a fence, so it must not hide what follows.
+re_fence='^(```|~~~)[^`]*$'
 decided_w=""
-infence=0
+infence=0; insec=0; seen_sec=0
 while IFS= read -r line || [ -n "$line" ]; do
-  case "$line" in '```'*) infence=$((1 - infence)); continue ;; esac
+  if [[ "$line" =~ $re_fence ]]; then infence=$((1 - infence)); continue; fi
   [ "$infence" -eq 1 ] && continue
-  case "$line" in '- ['*) ;; *) continue ;; esac
+  case "$line" in
+    '## '*)
+      insec=0
+      [[ "$line" =~ ^'## Decisions'[[:space:]]*$ ]] && { insec=1; seen_sec=1; }
+      continue ;;
+  esac
+  [ "$insec" -eq 1 ] || continue
+  case "$line" in
+    '- ['*) ;;
+    *) [[ "$line" =~ $re_box ]] && { n=$((n + 1)); block "malformed decision line (want '- [' at column 0): ${line:0:80}"; }
+       continue ;;
+  esac
   n=$((n + 1))
   if ! [[ "$line" =~ $re_line ]]; then
-    block "malformed decision line (want '- [x|~| ] <A|Q|W|B><n> · …'): $line"; continue
+    block "malformed decision line (want '- [x|~| ] <A|Q|W|B><n> · …'): ${line:0:80}"; continue
   fi
   mark="${BASH_REMATCH[1]}"; id="${BASH_REMATCH[2]}"; rest="${BASH_REMATCH[3]}"
   case "$mark" in
     ' ') block "$id: still open — triage it" ;;
-    '~') [[ "$rest" == *"deferred:"* ]] || block "$id: deferred without 'deferred: <reason>'" ;;
+    '~') [[ "$rest" =~ $re_defer ]] || block "$id: deferred without 'deferred: <reason>'" ;;
     x)
       [[ "$rest" =~ $re_by ]] || block "$id: decided but no 'decided-by: you|accepted-default'"
       case "$id" in
@@ -71,7 +92,12 @@ while IFS= read -r line || [ -n "$line" ]; do
       ;;
   esac
 done < "$DESIGN"
-[ "$n" -eq 0 ] && block "design.md: no decision lines — stages 3, 4, 6 and 7 never recorded anything, so this design asserts nothing"
+[ "$infence" -eq 1 ] && block "design.md: unclosed code fence — everything after it is hidden from this check"
+if [ "$seen_sec" -eq 0 ]; then
+  block "design.md: no '## Decisions' section — decision lines are only read from there"
+elif [ "$n" -eq 0 ]; then
+  block "design.md: no decision lines — stages 3, 4, 6 and 7 never recorded anything, so this design asserts nothing"
+fi
 
 # --- plan cross-check ------------------------------------------------------
 if [ ! -f "$PLAN" ]; then
