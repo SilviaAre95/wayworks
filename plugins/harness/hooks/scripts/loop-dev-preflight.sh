@@ -10,7 +10,16 @@
 #
 # Exit 0 = safe to proceed (warnings may still print). Exit 1 = stop.
 set -uo pipefail
-DIR="${1:-$PWD}"
+DIR="$PWD"; PLAN=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --plan)
+      [ $# -ge 2 ] && [ -n "$2" ] || { echo "BLOCK: --plan needs a path" >&2; echo "PREFLIGHT FAILED — fix the above before building."; exit 1; }
+      PLAN="$2"; shift 2 ;;
+    *) DIR="$1"; shift ;;
+  esac
+done
+DESIGN_CHECK="$(cd "$(dirname "$0")/../.." && pwd)/scripts/design-check.sh"
 CFG="$DIR/.cc-dev.yaml"
 
 fail=0
@@ -81,6 +90,41 @@ if [ ! -f "$CFG" ] || ! grep -qE '^open_pr:[[:space:]]*false' "$CFG" 2>/dev/null
     warn "open_pr is on but 'gh' is not authenticated — run 'gh auth login'"
   fi
 fi
+
+# --- design gate ------------------------------------------------------------
+# A --plan inside docs/designs/ came from /harness:shape, so its design must be
+# locked and pass design-check before anything is built — in every mode. The
+# mode only decides what happens WITHOUT such a plan: never = nothing,
+# always = block, features = the agent classifies the task (a shell cannot tell
+# a feature from a fix) and logs the call in the PR body. An absent key is
+# `never` so an upgrade does not start blocking existing repos.
+require_design=never
+if [ -f "$CFG" ]; then
+  v=$(grep -E '^require_design:' "$CFG" | head -1 | sed -E 's/^require_design:[[:space:]]*//; s/[[:space:]]*#.*$//')
+  [ -n "$v" ] && require_design="$v"
+fi
+case "$require_design" in
+  never|features|always) ;;
+  *) err "require_design '$require_design' is not never|features|always"; require_design=never ;;
+esac
+design_dir=""
+if [ -n "$PLAN" ]; then
+  case "$PLAN" in /*) plan_path="$PLAN" ;; *) plan_path="$DIR/$PLAN" ;; esac
+  case "$plan_path" in */docs/designs/*/*) design_dir=$(dirname "$plan_path") ;; esac
+fi
+if [ -n "$design_dir" ]; then
+  if [ ! -f "$DESIGN_CHECK" ]; then
+    err "design-check.sh not found at $DESIGN_CHECK — the harness install is incomplete"
+  elif dc=$(bash "$DESIGN_CHECK" "$design_dir" --require-locked 2>&1); then
+    ok "design $(basename "$design_dir") is locked and passes design-check"
+  else
+    while IFS= read -r l; do err "design: ${l#BLOCK: }"; done < <(printf '%s\n' "$dc" | grep '^BLOCK:')
+    err "design $(basename "$design_dir") is not ready — finish it with /harness:shape $(basename "$design_dir")"
+  fi
+elif [ "$require_design" = "always" ]; then
+  err "require_design: always, but --plan does not point at a design in docs/designs/ — run /harness:shape first"
+fi
+echo "REQUIRE_DESIGN: $require_design"
 
 # --- hand the grader list back for the agent-side check ---------------------
 # The script cannot see which plugins are enabled, but it does know which

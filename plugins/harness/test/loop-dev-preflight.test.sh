@@ -17,7 +17,7 @@ newrepo() {
   git -C "$d" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
   echo "$d"
 }
-run() { OUT=$(bash "$SCRIPT" "$1" 2>&1); RC=$?; }
+run() { OUT=$(bash "$SCRIPT" "$@" 2>&1); RC=$?; }
 
 # --- happy path -------------------------------------------------------------
 d=$(newrepo happy)
@@ -146,5 +146,48 @@ run "$d"
 echo "$OUT" | grep -q "PREFLIGHT OK" \
   && bad "a blocked preflight must not also print PREFLIGHT OK" \
   || ok "a blocked preflight does not also print PREFLIGHT OK"
+
+# --- require_design ---------------------------------------------------------
+# The design gate is what lets loop-dev run unsupervised: a --plan inside
+# docs/designs/ must point at a locked design that passes design-check, in every
+# mode. `always` also refuses a task with no design plan at all. An ABSENT key
+# means `never`, so existing installs are not blocked by an upgrade.
+mkdesign() { # $1=repo $2=status
+  dd="$1/docs/designs/offline-stamp"; mkdir -p "$dd"
+  printf -- '---\nslug: offline-stamp\nstatus: %s\nstage: lock\n---\n## Decisions\n- [x] W1 · high · offline scan queues · decided-by: you\n' "$2" > "$dd/design.md"
+  printf '### Task 1: queue (W1)\n' > "$dd/plan.md"
+}
+cfg() { echo "make check" > "$1/.cc-verify"; printf 'graders: [code-review]\nbase: main\n%s\n' "$2" > "$1/.cc-dev.yaml"; }
+PLANREL=docs/designs/offline-stamp/plan.md
+
+d=$(newrepo rd-absent); cfg "$d" ""; run "$d"
+{ [ "$RC" = "0" ] && grep -q "REQUIRE_DESIGN: never" <<<"$OUT"; } \
+  && ok "absent require_design means never" || bad "absent key (rc=$RC: $OUT)"
+
+d=$(newrepo rd-always-noplan); cfg "$d" "require_design: always"; run "$d"
+{ [ "$RC" = "1" ] && grep -q "/harness:shape" <<<"$OUT"; } \
+  && ok "always without a design plan blocks" || bad "always without plan (rc=$RC: $OUT)"
+
+d=$(newrepo rd-always-locked); cfg "$d" "require_design: always"; mkdesign "$d" locked; run "$d" --plan "$PLANREL"
+{ [ "$RC" = "0" ] && grep -q "passes design-check" <<<"$OUT"; } \
+  && ok "always with a locked design passes (relative --plan resolves against dir)" || bad "always+locked (rc=$RC: $OUT)"
+
+d=$(newrepo rd-always-other); cfg "$d" "require_design: always"; run "$d" --plan docs/superpowers/plans/x.md
+[ "$RC" = "1" ] && ok "always with a plan outside docs/designs blocks" || bad "always+other plan (rc=$RC: $OUT)"
+
+d=$(newrepo rd-features); cfg "$d" "require_design: features"; run "$d"
+{ [ "$RC" = "0" ] && grep -q "REQUIRE_DESIGN: features" <<<"$OUT"; } \
+  && ok "features hands classification to the agent without blocking" || bad "features (rc=$RC: $OUT)"
+
+d=$(newrepo rd-never-draft); cfg "$d" "require_design: never"; mkdesign "$d" draft; run "$d" --plan "$PLANREL"
+{ [ "$RC" = "1" ] && grep -q "not locked" <<<"$OUT"; } \
+  && ok "a draft design blocks even under never" || bad "never+draft (rc=$RC: $OUT)"
+grep -q "PREFLIGHT OK" <<<"$OUT" && bad "blocked design must not print PREFLIGHT OK" || ok "blocked design does not print PREFLIGHT OK"
+
+d=$(newrepo rd-bad); cfg "$d" "require_design: sometimes"; run "$d"
+[ "$RC" = "1" ] && ok "invalid require_design value blocks" || bad "invalid mode (rc=$RC: $OUT)"
+
+d=$(newrepo rd-noval); cfg "$d" ""; run "$d" --plan
+[ "$RC" = "1" ] && ok "--plan without a path blocks" || bad "--plan no value (rc=$RC: $OUT)"
 
 exit $fail
