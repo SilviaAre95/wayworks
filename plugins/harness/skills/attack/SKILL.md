@@ -28,19 +28,19 @@ Adversarial review of a design artifact's scope or plan, run by `/harness:shape`
 
 ## Output Format
 
-Numbered list, one line per finding — the shape `harness:triage` expects (ID, severity, text, proposal):
+Numbered list, one line per finding — the shape `harness:triage` expects (ID, severity, text, proposal). One target per run, so every ID shares its prefix; this `--target scope` example continues from an existing `A11`:
 
 ```
 1. A12 · high · reward tier is never named — which tier stamps? · propose: default to the shop's base tier
-2. W7 · med · sync worker retries forever on a 4xx · propose: drop after 3 attempts, surface "pending" in the UI
+2. A13 · med · shop staff stamp cards but are not an actor · propose: add staff, stamp-only
 ...
-15. A9 · low · second device for same shop · propose: out of scope, single-device v1
+15. A26 · low · second device for same shop · propose: out of scope, single-device v1
 ```
 
 Overflow, shown for the record, not counted into the 15:
 
 ```
-[~] W11 · low · daylight-saving clock skew on the queue timestamp · deferred: single-timezone shops only in v1
+[~] A27 · low · loyalty for chains of shops · deferred: single-shop owners only in v1
 ```
 
 ## Constraints
