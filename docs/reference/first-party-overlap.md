@@ -42,8 +42,6 @@ What `create-skill` uniquely carries is the *house pattern* — `Steps → Outpu
 
 **Action:** keep `create-skill` as the house-conformance layer, and point it at `skill-creator` for evals and benchmarking, which we have no answer to. Worth adding a line to that effect rather than leaving the gap silent.
 
-### Wrap — keep the interface, delegate the work
-
 **`shared:discover` vs `superpowers:brainstorming`** — audited 2026-09-23 alongside `attack`/`triage` below.
 
 The proposed keep argument was that `discover`'s `## What this changes` section is frozen verbatim into `design.md` by `/harness:shape`, and briefs are reused across repos through the vault (30-day cache). That argument doesn't survive contact with the rule this file opened with: **`design-check.sh` never parses or requires that section** — it checks decision lines (`A/Q/W/B`) and the plan cross-check only. Freezing the text into `design.md` is a workflow step `shape.md` performs, not something the gate enforces; a discovery brief that were empty, wrong, or missing entirely would not fail the Lock stage. That makes `discover` exactly the shape this file calls commodity: *"a checklist... is something a capable model produces on request"* — here, a research checklist. `superpowers:brainstorming` already covers the human-facing half (one-topic-at-a-time exploration); `discover`'s distinguishing feature is the automated parallel-lens dispatch (technical/product/prior-art/etc.) plus the vault brief cache, and no first-party plugin audited so far reproduces that combination.

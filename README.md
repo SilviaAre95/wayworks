@@ -9,7 +9,7 @@ your agent plans, builds, reviews, tests, ships, and documents. You review and m
 
 [![marketplace](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FSilviaAre95%2Fwayworks%2Fmain%2F.claude-plugin%2Fmarketplace.json&query=%24.metadata.version&label=marketplace&color=6d28d9)](CHANGELOG.md)
 [![plugins](https://img.shields.io/badge/plugins-14-2563eb)](#-plugin-catalog)
-[![skills](https://img.shields.io/badge/skills-44-0891b2)](#-plugin-catalog)
+[![skills](https://img.shields.io/badge/skills-52-0891b2)](#-plugin-catalog)
 [![license](https://img.shields.io/github/license/SilviaAre95/wayworks?color=16a34a)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-f59e0b)](CONTRIBUTING.md)
 
