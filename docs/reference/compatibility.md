@@ -9,7 +9,7 @@ Skills are portable prose; the **gates are not**. Hooks, plugin manifests, and s
 | | Version | Date | What that covers |
 |---|---|---|---|
 | **Checks and docs** | **2.1.265** | 2026-09-08 | `make check` (manifests, frontmatter lint, harness shell tests), the `claude plugin validate` audit, and the Agent-tool/fork contract recorded below |
-| **Gates exercised live** | **2.1.281** | 2026-09-24 | A real `/harness:loop-dev` run driving the `Stop` hooks end to end (kaffecard XARI-148, harness 2.3.0, `require_design` absent). The design gate (`require_design: features/always`, `/harness:shape`) has not yet run live |
+| **Gates exercised live** | **2.1.281** | 2026-09-24 | A real `/harness:loop-dev` run driving the `Stop` hooks end to end (kaffecard XARI-148, harness 2.3.0, `require_design` absent). The design gate ran live 2026-09-24 on kaffecard XARI-131 (PR #36): `/harness:shape` locked a design, then `/harness:loop-dev --plan docs/designs/<slug>/plan.md` passed the preflight's locked + `design-check` gate, folded the design and flipped it to `shipped` — interactively, in auto mode, not headless. The same day a headless `claude -p` loop-dev under `require_design: features`, given a feature task with no `--plan`, classified it as a feature, disarmed and stopped with "run /harness:shape" before building (session `5cca1c49`). `require_design: always` has not run live |
 
 The two rows are deliberately separate, because they answer different questions and only one of them can be automated. `make check` passing on a new version says our own logic is intact; it says nothing about whether Claude Code still interprets a `Stop` hook's output the way the gates assume. **Only a live loop run moves the second row.** When you do one, move it and say so.
 
