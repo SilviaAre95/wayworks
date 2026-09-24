@@ -9,7 +9,7 @@ Skills are portable prose; the **gates are not**. Hooks, plugin manifests, and s
 | | Version | Date | What that covers |
 |---|---|---|---|
 | **Checks and docs** | **2.1.265** | 2026-09-08 | `make check` (manifests, frontmatter lint, harness shell tests), the `claude plugin validate` audit, and the Agent-tool/fork contract recorded below |
-| **Gates exercised live** | **2.1.266** | 2026-09-09 | A real `/harness:loop-dev` run driving the `Stop` hooks end to end |
+| **Gates exercised live** | **2.1.281** | 2026-09-24 | A real `/harness:loop-dev` run driving the `Stop` hooks end to end (kaffecard XARI-148, harness 2.3.0, `require_design` absent). The design gate (`require_design: features/always`, `/harness:shape`) has not yet run live |
 
 The two rows are deliberately separate, because they answer different questions and only one of them can be automated. `make check` passing on a new version says our own logic is intact; it says nothing about whether Claude Code still interprets a `Stop` hook's output the way the gates assume. **Only a live loop run moves the second row.** When you do one, move it and say so.
 
@@ -45,6 +45,7 @@ Every gate is a hook. If any of this changes, the loops stop enforcing and keep 
 `/harness:loop-dev` invokes Anthropic's **bundled** skills by name for two graders now, not one: `code-review` and (where configured, as in this repo) `security-review`. Bundled-skill policy is Claude Code's, not ours, and the blast radius therefore includes a *security* grader:
 
 - **v2.1.215** stopped auto-running `/verify` and `/code-review` from description matching. That silently degraded the grader into an improvised generic review — the marker still stamped, so nothing downstream noticed (XARI-86).
+- **v2.1.281 (2026-09-24 live run):** a grader *subagent* told to invoke `/code-review` got no output from it; the loop noticed and ran `/code-review` in the main session instead. The fallback held, but the subagent contract this section assumes is not working as written.
 - `disableBundledSkills` turns them off entirely, which would break every bundled grader outright — including `security-review`, whose absence a reviews marker would still stamp over.
 
 Re-check after any Claude Code upgrade. A degraded grader looks identical to a working one from the outside.
