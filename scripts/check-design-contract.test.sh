@@ -46,6 +46,16 @@ expect_fail "stages out of order fail" "stage 5"
 reset; edit plugins/harness/commands/shape.md 's/^`stage:` names, in order:/Stage names:/'; run
 expect_fail "an unparseable stage list fails loudly" "could not parse"
 
+# The rm grant must be the exact disarm command, not a wildcard, and the two
+# must not drift: a grant narrower than the body blocks the abort, a wider one
+# lets the loop delete anything.
+reset; edit plugins/harness/commands/loop-dev.md 's/^(allowed-tools:.*)Bash\(rm -f [^)]*\)/\1Bash(rm:*)/'; run
+expect_fail "a wildcard rm grant fails" "rm grant"
+reset; edit plugins/harness/commands/loop-dev.md 's/^([[:space:]]*rm -f \.cc-loop-dev-active .*)$/\1 .cc-extra/'; run
+expect_fail "a disarm command that drifts from the rm grant fails" "disarm"
+reset; edit plugins/harness/commands/loop-dev.md 's/^(allowed-tools:.*), Bash\(rm -f [^)]*\)/\1/'; run
+expect_fail "a missing rm grant fails" "rm grant"
+
 reset; edit plugins/harness/templates/design.md 's/^stage: discover$/stage: discovery/'; run
 expect_fail "a template seeding an unknown stage fails" "discovery"
 

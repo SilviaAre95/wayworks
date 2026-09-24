@@ -1,7 +1,7 @@
 ---
 description: Arm the staged dev loop — implement a task through spec/code/review/security/bugs to a PR
 argument-hint: <task description> [--plan <path>] [--check-plan]
-allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/hooks/scripts/loop-arm.sh:*), Bash(cat:*), Bash(rm:*), Bash(${CLAUDE_PLUGIN_ROOT}/hooks/scripts/loop-dev-preflight.sh:*)
+allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/hooks/scripts/loop-arm.sh:*), Bash(rm -f .cc-loop-dev-active .cc-loop-dev-state .cc-loop-dev-rounds), Bash(${CLAUDE_PLUGIN_ROOT}/hooks/scripts/loop-dev-preflight.sh:*)
 ---
 
 Arm the dev loop for this project:

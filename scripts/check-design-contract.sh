@@ -30,6 +30,23 @@ for tok in REQUIRE_DESIGN DESIGN_ALREADY_FOLDED; do
   grep -qF "$tok" "$LOOP" || err "$LOOP no longer reads $tok — $PRE still prints it"
 done
 
+# --- loop-dev's rm grant is exactly its disarm command ------------------------
+# The command may run one rm: the disarm on a BLOCK. A wildcard grant lets the
+# loop delete anything without a prompt; a grant that drifts from the body's
+# command prompts (or fails) exactly when the loop must abort.
+fm_loop=$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1' "$LOOP")
+grants=$(printf '%s\n' "$fm_loop" | sed -n 's/^allowed-tools:[[:space:]]*//p' | grep -oE 'Bash\(rm[: ][^)]*\)')
+disarm=$(awk 'NR>1 && $0=="---"{b=1; next} b' "$LOOP" | sed -nE 's/^[[:space:]]*(rm -f \.cc-loop-dev-active.*[^[:space:]])[[:space:]]*$/\1/p')
+if [ "$(printf '%s\n' "$grants" | grep -c .)" -ne 1 ]; then
+  err "$LOOP: expected exactly one rm grant in allowed-tools, found: ${grants:-none}"
+elif [ "$(printf '%s\n' "$disarm" | grep -c .)" -ne 1 ]; then
+  err "$LOOP: expected exactly one disarm command ('rm -f .cc-loop-dev-active …') in the body, found: ${disarm:-none}"
+else
+  cmd=${grants#Bash(}; cmd=${cmd%)}
+  [ "$cmd" = "$disarm" ] \
+    || err "$LOOP: rm grant 'Bash($cmd)' does not match the disarm command '$disarm' verbatim"
+fi
+
 # --- shape stage names vs. its stage table -----------------------------------
 # The `stage:` list and the table must name the same stages in the same order.
 # A table title is normalised (lowercase, spaces -> '-') and must equal the
