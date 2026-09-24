@@ -104,6 +104,16 @@ data_json=$(awk '/<script id="design-data"/{f=1;next} f&&/<\/script>/{exit} f' "
 printf '%s' "$data_json" | jq -e '.[] | select(.title=="Components") | .md | contains("## not a tab")' >/dev/null 2>&1 \
   && ok "fenced content stays in its section" || bad "fenced '## ' content left the Components section"
 
+# A fence closes only on its own marker: inside a ``` block a ~~~ line is
+# content, so the '## ' line after it is still fenced and must not become a tab.
+M="$TMP/docs/designs/mixed-fence"; mkdir -p "$M"
+printf -- '---\nslug: mixed-fence\nstatus: draft\n---\n## One\n```text\n~~~\n## spurious\n```\n\n## Two\nbody\n' > "$M/design.md"
+bash "$SCRIPT" "$M" "$OUT_DIR" >/dev/null 2>&1
+mdata=$(awk '/<script id="design-data"/{f=1;next} f&&/<\/script>/{exit} f' "$OUT_DIR/mixed-fence.html")
+[ "$(printf '%s' "$mdata" | jq -c '[.[].title]' 2>/dev/null)" = '["One","Two"]' ] \
+  && ok "a ~~~ line inside a \`\`\` fence does not close it (no spurious tab)" \
+  || bad "mixed fence markers split the design wrongly: $(printf '%s' "$mdata" | jq -c '[.[].title]' 2>/dev/null)"
+
 # --- bad input fails ---------------------------------------------------------
 bash "$SCRIPT" >/dev/null 2>&1; [ "$?" = "2" ] && ok "no args is a usage error" || bad "no args should exit 2"
 bash "$SCRIPT" "$TMP/nope" "$OUT_DIR" >/dev/null 2>&1; [ "$?" = "1" ] && ok "missing design.md fails" || bad "missing design should exit 1"

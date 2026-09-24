@@ -139,6 +139,23 @@ d=$(mk tildefence locked <<<"$GOOD
 - [ ] Q9 · med · example inside a tilde fence · open
 ~~~"); run "$d"
 [ "$RC" = "0" ] && ok "checklist lines inside a ~~~ fence are ignored" || bad "tilde fence ignored (rc=$RC: $OUT)"
+# A fence closes only on its own marker: inside a ``` block a ~~~ line is
+# content. Toggling on any marker let the ~~~ close the block and the real ```
+# closer open a new one, hiding the open item after it from the gate.
+d=$(mk mixedfence locked <<<"$GOOD
+\`\`\`
+~~~
+\`\`\`
+- [ ] Q9 · med · after a mixed-marker fence · open
+~~~"); run "$d"
+expect_block "a ~~~ line does not close a \`\`\` fence (open item after it is seen)" "BLOCK: Q9"
+d=$(mk mixedfence2 locked <<<"$GOOD
+~~~
+\`\`\`
+~~~
+- [ ] Q9 · med · after a mixed-marker fence · open
+\`\`\`"); run "$d"
+expect_block "a \`\`\` line does not close a ~~~ fence (open item after it is seen)" "BLOCK: Q9"
 d=$(mk unclosed locked <<<"$GOOD
 \`\`\`
 - [ ] Q9 · med · everything after an unclosed fence is hidden · open"); run "$d"

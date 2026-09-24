@@ -41,12 +41,13 @@ slug=$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1' "$DESIGN" \
 # code fence is content, not a tab, so awk marks only the real headings with a
 # record-separator byte (stripped from the input first, so a design cannot
 # forge one) and jq splits on the mark. Fence lines are ``` or ~~~ plus an
-# info string with no backticks — the same rule design-check.sh uses. Every
+# info string with no backticks, and a fence closes only on its own marker —
+# the same rules design-check.sh uses. Every
 # '<' is escaped so nothing in the design can close the
 # <script type="application/json"> it sits in.
 json=$(awk '
   { gsub(/\036/, "") }
-  /^(```|~~~)[^`]*$/ { f = !f; print; next }
+  /^(```|~~~)[^`]*$/ { m = substr($0, 1, 3); if (!f) { f = 1; fm = m } else if (m == fm) f = 0; print; next }
   !f && /^## / { print "\036" $0; next }
   { print }' "$DESIGN" | jq -Rs '
   sub("^---\n[\\s\\S]*?\n---\n"; "")

@@ -57,12 +57,17 @@ re_ack='(^|· )ack( ·|$)'
 re_defer='(^|· )deferred: [^[:space:]]'
 # A fence opener/closer is ``` or ~~~ plus an info string with no backticks;
 # "``` `x`" is inline code, not a fence, so it must not hide what follows.
+# A fence closes only on its own marker: inside a ``` block a ~~~ line is
+# content, and toggling on it would let the real closer open a new fence.
 re_fence='^(```|~~~)[^`]*$'
 decided_w=""
-infence=0; insec=0; seen_sec=0
+infence=0; fence=""; insec=0; seen_sec=0
 while IFS= read -r line || [ -n "$line" ]; do
-  if [[ "$line" =~ $re_fence ]]; then infence=$((1 - infence)); continue; fi
-  [ "$infence" -eq 1 ] && continue
+  if [ "$infence" -eq 1 ]; then
+    [[ "$line" =~ $re_fence ]] && [ "${line:0:3}" = "$fence" ] && infence=0
+    continue
+  fi
+  if [[ "$line" =~ $re_fence ]]; then infence=1; fence="${line:0:3}"; continue; fi
   case "$line" in
     '## '*)
       insec=0
