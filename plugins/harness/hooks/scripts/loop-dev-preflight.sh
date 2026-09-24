@@ -164,6 +164,11 @@ if [ -n "$PLAN" ]; then
     for p in "$plan_given" "$plan_real" "$plan_target"; do
       case "$p" in */docs/designs/*) touches=1 ;; esac
     done
+    # loop-dev.md judges "inside docs/designs/" from the text as typed, so a
+    # `..` that collapses out of docs/designs/ still counts as touching it.
+    # A single leading ./ names the same path.
+    plan_raw="${PLAN#./}"
+    case "/$plan_raw/" in */docs/designs/*) touches=1 ;; esac
     # A plan that is, or links to, another repo's design blocks.
     for p in "$plan_real" "$plan_target"; do
       case "$p" in "$repo_real/"*) ;; */docs/designs/*) foreign=1 ;; esac
@@ -172,8 +177,7 @@ if [ -n "$PLAN" ]; then
       err "--plan is outside this repo: $PLAN"
     elif [ "$touches" -eq 1 ]; then
       # loop-dev.md reads <slug> from the path as given, so `a/../b` would be
-      # gated as b but folded as a. A single leading ./ names the same path.
-      plan_raw="${PLAN#./}"
+      # gated as b but folded as a.
       case "/$plan_raw/" in
         */./*|*/../*) plan_dots=1 ;;
         *) plan_dots=0 ;;

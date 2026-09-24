@@ -354,6 +354,13 @@ mkdesign_at "$d/docs/designs/a" draft
 run "$d" --plan docs/designs/a/../offline-stamp/plan.md
 { [ "$RC" = "1" ] && grep -q "must not contain . or .. segments" <<<"$OUT"; } \
   && ok "a design plan path with a .. segment blocks" || bad "docs/designs/a/../b (rc=$RC: $OUT)"
+# The raw text decides too: loop-dev.md judges "inside docs/designs/" from the
+# path as typed, even when .. collapses it out of docs/designs/.
+d=$(newrepo rd-dotdot-out); cfg "$d" "require_design: never"; mkdesign "$d" draft
+mkdir -p "$d/docs/designs/a" "$d/docs/plans"; printf '### Task 1\n' > "$d/docs/plans/x.md"
+run "$d" --plan docs/designs/a/../../plans/x.md
+{ [ "$RC" = "1" ] && grep -q "must not contain . or .. segments" <<<"$OUT"; } \
+  && ok "a .. path that leaves docs/designs/ still blocks" || bad "docs/designs/a/../../plans/x.md (rc=$RC: $OUT)"
 d=$(newrepo rd-leading-dot); cfg "$d" "require_design: always"; mkdesign "$d" locked
 run "$d" --plan "./$PLANREL"
 { [ "$RC" = "0" ] && grep -q "passes design-check" <<<"$OUT"; } \
