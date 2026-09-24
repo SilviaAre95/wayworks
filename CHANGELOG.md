@@ -12,6 +12,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 6.3.1] — 2026-09-24
+
+### Fixed
+- **`harness` `2.3.1`** — loop sentinels were keyed to the project directory, so every Claude Code session open in the same checkout drove an armed loop's `Stop` gate: a bystander session ran `verify`, spent the retry budget, and under `loop-deploy` could trigger `rollback` against prod. `loop-arm.sh` now writes the arming session's `CLAUDE_CODE_SESSION_ID` into the sentinel, and all three gates exit silently for a `Stop` whose `session_id` differs (`gate-owner.sh`). A sentinel with no owner, or a hook input with no `session_id`, is gated for every session as before; `loop-arm` warns when it arms without an owner. `--resume` keeps the session id; anything that starts a new one leaves the loop ungated for its owner until re-armed. (XARI-159)
+
 ## [marketplace 6.3.0] — 2026-09-23
 
 ### Added

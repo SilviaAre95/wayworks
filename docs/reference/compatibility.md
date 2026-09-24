@@ -28,6 +28,7 @@ Every gate is a hook. If any of this changes, the loops stop enforcing and keep 
 | Output `{hookSpecificOutput: {permissionDecision, permissionDecisionReason}}` | `auto-approve-reads`, `block-stray-docs` |
 | Output `{systemMessage: ...}` | `console-log-scan` (non-blocking warning) |
 | Input `stop_hook_active` | `loop-dev-gate` — multi-turn stop suppression |
+| Input `session_id` on `Stop`, equal to `CLAUDE_CODE_SESSION_ID` in a command's `!` block (verified 2.1.282; `--resume` keeps it) | `gate-owner` — a loop is gated only for the session that armed it. Either one missing falls back to gating every session |
 | Input `tool_name`, `tool_input`, `cwd`, `file_path` | `PreToolUse`/`PostToolUse` scripts |
 | `${CLAUDE_PLUGIN_ROOT}` expansion in `hooks.json` | every hook registration |
 

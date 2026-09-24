@@ -46,4 +46,15 @@ fi
 # reject them anyway, but clearing here keeps the arm deterministic.
 [ -n "$stale" ] && rm -f $stale
 
-echo "$label armed"
+# Record the arming session so a Stop from any other session in this checkout
+# leaves the gate alone (gate-owner.sh). No usable id -> an ownerless sentinel,
+# which every session drives; say so rather than arm quietly.
+sid="${CLAUDE_CODE_SESSION_ID:-}"
+if [[ "$sid" =~ ^[A-Za-z0-9-]+$ ]]; then
+  printf '%s\n' "$sid" > "$sentinel"
+  echo "$label armed (session $sid)"
+else
+  : > "$sentinel"
+  echo "$label armed"
+  echo "WARNING: armed without an owner (no CLAUDE_CODE_SESSION_ID) — any session in this checkout will drive this gate" >&2
+fi

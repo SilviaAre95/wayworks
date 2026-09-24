@@ -10,7 +10,24 @@ bad() { echo "FAIL - $*"; fail=1; }
 
 TMP=$(mktemp -d); trap 'chmod -R u+w "$TMP" 2>/dev/null; rm -rf "$TMP"' EXIT
 fresh() { d="$TMP/$1"; rm -rf "$d"; mkdir -p "$d"; echo "$d"; }
-run() { OUT=$(bash "$SCRIPT" "$@" 2>&1); RC=$?; }
+# Session id unset by default so results do not depend on whether the suite
+# runs inside a Claude Code session; the ownership cases set it explicitly.
+run() { OUT=$(env -u CLAUDE_CODE_SESSION_ID bash "$SCRIPT" "$@" 2>&1); RC=$?; }
+
+# --- the sentinel records the arming session (XARI-159) --------------------
+d=$(fresh owned)
+OUT=$(CLAUDE_CODE_SESSION_ID=abc-123 bash "$SCRIPT" deploy "$d" 2>&1)
+{ [ "$(cat "$d/.cc-deploy-active")" = "abc-123" ] && ! echo "$OUT" | grep -q WARNING; } \
+  && ok "sentinel records the arming session id" || bad "owner not recorded (out=$OUT)"
+
+d=$(fresh ownerless); run dev "$d"
+{ [ ! -s "$d/.cc-loop-dev-active" ] && echo "$OUT" | grep -q "armed without an owner"; } \
+  && ok "no session id arms ownerless, with a warning" || bad "ownerless arm (out=$OUT)"
+
+d=$(fresh malformed)
+OUT=$(CLAUDE_CODE_SESSION_ID='x; rm -rf /' bash "$SCRIPT" build "$d" 2>&1)
+{ [ ! -s "$d/.cc-loop-active" ] && echo "$OUT" | grep -q "armed without an owner"; } \
+  && ok "malformed session id is not written" || bad "malformed id (out=$OUT)"
 
 # --- each loop writes its own sentinel + state ------------------------------
 d=$(fresh dev); run dev "$d"
