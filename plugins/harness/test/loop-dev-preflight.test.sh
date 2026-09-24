@@ -308,6 +308,28 @@ run "$d" --plan "$P/linked-design.md"
   && ok "an out-of-repo plan symlinked to another repo's design blocks" \
   || bad "out-of-repo plan linked to a foreign design (rc=$RC: $OUT)"
 
+# The same holds for a link into THIS repo's docs/designs/: the file it builds
+# from is a design plan, so the design gate runs on it. Classifying only the
+# link's own location let a draft design build as an ordinary plan.
+d=$(newrepo rd-planmode-ownlink); cfg "$d" "require_design: never"; mkdesign "$d" draft
+ln -s "$d/$PLANREL" "$P/own-design.md"
+run "$d" --plan "$P/own-design.md"
+{ [ "$RC" = "1" ] && grep -q "not locked" <<<"$OUT"; } \
+  && ok "an out-of-repo link to this repo's draft design runs the design gate" \
+  || bad "out-of-repo link to own draft design (rc=$RC: $OUT)"
+d=$(newrepo rd-inrepo-ownlink); cfg "$d" "require_design: never"; mkdesign "$d" draft
+mkdir -p "$d/docs/plans"; ln -s ../designs/offline-stamp/plan.md "$d/docs/plans/x.md"
+run "$d" --plan docs/plans/x.md
+{ [ "$RC" = "1" ] && grep -q "not locked" <<<"$OUT"; } \
+  && ok "an in-repo link to a draft design's plan.md runs the design gate" \
+  || bad "in-repo link to own draft design (rc=$RC: $OUT)"
+d=$(newrepo rd-planmode-ownlink-locked); cfg "$d" "require_design: always"; mkdesign "$d" locked
+ln -s "$d/$PLANREL" "$P/own-locked.md"
+run "$d" --plan "$P/own-locked.md"
+{ [ "$RC" = "0" ] && grep -q "passes design-check" <<<"$OUT"; } \
+  && ok "an out-of-repo link to this repo's locked design passes as a design plan" \
+  || bad "out-of-repo link to own locked design (rc=$RC: $OUT)"
+
 # --- design.md itself must resolve inside the repo ----------------------------
 # Containment resolved the design's DIRECTORY, so an in-repo design folder whose
 # design.md is a symlink to a foreign, validly locked design passed the gate

@@ -146,10 +146,15 @@ if [ -n "$PLAN" ]; then
   else
     plan_real="$plan_dir_real/$(basename "$plan_path")"
     plan_target=$(resolve_path "$plan_path")
-    case "$plan_real" in
-      "$repo_real/"*)
-        case "$plan_real" in "$repo_real/docs/designs/"*/*) design_dir="$plan_dir_real" ;; esac ;;
-    esac
+    # A design plan is judged on the file loop-dev will read (the link's final
+    # target) and on the path as given: a link from anywhere into this repo's
+    # docs/designs/ is that design's plan, and a design folder's own plan.md
+    # stays gated even if it is a link.
+    design_plan=""
+    for p in "$plan_target" "$plan_real"; do
+      case "$p" in "$repo_real/docs/designs/"*/*) design_plan="$p"; break ;; esac
+    done
+    [ -n "$design_plan" ] && design_dir=$(dirname "$design_plan")
     # A plan that is, or links to, another repo's design blocks.
     for p in "$plan_real" "$plan_target"; do
       case "$p" in
@@ -178,8 +183,8 @@ if [ -n "$design_dir" ]; then
   fi
   # design-check vouches for plan.md; any other file in the folder is a plan
   # nobody checked, built under the design's name.
-  if [ "$(basename "$plan_real")" != "plan.md" ]; then
-    err "--plan must be the design's plan.md, not $(basename "$plan_real")"
+  if [ "$(basename "$design_plan")" != "plan.md" ]; then
+    err "--plan must be the design's plan.md, not $(basename "$design_plan")"
   elif [ -n "$design_md_out" ]; then
     err "design.md resolves outside this repo: $design_md_out"
   elif [ ! -f "$DESIGN_CHECK" ]; then
