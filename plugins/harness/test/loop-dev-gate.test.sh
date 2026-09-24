@@ -93,9 +93,10 @@ gsetup() { # gsetup <dir> — init repo on main with one tracked file
   echo hi > "$1/f.txt"; git -C "$1" add f.txt
   git -C "$1" -c user.email=t@t -c user.name=t commit -qm init
 }
+FPFLAGS="--no-ext-diff --no-textconv --ignore-submodules=dirty"   # as in the STAMP command
 gstamp() { # gstamp <dir> [reviewed-sha] — three-line marker as the STAMP command writes it
   local mb sha; sha=${2:-$(git -C "$1" rev-parse HEAD)}
-  mb=$(git -C "$1" merge-base main HEAD) && { echo "$mb"; git -C "$1" diff "$mb" | git -C "$1" hash-object --stdin; echo "$sha"; } > "$1/.cc-dev-reviews-passed"
+  mb=$(git -C "$1" merge-base main HEAD) && { echo "$mb"; git -C "$1" diff $FPFLAGS "$mb" | git -C "$1" hash-object --stdin; echo "$sha"; } > "$1/.cc-dev-reviews-passed"
 }
 gcommit() { git -C "$1" -c user.email=t@t -c user.name=t commit -q "${@:2}"; }
 
@@ -147,6 +148,28 @@ echo committed >> "$d/f.txt"; gcommit "$d" -am committed
 echo uncommitted >> "$d/f.txt"; gstamp "$d"
 out=$(CC_GATE_CMD="true" run "$d")
 check "uncommitted work at stamp blocks" "" "$out" "stale"
+rm -rf "$d"
+
+# 12c2. A dirty submodule prints `-dirty` only in the working-tree diff form.
+#       Without --ignore-submodules=dirty every correct stamp mismatched and
+#       the loop burned review rounds until its breaker tripped.
+d=$(mktemp -d); mkdir "$d/sub" "$d/p"
+git -C "$d/sub" init -q; echo s > "$d/sub/s"; git -C "$d/sub" add s; gcommit "$d/sub" -m s
+gsetup "$d/p"; git -C "$d/p" checkout -qb feature; touch "$d/p/.cc-loop-dev-active"
+git -C "$d/p" -c protocol.file.allow=always submodule add -q "$d/sub" sub 2>/dev/null; gcommit "$d/p" -m addsub
+echo dirty >> "$d/p/sub/s"; gstamp "$d/p"
+out=$(CC_GATE_CMD="true" run "$d/p")
+check "dirty submodule does not falsify a correct stamp" "" "$out" "EMPTY"
+rm -rf "$d"
+
+# 12c3. A repo diff driver that prints differently per invocation must not
+#       reach either fingerprint.
+d=$(mktemp -d); gsetup "$d"; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
+printf '#!/bin/sh\necho "$$ $(date +%%N)"\n' > "$d/.x"; chmod +x "$d/.x"
+git -C "$d" config diff.external "$d/.x"
+echo change >> "$d/f.txt"; gcommit "$d" -am change; gstamp "$d"
+out=$(CC_GATE_CMD="true" run "$d")
+check "diff.external does not falsify a correct stamp" "" "$out" "EMPTY"
 rm -rf "$d"
 
 # 12d. Reviewed SHA missing (legacy two-line marker), malformed, or unknown

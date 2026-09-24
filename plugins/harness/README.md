@@ -48,7 +48,8 @@ against it, and the commit every grader echoed as reviewed. The hook
 re-verifies both at stop time — tracked changes landing after the graders
 passed, committed or not, invalidate it, and so does a reviewed commit that is
 not exactly the certified tree (a grader whose worktree sat on `main`, or
-uncommitted work no worktree grader saw). That each grader read that commit
+uncommitted tracked changes no worktree grader saw; untracked files are not
+fingerprinted). That each grader read that commit
 rests on its echoed report. An empty (`touch`ed) marker is the non-git escape hatch and is
 trust-based. On success it
 pushes the branch, opens a PR (unless `open_pr: false`), and watches the PR's

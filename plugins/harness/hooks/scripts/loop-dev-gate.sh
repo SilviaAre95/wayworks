@@ -73,8 +73,13 @@ echo 0 > "$STATE"
 # already-fingerprinted content, so the PR stage never falsifies it; any
 # tracked change vs the anchor does. The reviewed commit must carry exactly
 # the fingerprinted diff: a grader whose worktree sat on `main` echoes a SHA
-# with an empty diff, and uncommitted work is something no worktree grader
-# saw (XARI-158). That the graders really read that SHA is on the agent.
+# with an empty diff, and uncommitted tracked changes are something no
+# worktree grader saw (XARI-158). That the graders really read that SHA is on
+# the agent. Untracked files are outside every fingerprint, as before.
+# Both fingerprints use the same flags, so the working-tree form and the
+# commit form stay byte-identical: dirty submodule contents (the `-dirty`
+# suffix only the working-tree form prints) and repo diff drivers
+# (diff.external, textconv) would otherwise make every correct stamp fail.
 BASE=$(grep -E '^base:' "$CFG" 2>/dev/null | head -1 | sed -E 's/^base:[[:space:]]*//')
 case "$BASE" in
   '"'*) BASE=$(printf '%s' "$BASE" | sed -E 's/^"([^"]*)".*$/\1/') ;;
@@ -84,7 +89,7 @@ esac
 # Only a sane ref name may reach tree_fp and the agent-facing STAMP command
 # (anything else fails merge-base at best, injects shell into the agent at worst).
 [[ "$BASE" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || BASE="main"
-STAMP="sha=<REVIEWED_SHA> && mb=\$(git merge-base $BASE HEAD) && { echo \"\$mb\"; git diff \"\$mb\" | git hash-object --stdin; echo \"\$sha\"; } > .cc-dev-reviews-passed"
+STAMP="sha=<REVIEWED_SHA> && mb=\$(git merge-base $BASE HEAD) && { echo \"\$mb\"; git diff --no-ext-diff --no-textconv --ignore-submodules=dirty \"\$mb\" | git hash-object --stdin; echo \"\$sha\"; } > .cc-dev-reviews-passed"
 marker_fresh() {  # 0 = fresh (or unverifiable outside git), 1 = stale
   # A non-empty marker MUST be the three-line stamped format: anchor commit,
   # fingerprint, reviewed commit. Anything else fails CLOSED — never fall back
@@ -97,11 +102,11 @@ marker_fresh() {  # 0 = fresh (or unverifiable outside git), 1 = stale
   printf '%s' "$anchor" | grep -Eq '^[0-9a-f]{40,64}$' || return 1  # malformed anchor
   [ -n "$want" ] || return 1                                        # missing fingerprint
   git -C "$DIR" cat-file -e "$anchor" 2>/dev/null || return 1       # unknown commit
-  fp=$(git -C "$DIR" diff "$anchor" 2>/dev/null | git -C "$DIR" hash-object --stdin)
+  fp=$(git -C "$DIR" diff --no-ext-diff --no-textconv --ignore-submodules=dirty "$anchor" 2>/dev/null | git -C "$DIR" hash-object --stdin)
   [ "$want" = "$fp" ] || return 1
   printf '%s' "$sha" | grep -Eq '^[0-9a-f]{40,64}$' || return 1     # missing/malformed reviewed commit
   git -C "$DIR" cat-file -e "$sha^{commit}" 2>/dev/null || return 1 # unknown commit
-  fp=$(git -C "$DIR" diff "$anchor" "$sha" 2>/dev/null | git -C "$DIR" hash-object --stdin)
+  fp=$(git -C "$DIR" diff --no-ext-diff --no-textconv --ignore-submodules=dirty "$anchor" "$sha" 2>/dev/null | git -C "$DIR" hash-object --stdin)
   [ "$want" = "$fp" ]                                               # reviewed commit != certified tree
 }
 
@@ -166,7 +171,7 @@ if [ -s "$MARKER" ] && ! marker_fresh; then
   rm -f "$MARKER"
   if ! review_round; then review_breaker; exit 0; fi
   jq -n --arg stamp "$STAMP" \
-    '{decision:"block", reason:("Reviews marker is stale or does not match what was reviewed: the working tree changed after the graders passed (late edits or background jobs?), the tree holds uncommitted changes no worktree grader saw, or the stamped REVIEWED_SHA is not the certified tree (a grader on the wrong branch, e.g. main) or is missing. Commit, re-run the affected graders against the current HEAD SHA, fix any findings, then re-stamp:\n\n  " + $stamp)}'
+    '{decision:"block", reason:("Reviews marker is stale or does not match what was reviewed: the working tree changed after the graders passed (late edits or background jobs?), the tree holds uncommitted tracked changes no worktree grader saw, or the stamped REVIEWED_SHA is not the certified tree (a grader on the wrong branch, e.g. main) or is missing. Commit, re-run the affected graders against the current HEAD SHA, fix any findings, then re-stamp:\n\n  " + $stamp)}'
   exit 0
 fi
 
