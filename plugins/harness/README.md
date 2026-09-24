@@ -43,10 +43,14 @@ browser flow, endpoint checks, or `pipeline-verify` for data pipelines) and a
 finish until `.cc-verify` is green **and** `.cc-dev-reviews-passed` exists —
 a failing `.cc-verify` clears the marker, so a broken build forces reviews to
 re-run. In a git repo the marker is stamped with an anchor commit (the
-merge-base with `base`, frozen at stamp time) plus a working-tree fingerprint
-against it, which the hook re-verifies at stop time — tracked changes landing
-after the graders passed, committed or not, invalidate it and force a
-re-review. An empty (`touch`ed) marker is the non-git escape hatch and is
+merge-base with `base`, frozen at stamp time), a working-tree fingerprint
+against it, and the commit every grader echoed as reviewed. The hook
+re-verifies both at stop time — tracked changes landing after the graders
+passed, committed or not, invalidate it, and so does a reviewed commit that is
+not exactly the certified tree (a grader whose worktree sat on `main`, or
+uncommitted tracked changes no worktree grader saw; untracked files are not
+fingerprinted). That each grader read that commit
+rests on its echoed report. An empty (`touch`ed) marker is accepted only outside a git repo — the non-git escape hatch — and is
 trust-based. On success it
 pushes the branch, opens a PR (unless `open_pr: false`), and watches the PR's
 CI checks to green before handing over. Config — graders, `max_retries`, diff

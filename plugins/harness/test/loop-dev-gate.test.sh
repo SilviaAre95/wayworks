@@ -93,12 +93,16 @@ gsetup() { # gsetup <dir> — init repo on main with one tracked file
   echo hi > "$1/f.txt"; git -C "$1" add f.txt
   git -C "$1" -c user.email=t@t -c user.name=t commit -qm init
 }
-gstamp() { # two-line marker: anchor commit + fingerprint (as the STAMP command does)
-  local mb; mb=$(git -C "$1" merge-base main HEAD) && { echo "$mb"; git -C "$1" diff "$mb" | git -C "$1" hash-object --stdin; } > "$1/.cc-dev-reviews-passed"
+FPFLAGS="--no-ext-diff --no-textconv --ignore-submodules=dirty"   # as in the STAMP command
+gstamp() { # gstamp <dir> [reviewed-sha] — three-line marker as the STAMP command writes it
+  local mb sha; sha=${2:-$(git -C "$1" rev-parse HEAD)}
+  mb=$(git -C "$1" merge-base main HEAD) && { echo "$mb"; git -C "$1" diff $FPFLAGS "$mb" | git -C "$1" hash-object --stdin; echo "$sha"; } > "$1/.cc-dev-reviews-passed"
 }
+gcommit() { git -C "$1" -c user.email=t@t -c user.name=t commit -q "${@:2}"; }
 
-# 10. Git repo + marker with matching fingerprint -> allow, disarm
-d=$(mktemp -d); gsetup "$d"; touch "$d/.cc-loop-dev-active"; gstamp "$d"
+# 10. Git repo + marker with matching fingerprint + reviewed HEAD -> allow, disarm
+d=$(mktemp -d); gsetup "$d"; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
+echo reviewed >> "$d/f.txt"; gcommit "$d" -am reviewed; gstamp "$d"
 out=$(CC_GATE_CMD="true" run "$d")
 check "fresh marker allows" "" "$out" "EMPTY"
 check "fresh marker disarms" "" "$([ -f "$d/.cc-loop-dev-active" ] && echo present || echo gone)" "gone"
@@ -113,22 +117,88 @@ check "stale marker cleared" "" "$([ -f "$d/.cc-dev-reviews-passed" ] && echo pr
 check "stale marker keeps sentinel" "" "$([ -f "$d/.cc-loop-dev-active" ] && echo present)" "present"
 rm -rf "$d"
 
-# 12. Feature branch (the loop-dev flow): committing after stamping does NOT
-#     falsify the fingerprint — merge-base stays the fork point. (Working on
-#     the base branch itself is not invariant: a post-stamp commit moves the
-#     merge-base and fails safe into a re-review.)
+# 12. Feature branch (the loop-dev flow): a post-stamp commit that carries no
+#     new content (here an amend — new SHA, same tree) does NOT falsify the
+#     marker; merge-base stays the fork point and the reviewed commit still
+#     exists. (Working on the base branch itself is not invariant: a
+#     post-stamp commit moves the merge-base and fails safe into a re-review.)
 d=$(mktemp -d); gsetup "$d"; git -C "$d" checkout -qb feature
 touch "$d/.cc-loop-dev-active"
-echo reviewed-change >> "$d/f.txt"; gstamp "$d"
-git -C "$d" -c user.email=t@t -c user.name=t commit -qam work
+echo reviewed-change >> "$d/f.txt"; gcommit "$d" -am work; gstamp "$d"
+gcommit "$d" --amend -m "work, reworded"
 out=$(CC_GATE_CMD="true" run "$d")
-check "commit after stamp still allows" "" "$out" "EMPTY"
+check "content-free commit after stamp still allows" "" "$out" "EMPTY"
 rm -rf "$d"
 
-# 13. Git repo + legacy empty marker (touch) -> allow (escape hatch)
-d=$(mktemp -d); gsetup "$d"; touch "$d/.cc-loop-dev-active" "$d/.cc-dev-reviews-passed"
+# 12b. XARI-158: a grader whose worktree sat on main echoes main's SHA. The
+#      stamp claims that SHA was reviewed; its diff is empty, not the
+#      certified tree -> rejected, marker cleared.
+d=$(mktemp -d); gsetup "$d"; main_sha=$(git -C "$d" rev-parse main)
+git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
+echo change >> "$d/f.txt"; gcommit "$d" -am change; gstamp "$d" "$main_sha"
 out=$(CC_GATE_CMD="true" run "$d")
-check "empty marker allows (legacy)" "" "$out" "EMPTY"
+check "reviewed SHA on main blocks" "" "$out" "REVIEWED_SHA"
+check "reviewed SHA on main clears marker" "" "$([ -f "$d/.cc-dev-reviews-passed" ] && echo present || echo gone)" "gone"
+rm -rf "$d"
+
+# 12c. Uncommitted work at stamp time: no worktree grader saw it -> rejected,
+#      even though the working-tree fingerprint matches.
+d=$(mktemp -d); gsetup "$d"; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
+echo committed >> "$d/f.txt"; gcommit "$d" -am committed
+echo uncommitted >> "$d/f.txt"; gstamp "$d"
+out=$(CC_GATE_CMD="true" run "$d")
+check "uncommitted work at stamp blocks" "" "$out" "stale"
+rm -rf "$d"
+
+# 12c2. A dirty submodule prints `-dirty` only in the working-tree diff form.
+#       Without --ignore-submodules=dirty every correct stamp mismatched and
+#       the loop burned review rounds until its breaker tripped.
+d=$(mktemp -d); mkdir "$d/sub" "$d/p"
+git -C "$d/sub" init -q; echo s > "$d/sub/s"; git -C "$d/sub" add s; gcommit "$d/sub" -m s
+gsetup "$d/p"; git -C "$d/p" checkout -qb feature; touch "$d/p/.cc-loop-dev-active"
+git -C "$d/p" -c protocol.file.allow=always submodule add -q "$d/sub" sub 2>/dev/null; gcommit "$d/p" -m addsub
+echo dirty >> "$d/p/sub/s"; gstamp "$d/p"
+out=$(CC_GATE_CMD="true" run "$d/p")
+check "dirty submodule does not falsify a correct stamp" "" "$out" "EMPTY"
+rm -rf "$d"
+
+# 12c3. A repo diff driver that prints differently per invocation must not
+#       reach either fingerprint.
+d=$(mktemp -d); gsetup "$d"; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
+printf '#!/bin/sh\necho "$$ $(date +%%N)"\n' > "$d/.x"; chmod +x "$d/.x"
+git -C "$d" config diff.external "$d/.x"
+echo change >> "$d/f.txt"; gcommit "$d" -am change; gstamp "$d"
+out=$(CC_GATE_CMD="true" run "$d")
+check "diff.external does not falsify a correct stamp" "" "$out" "EMPTY"
+rm -rf "$d"
+
+# 12d. Reviewed SHA missing (legacy two-line marker), malformed, or unknown
+#      -> fails closed.
+for bad in "" "not-a-sha" "0123456789012345678901234567890123456789"; do
+  d=$(mktemp -d); gsetup "$d"; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
+  echo change >> "$d/f.txt"; gcommit "$d" -am change; gstamp "$d"
+  { sed -n 1,2p "$d/.cc-dev-reviews-passed"; if [ -n "$bad" ]; then echo "$bad"; fi; } > "$d/m"
+  mv "$d/m" "$d/.cc-dev-reviews-passed"
+  out=$(CC_GATE_CMD="true" run "$d")
+  check "reviewed SHA '${bad:-<absent>}' fails closed" "" "$out" "stale"
+  rm -rf "$d"
+done
+
+# 13. Git repo + empty (touched) marker -> fails CLOSED. It used to be
+#     accepted as a legacy escape hatch, which skipped every fingerprint and
+#     reviewed-SHA check: a loop could end with no grader having run.
+d=$(mktemp -d); gsetup "$d"; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
+echo change >> "$d/f.txt"; gcommit "$d" -am change; touch "$d/.cc-dev-reviews-passed"
+out=$(CC_GATE_CMD="true" run "$d")
+check "empty marker in git blocks" "" "$out" "only accepted outside a git repo"
+check "empty marker in git cleared" "" "$([ -f "$d/.cc-dev-reviews-passed" ] && echo present || echo gone)" "gone"
+check "empty marker in git keeps sentinel" "" "$([ -f "$d/.cc-loop-dev-active" ] && echo present)" "present"
+rm -rf "$d"
+
+# 13b. Non-git dir + empty marker -> still the escape hatch.
+d=$(mktemp -d); touch "$d/.cc-loop-dev-active" "$d/.cc-dev-reviews-passed"
+out=$(CC_GATE_CMD="true" run "$d")
+check "non-git empty marker allows" "" "$out" "EMPTY"
 rm -rf "$d"
 
 # 14. Non-git dir + non-empty marker -> allow (fingerprint unavailable, skip check)
@@ -140,7 +210,14 @@ rm -rf "$d"
 # 15. Stage-2 block message includes the fingerprint stamp command
 d=$(mktemp -d); touch "$d/.cc-loop-dev-active"
 out=$(CC_GATE_CMD="true" run "$d")
-check "stage-2 message has stamp cmd" "" "$out" "git hash-object --stdin; } > .cc-dev-reviews-passed"
+check "stage-2 message has stamp cmd" "" "$out" 'echo \\"$sha\\"; } > .cc-dev-reviews-passed'
+check "stage-2 message asks graders to echo the SHA" "" "$out" "REVIEWED_SHA"
+# The same stamp is written out in loop-dev.md; the two must not drift, or the
+# agent follows prose that writes a marker this gate rejects.
+doc_stamp=$(sed -nE 's/^[[:space:]]*`(sha=<REVIEWED_SHA> && mb=.*\.cc-dev-reviews-passed)`$/\1/p' "$(dirname "$0")/../commands/loop-dev.md" | sed 's/<base>/main/')
+gate_stamp=$(printf '%s' "$out" | jq -r .reason | sed -nE 's/^[[:space:]]*(sha=<REVIEWED_SHA> && .*)$/\1/p')
+if [ -n "$doc_stamp" ] && [ "$doc_stamp" = "$gate_stamp" ]; then echo "ok: loop-dev.md stamp matches the gate's"; pass=$((pass+1))
+else echo "FAIL: loop-dev.md stamp drifted from the gate's (doc='$doc_stamp' gate='$gate_stamp')"; fail=$((fail+1)); fi
 rm -rf "$d"
 
 # 16. Quoted YAML base ("main") -> quotes stripped, fingerprint STILL enforced

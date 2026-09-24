@@ -68,9 +68,18 @@ echo 0 > "$STATE"
 
 # The reviews marker carries the anchor commit (merge-base with `base`,
 # frozen at stamp time — never recomputed, so a moving base ref like HEAD
-# cannot collapse the check) and a fingerprint of the working tree vs that
-# anchor. Invariant under commits of already-fingerprinted content, so the
-# PR stage never falsifies it; any tracked change vs the anchor does.
+# cannot collapse the check), a fingerprint of the working tree vs that
+# anchor, and the commit the graders reviewed. Invariant under commits of
+# already-fingerprinted content, so the PR stage never falsifies it; any
+# tracked change vs the anchor does. The reviewed commit must carry exactly
+# the fingerprinted diff: a grader whose worktree sat on `main` echoes a SHA
+# with an empty diff, and uncommitted tracked changes are something no
+# worktree grader saw (XARI-158). That the graders really read that SHA is on
+# the agent. Untracked files are outside every fingerprint, as before.
+# Both fingerprints use the same flags, so the working-tree form and the
+# commit form stay byte-identical: dirty submodule contents (the `-dirty`
+# suffix only the working-tree form prints) and repo diff drivers
+# (diff.external, textconv) would otherwise make every correct stamp fail.
 BASE=$(grep -E '^base:' "$CFG" 2>/dev/null | head -1 | sed -E 's/^base:[[:space:]]*//')
 case "$BASE" in
   '"'*) BASE=$(printf '%s' "$BASE" | sed -E 's/^"([^"]*)".*$/\1/') ;;
@@ -80,20 +89,26 @@ esac
 # Only a sane ref name may reach tree_fp and the agent-facing STAMP command
 # (anything else fails merge-base at best, injects shell into the agent at worst).
 [[ "$BASE" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || BASE="main"
-STAMP="mb=\$(git merge-base $BASE HEAD) && { echo \"\$mb\"; git diff \"\$mb\" | git hash-object --stdin; } > .cc-dev-reviews-passed"
+STAMP="sha=<REVIEWED_SHA> && mb=\$(git merge-base $BASE HEAD) && { echo \"\$mb\"; git diff --no-ext-diff --no-textconv --ignore-submodules=dirty \"\$mb\" | git hash-object --stdin; echo \"\$sha\"; } > .cc-dev-reviews-passed"
 marker_fresh() {  # 0 = fresh (or unverifiable outside git), 1 = stale
-  # A non-empty marker MUST be the two-line stamped format: anchor commit,
-  # then fingerprint. Anything else fails CLOSED — never fall back to
-  # recomputing merge-base, whose ref can move with HEAD (base: HEAD).
-  local anchor want fp
+  # Inside git the marker MUST be the three-line stamped format: anchor
+  # commit, fingerprint, reviewed commit. Anything else — an empty (touched)
+  # marker included — fails CLOSED — never fall back
+  # to recomputing merge-base, whose ref can move with HEAD (base: HEAD).
+  local anchor want fp sha
   git -C "$DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
   anchor=$(sed -n 1p "$MARKER" | tr -d '[:space:]')
   want=$(sed -n 2p "$MARKER" | tr -d '[:space:]')
+  sha=$(sed -n 3p "$MARKER" | tr -d '[:space:]')
   printf '%s' "$anchor" | grep -Eq '^[0-9a-f]{40,64}$' || return 1  # malformed anchor
   [ -n "$want" ] || return 1                                        # missing fingerprint
   git -C "$DIR" cat-file -e "$anchor" 2>/dev/null || return 1       # unknown commit
-  fp=$(git -C "$DIR" diff "$anchor" 2>/dev/null | git -C "$DIR" hash-object --stdin)
-  [ "$want" = "$fp" ]
+  fp=$(git -C "$DIR" diff --no-ext-diff --no-textconv --ignore-submodules=dirty "$anchor" 2>/dev/null | git -C "$DIR" hash-object --stdin)
+  [ "$want" = "$fp" ] || return 1
+  printf '%s' "$sha" | grep -Eq '^[0-9a-f]{40,64}$' || return 1     # missing/malformed reviewed commit
+  git -C "$DIR" cat-file -e "$sha^{commit}" 2>/dev/null || return 1 # unknown commit
+  fp=$(git -C "$DIR" diff --no-ext-diff --no-textconv --ignore-submodules=dirty "$anchor" "$sha" 2>/dev/null | git -C "$DIR" hash-object --stdin)
+  [ "$want" = "$fp" ]                                               # reviewed commit != certified tree
 }
 
 # Review-round budget: every stop attempt that still needs grading costs one
@@ -145,19 +160,20 @@ if [ ! -f "$MARKER" ]; then
   GRADERS=$(grep -E '^graders:' "$CFG" 2>/dev/null | head -1 | sed -E 's/^graders:[[:space:]]*//; s/[[:space:]]*#.*$//')
   [ -z "$GRADERS" ] && GRADERS="[code-review, security, bugs]"
   jq -n --arg g "$GRADERS" --arg stamp "$STAMP" \
-    '{decision:"block", reason:("Deterministic gate is green. Now run the review stages: " + $g + ". Dispatch one subagent per grader against the diff, fix every blocking finding, and re-verify. When ALL graders are clean AND you have made no further code edits, stamp the marker to finish:\n\n  " + $stamp + "\n\n(outside a git repo: touch .cc-dev-reviews-passed)\n\nDo NOT create the marker before the reviews are actually clean.")}'
+    '{decision:"block", reason:("Deterministic gate is green. Now run the review stages: " + $g + ". Commit everything, record REVIEWED_SHA=$(git rev-parse HEAD), and dispatch one subagent per grader with that SHA — each must confirm its HEAD matches it and echo it in its report. Fix every blocking finding and re-verify. When ALL graders are clean, every one echoed the same REVIEWED_SHA, it still equals HEAD, and the tree is clean, stamp the marker with that SHA:\n\n  " + $stamp + "\n\n(outside a git repo: touch .cc-dev-reviews-passed)\n\nDo NOT create the marker before the reviews are actually clean.")}'
   exit 0
 fi
 
 # 7. Stage 3 — a stamped marker must still match the tree vs its stored
 #    anchor. Late changes (the agent, or background jobs finishing after the
-#    graders passed) invalidate the reviews, whether committed or not; an
-#    empty marker (touch) is the legacy/non-git escape hatch.
-if [ -s "$MARKER" ] && ! marker_fresh; then
+#    graders passed) invalidate the reviews, whether committed or not. An
+#    empty marker (touch) is accepted only outside git, where nothing can be
+#    fingerprinted; inside a repo it used to skip every check above.
+if ! marker_fresh; then
   rm -f "$MARKER"
   if ! review_round; then review_breaker; exit 0; fi
   jq -n --arg stamp "$STAMP" \
-    '{decision:"block", reason:("Reviews marker is stale: the working tree changed after the graders passed (fingerprint mismatch — late edits or background jobs?). Re-run the affected graders on the current diff, fix any findings, then re-stamp:\n\n  " + $stamp)}'
+    '{decision:"block", reason:("Reviews marker is stale or does not match what was reviewed: the working tree changed after the graders passed (late edits or background jobs?), the tree holds uncommitted tracked changes no worktree grader saw, or the stamped REVIEWED_SHA is not the certified tree (a grader on the wrong branch, e.g. main) or is missing. An empty (touched) marker is only accepted outside a git repo. Commit, re-run the affected graders against the current HEAD SHA, fix any findings, then re-stamp:\n\n  " + $stamp)}'
   exit 0
 fi
 
