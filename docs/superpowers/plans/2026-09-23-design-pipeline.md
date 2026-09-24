@@ -1004,12 +1004,12 @@ In step 8 (PR), add to the `/shared:pr-description` instruction: *"Pass it any `
 
 This row of evidence cannot be produced by CI or by this session alone.
 
-- [ ] **Step 1:** In a kaffecard worktree, load the branch's plugins: `claude --plugin-dir <wayworks>/plugins/harness --plugin-dir <wayworks>/plugins/shared`. Confirm `/harness:shape` resolves.
-- [ ] **Step 2:** The user picks one real kaffecard feature. Run `/harness:shape <feature>` through Lock, with the user doing the triage.
-- [ ] **Step 3 (negative):** Before lock, run `/harness:loop-dev --plan docs/designs/<slug>/plan.md`. Expected: the design gate `BLOCK`s with "not locked", and the loop disarms.
-- [ ] **Step 4 (positive):** After lock, run the same command. Expected: the preflight prints `passes design-check`, and the loop runs to a PR whose body carries the fold diff, with the design at `status: shipped`.
-- [ ] **Step 5:** Only now, update `compatibility.md` "Gates exercised live" with the Claude Code version from `claude --version`, the date, and "/harness:shape → /harness:loop-dev on kaffecard <slug>". Commit `docs: record live design-gate run`, push, and hand the PR to the user to merge.
-- [ ] **Step 6:** Vault: update the wayworks project note per `~/SilviaXari/_agent/INSTRUCTIONS.md` (sub-project C shipped).
+- [x] **Step 1:** In a kaffecard worktree, load the branch's plugins: `claude --plugin-dir <wayworks>/plugins/harness --plugin-dir <wayworks>/plugins/shared`. Confirm `/harness:shape` resolves.
+- [x] **Step 2:** The user picks one real kaffecard feature. Run `/harness:shape <feature>` through Lock, with the user doing the triage.
+- [x] **Step 3 (negative):** Before lock, run `/harness:loop-dev --plan docs/designs/<slug>/plan.md`. Expected: the design gate `BLOCK`s with "not locked", and the loop disarms.
+- [x] **Step 4 (positive):** After lock, run the same command. Expected: the preflight prints `passes design-check`, and the loop runs to a PR whose body carries the fold diff, with the design at `status: shipped`.
+- [x] **Step 5:** Only now, update `compatibility.md` "Gates exercised live" with the Claude Code version from `claude --version`, the date, and "/harness:shape → /harness:loop-dev on kaffecard <slug>". Commit `docs: record live design-gate run`, push, and hand the PR to the user to merge.
+- [x] **Step 6:** Vault: update the wayworks project note per `~/SilviaXari/_agent/INSTRUCTIONS.md` (sub-project C shipped).
 
 ---
 
