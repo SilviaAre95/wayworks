@@ -91,8 +91,9 @@ esac
 [[ "$BASE" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || BASE="main"
 STAMP="sha=<REVIEWED_SHA> && mb=\$(git merge-base $BASE HEAD) && { echo \"\$mb\"; git diff --no-ext-diff --no-textconv --ignore-submodules=dirty \"\$mb\" | git hash-object --stdin; echo \"\$sha\"; } > .cc-dev-reviews-passed"
 marker_fresh() {  # 0 = fresh (or unverifiable outside git), 1 = stale
-  # A non-empty marker MUST be the three-line stamped format: anchor commit,
-  # fingerprint, reviewed commit. Anything else fails CLOSED — never fall back
+  # Inside git the marker MUST be the three-line stamped format: anchor
+  # commit, fingerprint, reviewed commit. Anything else — an empty (touched)
+  # marker included — fails CLOSED — never fall back
   # to recomputing merge-base, whose ref can move with HEAD (base: HEAD).
   local anchor want fp sha
   git -C "$DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
@@ -165,13 +166,14 @@ fi
 
 # 7. Stage 3 — a stamped marker must still match the tree vs its stored
 #    anchor. Late changes (the agent, or background jobs finishing after the
-#    graders passed) invalidate the reviews, whether committed or not; an
-#    empty marker (touch) is the legacy/non-git escape hatch.
-if [ -s "$MARKER" ] && ! marker_fresh; then
+#    graders passed) invalidate the reviews, whether committed or not. An
+#    empty marker (touch) is accepted only outside git, where nothing can be
+#    fingerprinted; inside a repo it used to skip every check above.
+if ! marker_fresh; then
   rm -f "$MARKER"
   if ! review_round; then review_breaker; exit 0; fi
   jq -n --arg stamp "$STAMP" \
-    '{decision:"block", reason:("Reviews marker is stale or does not match what was reviewed: the working tree changed after the graders passed (late edits or background jobs?), the tree holds uncommitted tracked changes no worktree grader saw, or the stamped REVIEWED_SHA is not the certified tree (a grader on the wrong branch, e.g. main) or is missing. Commit, re-run the affected graders against the current HEAD SHA, fix any findings, then re-stamp:\n\n  " + $stamp)}'
+    '{decision:"block", reason:("Reviews marker is stale or does not match what was reviewed: the working tree changed after the graders passed (late edits or background jobs?), the tree holds uncommitted tracked changes no worktree grader saw, or the stamped REVIEWED_SHA is not the certified tree (a grader on the wrong branch, e.g. main) or is missing. An empty (touched) marker is only accepted outside a git repo. Commit, re-run the affected graders against the current HEAD SHA, fix any findings, then re-stamp:\n\n  " + $stamp)}'
   exit 0
 fi
 

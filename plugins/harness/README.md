@@ -50,7 +50,7 @@ passed, committed or not, invalidate it, and so does a reviewed commit that is
 not exactly the certified tree (a grader whose worktree sat on `main`, or
 uncommitted tracked changes no worktree grader saw; untracked files are not
 fingerprinted). That each grader read that commit
-rests on its echoed report. An empty (`touch`ed) marker is the non-git escape hatch and is
+rests on its echoed report. An empty (`touch`ed) marker is accepted only outside a git repo — the non-git escape hatch — and is
 trust-based. On success it
 pushes the branch, opens a PR (unless `open_pr: false`), and watches the PR's
 CI checks to green before handing over. Config — graders, `max_retries`, diff

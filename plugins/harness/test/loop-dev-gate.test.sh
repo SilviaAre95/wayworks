@@ -184,10 +184,21 @@ for bad in "" "not-a-sha" "0123456789012345678901234567890123456789"; do
   rm -rf "$d"
 done
 
-# 13. Git repo + legacy empty marker (touch) -> allow (escape hatch)
-d=$(mktemp -d); gsetup "$d"; touch "$d/.cc-loop-dev-active" "$d/.cc-dev-reviews-passed"
+# 13. Git repo + empty (touched) marker -> fails CLOSED. It used to be
+#     accepted as a legacy escape hatch, which skipped every fingerprint and
+#     reviewed-SHA check: a loop could end with no grader having run.
+d=$(mktemp -d); gsetup "$d"; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
+echo change >> "$d/f.txt"; gcommit "$d" -am change; touch "$d/.cc-dev-reviews-passed"
 out=$(CC_GATE_CMD="true" run "$d")
-check "empty marker allows (legacy)" "" "$out" "EMPTY"
+check "empty marker in git blocks" "" "$out" "only accepted outside a git repo"
+check "empty marker in git cleared" "" "$([ -f "$d/.cc-dev-reviews-passed" ] && echo present || echo gone)" "gone"
+check "empty marker in git keeps sentinel" "" "$([ -f "$d/.cc-loop-dev-active" ] && echo present)" "present"
+rm -rf "$d"
+
+# 13b. Non-git dir + empty marker -> still the escape hatch.
+d=$(mktemp -d); touch "$d/.cc-loop-dev-active" "$d/.cc-dev-reviews-passed"
+out=$(CC_GATE_CMD="true" run "$d")
+check "non-git empty marker allows" "" "$out" "EMPTY"
 rm -rf "$d"
 
 # 14. Non-git dir + non-empty marker -> allow (fingerprint unavailable, skip check)
