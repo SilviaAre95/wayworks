@@ -10,7 +10,44 @@ bad() { echo "FAIL - $*"; fail=1; }
 
 TMP=$(mktemp -d); trap 'chmod -R u+w "$TMP" 2>/dev/null; rm -rf "$TMP"' EXIT
 fresh() { d="$TMP/$1"; rm -rf "$d"; mkdir -p "$d"; echo "$d"; }
-run() { OUT=$(bash "$SCRIPT" "$@" 2>&1); RC=$?; }
+# Session id unset by default so results do not depend on whether the suite
+# runs inside a Claude Code session; the ownership cases set it explicitly.
+run() { OUT=$(env -u CLAUDE_CODE_SESSION_ID bash "$SCRIPT" "$@" 2>&1); RC=$?; }
+
+# --- the sentinel records the arming session (XARI-159) --------------------
+d=$(fresh owned)
+OUT=$(CLAUDE_CODE_SESSION_ID=abc-123 bash "$SCRIPT" deploy "$d" 2>&1)
+{ [ "$(cat "$d/.cc-deploy-active")" = "abc-123" ] && ! echo "$OUT" | grep -q WARNING; } \
+  && ok "sentinel records the arming session id" || bad "owner not recorded (out=$OUT)"
+
+d=$(fresh ownerless); run dev "$d"
+{ [ ! -s "$d/.cc-loop-dev-active" ] && echo "$OUT" | grep -q "armed without an owner"; } \
+  && ok "no session id arms ownerless, with a warning" || bad "ownerless arm (out=$OUT)"
+
+# --- re-arming over another session's loop: allowed, but warned and logged --
+d=$(fresh takeover)
+CLAUDE_CODE_SESSION_ID=sess-a bash "$SCRIPT" deploy "$d" >/dev/null 2>&1; echo 2 > "$d/.cc-deploy-state"
+OUT=$(CLAUDE_CODE_SESSION_ID=sess-b bash "$SCRIPT" deploy "$d" 2>&1)
+{ [ "$(cat "$d/.cc-deploy-active")" = "sess-b" ] && echo "$OUT" | grep -q "already armed by session sess-a" \
+  && grep -q "loop-deploy reclaimed from=sess-a by=sess-b" "$d/.cc-loop-standdowns.log"; } \
+  && ok "takeover of another session's loop warns and logs" || bad "takeover (out=$OUT)"
+
+d=$(fresh rearm-same)
+CLAUDE_CODE_SESSION_ID=sess-a bash "$SCRIPT" dev "$d" >/dev/null 2>&1
+OUT=$(CLAUDE_CODE_SESSION_ID=sess-a bash "$SCRIPT" dev "$d" 2>&1)
+{ ! echo "$OUT" | grep -q WARNING && [ ! -e "$d/.cc-loop-standdowns.log" ]; } \
+  && ok "re-arm by the same session is quiet" || bad "same-session re-arm (out=$OUT)"
+
+d=$(fresh hostile-prev)
+printf 'x; $(touch PWNED)\n' > "$d/.cc-loop-active"
+OUT=$(CLAUDE_CODE_SESSION_ID=sess-a bash "$SCRIPT" build "$d" 2>&1)
+{ echo "$OUT" | grep -q "armed by session unrecognised" && ! grep -q 'PWNED' "$d/.cc-loop-standdowns.log"; } \
+  && ok "unrecognised previous owner is not echoed" || bad "hostile prev (out=$OUT)"
+
+d=$(fresh malformed)
+OUT=$(CLAUDE_CODE_SESSION_ID='x; rm -rf /' bash "$SCRIPT" build "$d" 2>&1)
+{ [ ! -s "$d/.cc-loop-active" ] && echo "$OUT" | grep -q "armed without an owner"; } \
+  && ok "malformed session id is not written" || bad "malformed id (out=$OUT)"
 
 # --- each loop writes its own sentinel + state ------------------------------
 d=$(fresh dev); run dev "$d"

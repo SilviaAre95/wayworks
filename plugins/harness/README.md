@@ -43,10 +43,14 @@ browser flow, endpoint checks, or `pipeline-verify` for data pipelines) and a
 finish until `.cc-verify` is green **and** `.cc-dev-reviews-passed` exists —
 a failing `.cc-verify` clears the marker, so a broken build forces reviews to
 re-run. In a git repo the marker is stamped with an anchor commit (the
-merge-base with `base`, frozen at stamp time) plus a working-tree fingerprint
-against it, which the hook re-verifies at stop time — tracked changes landing
-after the graders passed, committed or not, invalidate it and force a
-re-review. An empty (`touch`ed) marker is the non-git escape hatch and is
+merge-base with `base`, frozen at stamp time), a working-tree fingerprint
+against it, and the commit every grader echoed as reviewed. The hook
+re-verifies both at stop time — tracked changes landing after the graders
+passed, committed or not, invalidate it, and so does a reviewed commit that is
+not exactly the certified tree (a grader whose worktree sat on `main`, or
+uncommitted tracked changes no worktree grader saw; untracked files are not
+fingerprinted). That each grader read that commit
+rests on its echoed report. An empty (`touch`ed) marker is accepted only outside a git repo — the non-git escape hatch — and is
 trust-based. On success it
 pushes the branch, opens a PR (unless `open_pr: false`), and watches the PR's
 CI checks to green before handing over. Config — graders, `max_retries`, diff
@@ -115,6 +119,6 @@ Always-on (no arming needed), each with cheap no-op paths outside its scope:
 
 ## State files
 
-**Git-ignored (transient):** `.cc-loop-active` sentinel · `.cc-loop-state` counter · `.cc-loop.log` last gate output · `.cc-loop-dev-active` sentinel · `.cc-loop-dev-state` counter · `.cc-loop-dev-rounds` review-round counter · `.cc-dev-reviews-passed` marker · `.cc-loop-dev.log` last gate output · `.cc-deploy-active` sentinel · `.cc-deploy-state` counter · `.cc-deploy.log` last gate output · `.cc-loop-gate.lock/` gate mutex (all gates serialize on it; stale locks are reclaimed automatically) · `.cc-loop-standdowns.log` stand-down audit trail — one line per circuit-breaker trip (`timestamp loop breaker detail head= diff=`), append-only, never deleted by a gate. A loop that ended by exhausting its breaker looks identical to a clean green run from the outside; this file is how a reviewer tells them apart after the fact.
+**Git-ignored (transient):** `.cc-loop-active` sentinel (every sentinel holds the id of the Claude Code session that armed it; a `Stop` from any other session in the checkout is not gated and gets a one-line notice naming the owner — an empty sentinel, armed without an id, is gated for every session) · `.cc-loop-state` counter · `.cc-loop.log` last gate output · `.cc-loop-dev-active` sentinel · `.cc-loop-dev-state` counter · `.cc-loop-dev-rounds` review-round counter · `.cc-dev-reviews-passed` marker · `.cc-loop-dev.log` last gate output · `.cc-deploy-active` sentinel · `.cc-deploy-state` counter · `.cc-deploy.log` last gate output · `.cc-loop-gate.lock/` gate mutex (all gates serialize on it; stale locks are reclaimed automatically) · `.cc-loop-standdowns.log` stand-down audit trail — one line per circuit-breaker trip (`timestamp loop breaker detail head= diff=`), and one `reclaimed from=<old> by=<new>` line when an arm takes a loop over from another session, append-only, never deleted by a gate. A loop that ended by exhausting its breaker looks identical to a clean green run from the outside; this file is how a reviewer tells them apart after the fact.
 
 **Committed (project config):** `.cc-verify` — the gate command run on every stop attempt; commit it so a fresh clone keeps the right gate and its contents are trusted (they're `eval`'d by the loop gate) · `.cc-dev.yaml` — `/harness:loop-dev` config (graders, max_retries, base, open_pr) · `.cc-deploy.yaml` — `/harness:loop-deploy` config (deploy, watch, verify, rollback, max_redeploys, migrations_gate).

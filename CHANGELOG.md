@@ -12,6 +12,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 6.3.2] — 2026-09-24
+
+### Fixed
+- **`harness` `2.3.2`** — nothing checked that a `loop-dev` grader reviewed the feature branch: a grader worktree that started on `main` found nothing, and the marker stamped clean. The reviews marker now carries a third line, the commit the graders reviewed, and the `Stop` hook requires it to carry exactly the certified diff — a `main` SHA, uncommitted tracked changes, or a missing/unknown SHA is rejected (untracked files remain outside the fingerprint). Both fingerprints ignore dirty submodule contents and repo diff drivers, which would otherwise print differently in the working-tree and commit forms and fail every correct stamp (a two-line marker from an earlier version fails closed). An empty (`touch`ed) marker inside a git repo is now rejected too: it skipped every fingerprint check, so a loop could end with no grader having run; outside git it remains the escape hatch. `loop-dev` pins every grader to that SHA: each verifies its HEAD, echoes `REVIEWED <sha>`, and reports a mismatch instead of reviewing or checking out. The hook enforces that the stamped SHA is the certified tree; that each grader actually read it rests on its echo. (XARI-158)
+
+## [marketplace 6.3.1] — 2026-09-24
+
+### Fixed
+- **`harness` `2.3.1`** — loop sentinels were keyed to the project directory, so every Claude Code session open in the same checkout drove an armed loop's `Stop` gate: a bystander session ran `verify`, spent the retry budget, and under `loop-deploy` could trigger `rollback` against prod. `loop-arm.sh` now writes the arming session's `CLAUDE_CODE_SESSION_ID` into the sentinel, and all three gates exit silently for a `Stop` whose `session_id` differs (`gate-owner.sh`). Ownership is re-checked after the verify command returns, so a re-arm by another session during a long verify is not counted, disarmed or rolled back by the old run. A skipped stop is never silent: it gets a non-blocking notice naming the owner. Re-arming a loop another session owns is allowed (the recovery after `/clear`) but warns and logs a `reclaimed` line to `.cc-loop-standdowns.log`. A sentinel with no owner, or a hook input with no `session_id`, is gated for every session as before; `loop-arm` warns when it arms without an owner. `--resume` keeps the session id; anything that starts a new one leaves the loop ungated for its owner until re-armed. (XARI-159)
+
 ## [marketplace 6.3.0] — 2026-09-23
 
 ### Added

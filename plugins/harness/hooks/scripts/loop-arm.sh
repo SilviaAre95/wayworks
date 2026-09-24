@@ -17,6 +17,7 @@
 #
 # Usage: loop-arm.sh dev|build|deploy [dir]
 set -uo pipefail
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-standdown.sh"
 DIR="${2:-$PWD}"
 
 case "${1:-}" in
@@ -27,6 +28,10 @@ case "${1:-}" in
 esac
 
 cd "$DIR" 2>/dev/null || { echo "ARM FAILED: cannot enter $DIR" >&2; exit 1; }
+
+# The owner of a loop that is already armed, read before anything is written.
+prev=$(head -1 "$sentinel" 2>/dev/null | tr -d '[:space:]')
+[[ -z "$prev" || "$prev" =~ ^[A-Za-z0-9-]+$ ]] || prev="unrecognised"   # echoed to the agent and the log
 
 # Fail with the real reason rather than a partial arm. A sentinel without its
 # state file leaves the Stop hook armed against a loop that never initialised.
@@ -46,4 +51,26 @@ fi
 # reject them anyway, but clearing here keeps the arm deterministic.
 [ -n "$stale" ] && rm -f $stale
 
-echo "$label armed"
+# Record the arming session so a Stop from any other session in this checkout
+# leaves the gate alone (gate-owner.sh). No usable id -> an ownerless sentinel,
+# which every session drives; say so rather than arm quietly.
+sid="${CLAUDE_CODE_SESSION_ID:-}"
+[[ "$sid" =~ ^[A-Za-z0-9-]+$ ]] || sid=""
+
+# Taking over a loop another session armed ends that session's gating and
+# resets its counter — legitimate after /clear, a hijack otherwise. Allow it
+# (refusing would strand the /clear case) but never quietly: warn, and log it
+# where stand-downs are audited.
+if [ -n "$prev" ] && [ "$prev" != "$sid" ]; then
+  echo "WARNING: $label was already armed by session $prev — this arm takes it over; that session's stops are no longer gated and its attempt counter is reset" >&2
+  gate_standdown "$PWD" "$label" reclaimed "from=$prev" "by=${sid:-none}"
+fi
+
+if [ -n "$sid" ]; then
+  printf '%s\n' "$sid" > "$sentinel"
+  echo "$label armed (session $sid)"
+else
+  : > "$sentinel"
+  echo "$label armed"
+  echo "WARNING: armed without an owner (no CLAUDE_CODE_SESSION_ID) — any session in this checkout will drive this gate" >&2
+fi

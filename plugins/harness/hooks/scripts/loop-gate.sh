@@ -7,6 +7,7 @@
 set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-lock.sh"
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-standdown.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-owner.sh"
 MAX=5
 INPUT=$(cat)
 DIR="${CLAUDE_PROJECT_DIR:-$(printf '%s' "$INPUT" | jq -r '.cwd // "."')}"
@@ -17,6 +18,9 @@ LOG="$DIR/.cc-loop.log"
 
 # 1. Loop not armed -> allow stop.
 [ -f "$SENTINEL" ] || exit 0
+
+# Armed by another session in this checkout -> not ours to gate.
+gate_foreign "$SENTINEL" "$INPUT" && exit 0
 
 # 1b. One gate run at a time (Stop hooks run in parallel; sessions can overlap).
 if ! gate_lock "$DIR"; then
@@ -34,7 +38,9 @@ else
 fi
 
 # 3. Run the gate.
-if ( cd "$DIR" && eval "$GATE" ) >"$LOG" 2>&1; then
+( cd "$DIR" && eval "$GATE" ) >"$LOG" 2>&1; rc=$?
+gate_foreign "$SENTINEL" "$INPUT" && exit 0   # re-armed by another session during the run
+if [ "$rc" -eq 0 ]; then
   rm -f "$SENTINEL" "$STATE" "$LOG"
   exit 0   # green -> allow stop
 fi
