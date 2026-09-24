@@ -34,10 +34,12 @@ for spec in "loop-gate.sh .cc-loop-active .cc-loop-state" \
             "loop-deploy-gate.sh .cc-deploy-active .cc-deploy-state"; do
   set -- $spec; gate=$1 sent=$2 state=$3
 
-  # Foreign session: silent, nothing ran, nothing changed.
+  # Foreign session: never blocks, nothing ran, nothing changed — but says so,
+  # naming the owner, so an owner whose id changed (/clear) is not left guessing.
   d=$(mktemp -d); arm "$d" "$sent" "$state" "$OWNER"
   out=$(stop "$gate" "$d" "$OTHER")
-  { [ -z "$out" ] && [ ! -e "$d/RAN" ] && [ -f "$d/$sent" ] \
+  { printf '%s' "$out" | jq -e --arg o "$OWNER" '(has("decision")|not) and (.systemMessage|contains($o))' >/dev/null \
+    && [ ! -e "$d/RAN" ] && [ -f "$d/$sent" ] \
     && [ "$(cat "$d/$state")" = 0 ] && [ ! -e "$d/.cc-loop-gate.lock" ]; } \
     && ok "$gate: foreign session is a no-op" || bad "$gate: foreign session (out=$out)"
   rm -rf "$d"
@@ -62,6 +64,25 @@ for spec in "loop-gate.sh .cc-loop-active .cc-loop-state" \
   printf '%s' "$out" | grep -q '"decision": *"block"' \
     && ok "$gate: input without session_id still gates" || bad "$gate: no session_id (out=$out)"
   rm -rf "$d"
+done
+
+# Re-armed by another session WHILE this run's verify was executing: the run
+# must not count, clear or roll back the new owner's loop.
+for spec in "loop-gate.sh .cc-loop-active .cc-loop-state CC_GATE_CMD" \
+            "loop-dev-gate.sh .cc-loop-dev-active .cc-loop-dev-state CC_GATE_CMD" \
+            "loop-deploy-gate.sh .cc-deploy-active .cc-deploy-state CC_DEPLOY_VERIFY_CMD"; do
+  set -- $spec; gate=$1 sent=$2 state=$3 var=$4
+  for result in false true; do
+    d=$(mktemp -d); arm "$d" "$sent" "$state" "$OWNER" 2
+    input=$(jq -nc --arg c "$d" --arg s "$OWNER" '{cwd:$c, session_id:$s}')
+    out=$(printf '%s' "$input" | env CLAUDE_PROJECT_DIR="$d" "$var=printf '%s\n' $OTHER > $d/$sent; echo 0 > $d/$state; $result" \
+      CC_DEPLOY_ROLLBACK_CMD="touch $d/ROLLED_BACK" bash "$S/$gate")
+    { [ "$(cat "$d/$sent")" = "$OTHER" ] && [ "$(cat "$d/$state")" = 0 ] && [ ! -e "$d/ROLLED_BACK" ] \
+      && ! printf '%s' "$out" | grep -q '"decision"'; } \
+      && ok "$gate: re-armed mid-verify ($result) leaves the new loop alone" \
+      || bad "$gate: re-armed mid-verify ($result) (out=$out state=$(cat "$d/$state"))"
+    rm -rf "$d"
+  done
 done
 
 # The dangerous path: deploy at its redeploy cap. The owner rolls back; a

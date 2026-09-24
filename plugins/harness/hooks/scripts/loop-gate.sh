@@ -38,7 +38,9 @@ else
 fi
 
 # 3. Run the gate.
-if ( cd "$DIR" && eval "$GATE" ) >"$LOG" 2>&1; then
+( cd "$DIR" && eval "$GATE" ) >"$LOG" 2>&1; rc=$?
+gate_foreign "$SENTINEL" "$INPUT" && exit 0   # re-armed by another session during the run
+if [ "$rc" -eq 0 ]; then
   rm -f "$SENTINEL" "$STATE" "$LOG"
   exit 0   # green -> allow stop
 fi

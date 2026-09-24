@@ -45,7 +45,9 @@ elif [ -f "$GATE_FILE" ]; then GATE="$(cat "$GATE_FILE")"
 else GATE="npm run lint && npm run build && npm test"; fi
 
 # 5. Stage 1 — deterministic gate.
-if ! ( cd "$DIR" && eval "$GATE" ) >"$LOG" 2>&1; then
+( cd "$DIR" && eval "$GATE" ) >"$LOG" 2>&1; rc=$?
+gate_foreign "$SENTINEL" "$INPUT" && exit 0   # re-armed by another session during the run
+if [ "$rc" -ne 0 ]; then
   rm -f "$MARKER"   # code changed / broke -> any prior reviews are stale
   ATTEMPTS=$(cat "$STATE" 2>/dev/null || echo 0); [[ "$ATTEMPTS" =~ ^[0-9]+$ ]] || ATTEMPTS=0
   ATTEMPTS=$((ATTEMPTS + 1)); echo "$ATTEMPTS" > "$STATE"

@@ -62,7 +62,9 @@ if [ -z "$VERIFY" ]; then
 fi
 
 # 5. Run the prod-verify.
-if ( cd "$DIR" && eval "$VERIFY" ) >"$LOG" 2>&1; then
+( cd "$DIR" && eval "$VERIFY" ) >"$LOG" 2>&1; rc=$?
+gate_foreign "$SENTINEL" "$INPUT" && exit 0   # re-armed by another session during the run
+if [ "$rc" -eq 0 ]; then
   rm -f "$SENTINEL" "$STATE" "$LOG"
   exit 0   # prod healthy -> loop closed
 fi
