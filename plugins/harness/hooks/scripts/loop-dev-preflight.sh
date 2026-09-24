@@ -114,29 +114,6 @@ case "$require_design" in
   never|features|always) ;;
   *) err "require_design '$require_design' is not never|features|always"; require_design=never ;;
 esac
-# The --plan path is resolved to a real (symlink-free) path BEFORE anything is
-# matched against it: `docs/./designs/` and `docs//designs/` name the same
-# directory as `docs/designs/`, and a lexical match on the raw string missed
-# both — skipping the design gate for a draft design. Containment comes first
-# and applies to every --plan in every mode: a relative --plan can walk out of
-# the repo with `../`, an absolute one can point into a different repo, and
-# neither is something loop-dev should build from.
-design_dir=""
-if [ -n "$PLAN" ]; then
-  case "$PLAN" in /*) plan_path="$PLAN" ;; *) plan_path="$DIR/$PLAN" ;; esac
-  plan_dir_real=$(cd "$(dirname "$plan_path")" 2>/dev/null && pwd -P)
-  repo_real=$(cd "$DIR" 2>/dev/null && pwd -P)
-  if [ -z "$plan_dir_real" ] || [ -z "$repo_real" ]; then
-    err "--plan does not resolve to an existing directory: $PLAN"
-  else
-    plan_real="$plan_dir_real/$(basename "$plan_path")"
-    case "$plan_real" in
-      "$repo_real/"*)
-        case "$plan_real" in "$repo_real/docs/designs/"*/*) design_dir="$plan_dir_real" ;; esac ;;
-      *) err "--plan is outside this repo: $PLAN" ;;
-    esac
-  fi
-fi
 # Prints the physical path of $1 with every symlink along it followed to its
 # final target (bash 3.2 / macOS has no `readlink -f`). Empty on failure: a
 # dangling or looping link does not resolve.
@@ -150,6 +127,38 @@ resolve_path() {
   d=$(cd -P "$(dirname "$p")" 2>/dev/null && pwd -P) || return 1
   printf '%s/%s\n' "$d" "$(basename "$p")"
 }
+# The --plan path is resolved to a real (symlink-free) path BEFORE anything is
+# matched against it: `docs/./designs/` and `docs//designs/` name the same
+# directory as `docs/designs/`, and a lexical match on the raw string missed
+# both — skipping the design gate for a draft design. Containment is about
+# designs: a relative --plan can walk out of the repo with `../` and an
+# absolute one can point into a different repo, so an out-of-repo path under a
+# docs/designs/ directory — another repo's design — blocks in every mode. Any
+# other out-of-repo path (Claude Code's plan mode writes ~/.claude/plans/*.md)
+# is an ordinary plan, subject to require_design like an in-repo one.
+design_dir=""
+if [ -n "$PLAN" ]; then
+  case "$PLAN" in /*) plan_path="$PLAN" ;; *) plan_path="$DIR/$PLAN" ;; esac
+  plan_dir_real=$(cd "$(dirname "$plan_path")" 2>/dev/null && pwd -P)
+  repo_real=$(cd "$DIR" 2>/dev/null && pwd -P)
+  if [ -z "$plan_dir_real" ] || [ -z "$repo_real" ]; then
+    err "--plan does not resolve to an existing directory: $PLAN"
+  else
+    plan_real="$plan_dir_real/$(basename "$plan_path")"
+    plan_target=$(resolve_path "$plan_path")
+    case "$plan_real" in
+      "$repo_real/"*)
+        case "$plan_real" in "$repo_real/docs/designs/"*/*) design_dir="$plan_dir_real" ;; esac ;;
+    esac
+    # A plan that is, or links to, another repo's design blocks.
+    for p in "$plan_real" "$plan_target"; do
+      case "$p" in
+        "$repo_real/"*) ;;
+        */docs/designs/*) err "--plan is outside this repo: $PLAN"; break ;;
+      esac
+    done
+  fi
+fi
 # Prints the frontmatter status of a design.md read on stdin.
 fm_status() {
   awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1{print}' \

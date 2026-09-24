@@ -241,9 +241,11 @@ run "$d" --plan "$PLANREL"
   && ok "design already shipped on base still blocks" \
   || bad "design already shipped on base still blocks (rc=$RC: $OUT)"
 
-# --- containment: --plan must resolve inside this repo -----------------------
+# --- containment: a design plan must resolve inside this repo ----------------
 # A relative --plan can walk out of the repo with `../`, and an absolute
 # --plan can point straight into a different repo's docs/designs/ entirely.
+# Either is another repo's design passing as this one's, so an out-of-repo
+# --plan under a docs/designs/ directory blocks.
 # Before this fix, `! git -C "$DIR" diff --quiet "$mb" -- "$design_file"`
 # treated ANY non-zero exit (including git's own error exit, typically 128,
 # for a path outside the repo) as "differs" -> already_folded=1 -> fail-open:
@@ -276,9 +278,35 @@ other2=$(newrepo rd-outside-abs-external)
 mkdesign_at "$other2/docs/designs/offline-stamp" locked
 cfg "$d" "require_design: always"
 run "$d" --plan "$other2/docs/designs/offline-stamp/plan.md"
-{ [ "$RC" = "1" ] && ! grep -q "DESIGN_ALREADY_FOLDED" <<<"$OUT"; } \
+{ [ "$RC" = "1" ] && ! grep -q "DESIGN_ALREADY_FOLDED" <<<"$OUT" && grep -q "outside this repo" <<<"$OUT"; } \
   && ok "absolute --plan into a second repo blocks (even when validly locked there)" \
   || bad "absolute --plan into a second repo (rc=$RC: $OUT)"
+
+# Any OTHER out-of-repo --plan is an ordinary plan: Claude Code's plan mode
+# writes to ~/.claude/plans/, and blocking every out-of-repo path refused it.
+# It gets require_design's ordinary-plan treatment, like an in-repo one.
+P="$TMP/home/.claude/plans"; mkdir -p "$P"; printf '### Task 1: fix the thing\n' > "$P/fix-thing.md"
+for mode in never features; do
+  d=$(newrepo "rd-planmode-$mode"); cfg "$d" "require_design: $mode"
+  run "$d" --plan "$P/fix-thing.md"
+  { [ "$RC" = "0" ] && grep -q "REQUIRE_DESIGN: $mode" <<<"$OUT" && ! grep -q "outside this repo" <<<"$OUT"; } \
+    && ok "$mode: a plan-mode plan outside the repo passes as an ordinary plan" \
+    || bad "$mode: out-of-repo ordinary plan (rc=$RC: $OUT)"
+done
+d=$(newrepo rd-planmode-always); cfg "$d" "require_design: always"
+run "$d" --plan "$P/fix-thing.md"
+{ [ "$RC" = "1" ] && grep -q "does not point at a design" <<<"$OUT"; } \
+  && ok "always: a plan-mode plan outside the repo blocks for lack of a design" \
+  || bad "always: out-of-repo ordinary plan (rc=$RC: $OUT)"
+
+# Symlinks are followed to their end first: a plan-mode path that links into
+# another repo's docs/designs/ is still that repo's design.
+ln -s "$other2/docs/designs/offline-stamp/plan.md" "$P/linked-design.md"
+d=$(newrepo rd-planmode-link); cfg "$d" "require_design: never"
+run "$d" --plan "$P/linked-design.md"
+{ [ "$RC" = "1" ] && grep -q "outside this repo" <<<"$OUT"; } \
+  && ok "an out-of-repo plan symlinked to another repo's design blocks" \
+  || bad "out-of-repo plan linked to a foreign design (rc=$RC: $OUT)"
 
 # --- design.md itself must resolve inside the repo ----------------------------
 # Containment resolved the design's DIRECTORY, so an in-repo design folder whose
