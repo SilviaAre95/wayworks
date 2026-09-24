@@ -136,32 +136,48 @@ resolve_path() {
 # docs/designs/ directory — another repo's design — blocks in every mode. Any
 # other out-of-repo path (Claude Code's plan mode writes ~/.claude/plans/*.md)
 # is an ordinary plan, subject to require_design like an in-repo one.
-design_dir=""
+#
+# A design plan may not be a symlink. loop-dev.md reads <slug> from the --plan
+# as given; this gate checks the file it resolves to. Whenever either lies
+# under docs/designs/ they must be the same file, or the loop could fold and
+# ship a design other than the one gated here.
+design_dir=""; plan_target=""
 if [ -n "$PLAN" ]; then
   case "$PLAN" in /*) plan_path="$PLAN" ;; *) plan_path="$DIR/$PLAN" ;; esac
   plan_dir_real=$(cd "$(dirname "$plan_path")" 2>/dev/null && pwd -P)
   repo_real=$(cd "$DIR" 2>/dev/null && pwd -P)
-  if [ -z "$plan_dir_real" ] || [ -z "$repo_real" ]; then
+  case "$PLAN" in */) plan_is_dir=1 ;; *) plan_is_dir=0 ;; esac
+  if [ "$plan_is_dir" -eq 1 ]; then
+    # A trailing slash makes lstat follow a link, so it would skip resolution.
+    err "--plan must name a file, not a directory: $PLAN"
+  elif [ -z "$plan_dir_real" ] || [ -z "$repo_real" ]; then
     err "--plan does not resolve to an existing directory: $PLAN"
   else
     plan_real="$plan_dir_real/$(basename "$plan_path")"
     plan_target=$(resolve_path "$plan_path")
-    # A design plan is judged on the file loop-dev will read (the link's final
-    # target) and on the path as given: a link from anywhere into this repo's
-    # docs/designs/ is that design's plan, and a design folder's own plan.md
-    # stays gated even if it is a link.
-    design_plan=""
-    for p in "$plan_target" "$plan_real"; do
-      case "$p" in "$repo_real/docs/designs/"*/*) design_plan="$p"; break ;; esac
+    # The path as given, with ./, // and .. collapsed but links kept.
+    plan_given="$(cd -L "$(dirname "$plan_path")" 2>/dev/null && pwd -L)/$(basename "$plan_path")"
+    repo_given=$(cd -L "$DIR" 2>/dev/null && pwd -L)
+    rel_given=""; case "$plan_given" in "$repo_given/"*) rel_given="${plan_given#"$repo_given/"}" ;; esac
+    rel_target=""; case "$plan_target" in "$repo_real/"*) rel_target="${plan_target#"$repo_real/"}" ;; esac
+    touches=0; foreign=0
+    for p in "$plan_given" "$plan_real" "$plan_target"; do
+      case "$p" in */docs/designs/*) touches=1 ;; esac
     done
-    [ -n "$design_plan" ] && design_dir=$(dirname "$design_plan")
     # A plan that is, or links to, another repo's design blocks.
     for p in "$plan_real" "$plan_target"; do
-      case "$p" in
-        "$repo_real/"*) ;;
-        */docs/designs/*) err "--plan is outside this repo: $PLAN"; break ;;
-      esac
+      case "$p" in "$repo_real/"*) ;; */docs/designs/*) foreign=1 ;; esac
     done
+    if [ "$foreign" -eq 1 ]; then
+      err "--plan is outside this repo: $PLAN"
+    elif [ "$touches" -eq 1 ]; then
+      if [ -n "$plan_target" ] && { [ "$plan_given" = "$plan_target" ] \
+           || { [ -n "$rel_given" ] && [ "$rel_given" = "$rel_target" ]; }; }; then
+        case "$plan_target" in "$repo_real/docs/designs/"*/*) design_dir=$(dirname "$plan_target") ;; esac
+      else
+        err "design plan must be passed by its real path, not a symlink: $PLAN"
+      fi
+    fi
   fi
 fi
 # Prints the frontmatter status of a design.md read on stdin.
@@ -183,8 +199,8 @@ if [ -n "$design_dir" ]; then
   fi
   # design-check vouches for plan.md; any other file in the folder is a plan
   # nobody checked, built under the design's name.
-  if [ "$(basename "$design_plan")" != "plan.md" ]; then
-    err "--plan must be the design's plan.md, not $(basename "$design_plan")"
+  if [ "$(basename "$plan_target")" != "plan.md" ]; then
+    err "--plan must be the design's plan.md, not $(basename "$plan_target")"
   elif [ -n "$design_md_out" ]; then
     err "design.md resolves outside this repo: $design_md_out"
   elif [ ! -f "$DESIGN_CHECK" ]; then

@@ -308,27 +308,49 @@ run "$d" --plan "$P/linked-design.md"
   && ok "an out-of-repo plan symlinked to another repo's design blocks" \
   || bad "out-of-repo plan linked to a foreign design (rc=$RC: $OUT)"
 
-# The same holds for a link into THIS repo's docs/designs/: the file it builds
-# from is a design plan, so the design gate runs on it. Classifying only the
-# link's own location let a draft design build as an ordinary plan.
+# --- a design plan may not be a symlink --------------------------------------
+# loop-dev.md takes <slug> from the --plan as given, the preflight gates the
+# file it resolves to. Whenever either side is under docs/designs/ they must be
+# the same file, or the loop folds and ships a design nobody gated.
+NOSYM="design plan must be passed by its real path, not a symlink"
 d=$(newrepo rd-planmode-ownlink); cfg "$d" "require_design: never"; mkdesign "$d" draft
 ln -s "$d/$PLANREL" "$P/own-design.md"
 run "$d" --plan "$P/own-design.md"
-{ [ "$RC" = "1" ] && grep -q "not locked" <<<"$OUT"; } \
-  && ok "an out-of-repo link to this repo's draft design runs the design gate" \
+{ [ "$RC" = "1" ] && grep -q "$NOSYM" <<<"$OUT"; } \
+  && ok "an out-of-repo link into this repo's docs/designs blocks" \
   || bad "out-of-repo link to own draft design (rc=$RC: $OUT)"
-d=$(newrepo rd-inrepo-ownlink); cfg "$d" "require_design: never"; mkdesign "$d" draft
-mkdir -p "$d/docs/plans"; ln -s ../designs/offline-stamp/plan.md "$d/docs/plans/x.md"
-run "$d" --plan docs/plans/x.md
-{ [ "$RC" = "1" ] && grep -q "not locked" <<<"$OUT"; } \
-  && ok "an in-repo link to a draft design's plan.md runs the design gate" \
-  || bad "in-repo link to own draft design (rc=$RC: $OUT)"
 d=$(newrepo rd-planmode-ownlink-locked); cfg "$d" "require_design: always"; mkdesign "$d" locked
 ln -s "$d/$PLANREL" "$P/own-locked.md"
 run "$d" --plan "$P/own-locked.md"
-{ [ "$RC" = "0" ] && grep -q "passes design-check" <<<"$OUT"; } \
-  && ok "an out-of-repo link to this repo's locked design passes as a design plan" \
+{ [ "$RC" = "1" ] && grep -q "$NOSYM" <<<"$OUT"; } \
+  && ok "an out-of-repo link to this repo's LOCKED design blocks too" \
   || bad "out-of-repo link to own locked design (rc=$RC: $OUT)"
+d=$(newrepo rd-inrepo-ownlink); cfg "$d" "require_design: never"; mkdesign "$d" draft
+mkdir -p "$d/docs/plans"; ln -s ../designs/offline-stamp/plan.md "$d/docs/plans/x.md"
+run "$d" --plan docs/plans/x.md
+{ [ "$RC" = "1" ] && grep -q "$NOSYM" <<<"$OUT"; } \
+  && ok "an in-repo link to a design's plan.md blocks" \
+  || bad "in-repo link to own draft design (rc=$RC: $OUT)"
+# I-2: docs/designs/a/plan.md -> docs/designs/b/plan.md, a draft, b locked.
+d=$(newrepo rd-crosslink); cfg "$d" "require_design: never"; mkdesign "$d" locked
+mkdesign_at "$d/docs/designs/a" draft; rm "$d/docs/designs/a/plan.md"
+ln -s ../offline-stamp/plan.md "$d/docs/designs/a/plan.md"
+run "$d" --plan docs/designs/a/plan.md
+{ [ "$RC" = "1" ] && grep -q "$NOSYM" <<<"$OUT"; } \
+  && ok "a design's plan.md linked to another design's plan.md blocks" \
+  || bad "cross-linked design plans (rc=$RC: $OUT)"
+# The same through a directory link: docs/designs/a -> offline-stamp.
+d=$(newrepo rd-dirlink); cfg "$d" "require_design: never"; mkdesign "$d" locked
+ln -s offline-stamp "$d/docs/designs/a"
+run "$d" --plan docs/designs/a/plan.md
+{ [ "$RC" = "1" ] && grep -q "$NOSYM" <<<"$OUT"; } \
+  && ok "a design folder that is a directory link blocks" \
+  || bad "directory-linked design folder (rc=$RC: $OUT)"
+# A trailing slash made lstat follow the link, so it skipped resolution.
+d=$(newrepo rd-trailing-slash); cfg "$d" "require_design: never"; mkdesign "$d" draft
+run "$d" --plan "$P/own-design.md/"
+{ [ "$RC" = "1" ] && grep -q "must name a file" <<<"$OUT"; } \
+  && ok "a --plan ending in / blocks" || bad "trailing slash (rc=$RC: $OUT)"
 
 # --- design.md itself must resolve inside the repo ----------------------------
 # Containment resolved the design's DIRECTORY, so an in-repo design folder whose
