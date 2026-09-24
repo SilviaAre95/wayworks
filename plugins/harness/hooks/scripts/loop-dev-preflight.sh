@@ -137,16 +137,42 @@ if [ -n "$PLAN" ]; then
     esac
   fi
 fi
+# Prints the physical path of $1 with every symlink along it followed to its
+# final target (bash 3.2 / macOS has no `readlink -f`). Empty on failure: a
+# dangling or looping link does not resolve.
+resolve_path() {
+  local p="$1" t d i=0
+  while [ -L "$p" ]; do
+    i=$((i + 1)); [ "$i" -gt 40 ] && return 1
+    t=$(readlink "$p") || return 1
+    case "$t" in /*) p="$t" ;; *) p="$(dirname "$p")/$t" ;; esac
+  done
+  d=$(cd -P "$(dirname "$p")" 2>/dev/null && pwd -P) || return 1
+  printf '%s/%s\n' "$d" "$(basename "$p")"
+}
 # Prints the frontmatter status of a design.md read on stdin.
 fm_status() {
   awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1{print}' \
     | sed -nE 's/^status:[[:space:]]*([A-Za-z]+).*/\1/p' | head -1
 }
 if [ -n "$design_dir" ]; then
+  # Containment above resolved the design's directory; design.md itself can
+  # still be a symlink to a design this repo never shaped. A missing design.md
+  # is left to design-check, which blocks on it.
+  design_md_out=""
+  if [ -e "$design_dir/design.md" ] || [ -L "$design_dir/design.md" ]; then
+    design_md_real=$(resolve_path "$design_dir/design.md")
+    case "$design_md_real" in
+      "$repo_real/"*) ;;
+      *) design_md_out="${design_md_real:-<unresolvable link>}" ;;
+    esac
+  fi
   # design-check vouches for plan.md; any other file in the folder is a plan
   # nobody checked, built under the design's name.
   if [ "$(basename "$plan_real")" != "plan.md" ]; then
     err "--plan must be the design's plan.md, not $(basename "$plan_real")"
+  elif [ -n "$design_md_out" ]; then
+    err "design.md resolves outside this repo: $design_md_out"
   elif [ ! -f "$DESIGN_CHECK" ]; then
     err "design-check.sh not found at $DESIGN_CHECK — the harness install is incomplete"
   else

@@ -280,6 +280,31 @@ run "$d" --plan "$other2/docs/designs/offline-stamp/plan.md"
   && ok "absolute --plan into a second repo blocks (even when validly locked there)" \
   || bad "absolute --plan into a second repo (rc=$RC: $OUT)"
 
+# --- design.md itself must resolve inside the repo ----------------------------
+# Containment resolved the design's DIRECTORY, so an in-repo design folder whose
+# design.md is a symlink to a foreign, validly locked design passed the gate
+# with a design this repo never shaped.
+d=$(newrepo rd-design-symlink); cfg "$d" "require_design: never"; mkdesign "$d" draft
+other3=$(newrepo rd-design-symlink-external)
+mkdesign_at "$other3/docs/designs/offline-stamp" locked
+ln -sf "$other3/docs/designs/offline-stamp/design.md" "$d/docs/designs/offline-stamp/design.md"
+run "$d" --plan "$PLANREL"
+{ [ "$RC" = "1" ] && grep -q "design.md resolves outside this repo" <<<"$OUT"; } \
+  && ok "a design.md symlink pointing outside the repo blocks" || bad "design.md symlink out of repo (rc=$RC: $OUT)"
+# A relative link chain that ends outside the repo is followed to its end.
+d=$(newrepo rd-design-symlink-chain); cfg "$d" "require_design: never"; mkdesign "$d" draft
+ln -s "../../../$(basename "$other3")/docs/designs/offline-stamp/design.md" "$d/docs/designs/hop.md"
+ln -sf ../hop.md "$d/docs/designs/offline-stamp/design.md"
+run "$d" --plan "$PLANREL"
+{ [ "$RC" = "1" ] && grep -q "design.md resolves outside this repo" <<<"$OUT"; } \
+  && ok "a relative design.md symlink chain ending outside the repo blocks" || bad "design.md symlink chain (rc=$RC: $OUT)"
+# A symlink that stays inside the repo is not containment's business.
+d=$(newrepo rd-design-symlink-in); cfg "$d" "require_design: never"; mkdesign "$d" locked
+mv "$d/docs/designs/offline-stamp/design.md" "$d/docs/design-real.md"
+ln -s ../../design-real.md "$d/docs/designs/offline-stamp/design.md"
+run "$d" --plan "$PLANREL"
+[ "$RC" = "0" ] && ok "a design.md symlink inside the repo still passes" || bad "in-repo design.md symlink (rc=$RC: $OUT)"
+
 # --- path normalisation and the plan.md requirement --------------------------
 # `docs/./designs/` and `docs//designs/` are the same directory as
 # `docs/designs/`, but a lexical match on the raw string missed both and so
