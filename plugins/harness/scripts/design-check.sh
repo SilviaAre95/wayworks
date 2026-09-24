@@ -49,9 +49,11 @@ fi
 # legitimately hold wikilink bullets (`- [[x]]`), links (`- [a](b)`) and plain
 # to-dos that are not decisions. Inside it, anything that looks like a checkbox
 # but is not the canonical `- [` at column 0 is malformed rather than skipped —
-# a skipped `  - [ ] Q9` would be an open question the gate never saw.
+# a skipped `  - [ ] Q9` (or blockquoted `> - [ ] Q9`) would be an open
+# question the gate never saw. A second `## Decisions…` heading blocks too:
+# which section is the record would be a guess.
 re_line='^- \[([ x~])\] ([AQWB][0-9]+) · (.+)$'
-re_box='^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]+\['
+re_box='^[[:space:]]*(>[[:space:]]*)*([-*+]|[0-9]+[.)])[[:space:]]+\['
 re_by='(^|· )decided-by: (you|accepted-default)( |$)'
 re_ack='(^|· )ack( ·|$)'
 re_defer='(^|· )deferred: [^[:space:]]'
@@ -61,7 +63,7 @@ re_defer='(^|· )deferred: [^[:space:]]'
 # content, and toggling on it would let the real closer open a new fence.
 re_fence='^(```|~~~)[^`]*$'
 decided_w=""
-infence=0; fence=""; insec=0; seen_sec=0
+infence=0; fence=""; insec=0; seen_sec=0; nsec=0
 while IFS= read -r line || [ -n "$line" ]; do
   if [ "$infence" -eq 1 ]; then
     [[ "$line" =~ $re_fence ]] && [ "${line:0:3}" = "$fence" ] && infence=0
@@ -71,6 +73,11 @@ while IFS= read -r line || [ -n "$line" ]; do
   case "$line" in
     '## '*)
       insec=0
+      case "$line" in
+        '## Decisions'*)
+          nsec=$((nsec + 1))
+          [ "$nsec" -eq 2 ] && block "design.md: more than one '## Decisions' heading — ambiguous which section is the record" ;;
+      esac
       [[ "$line" =~ ^'## Decisions'[[:space:]]*$ ]] && { insec=1; seen_sec=1; }
       continue ;;
   esac

@@ -129,6 +129,33 @@ for variant in '  - [ ] Q9 · med · indented' '* [ ] Q9 · med · star' '+ [ ] 
 $variant"); run "$d"
   expect_block "non-canonical checkbox inside Decisions is malformed: '$variant'" "malformed"
 done
+# A blockquoted checkbox renders as a to-do, so skipping it would hide an open
+# (or unowned) item exactly like an indented one.
+for variant in '> - [ ] Q9 · med · quoted' '> - [x] Q9 · med · quoted · decided-by: you' '>- [ ] Q9 · med · tight quote'; do
+  d=$(mk variant locked <<<"$GOOD
+$variant"); run "$d"
+  expect_block "blockquoted checkbox inside Decisions is malformed: '$variant'" "malformed"
+done
+# Two Decisions sections make it ambiguous which one is the record; reading
+# only the exact heading let decisions under '## Decisions (cont.)' go unseen.
+d=$(mkdoc twodecisions <<EOF
+## Decisions
+$GOOD
+
+## Decisions
+- [ ] Q9 · med · second section · open
+EOF
+); run "$d"
+expect_block "a second '## Decisions' heading blocks" "more than one '## Decisions'"
+d=$(mkdoc decisionscont <<EOF
+## Decisions
+$GOOD
+
+## Decisions (cont.)
+- [ ] Q9 · med · hidden in a continuation section · open
+EOF
+); run "$d"
+expect_block "a '## Decisions (cont.)' heading alongside '## Decisions' blocks" "more than one '## Decisions'"
 d=$(mk fakefence locked <<<"$GOOD
 \`\`\` \`x\`
 - [ ] Q9 · med · hidden behind a fake fence · open
