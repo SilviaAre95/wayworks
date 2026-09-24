@@ -346,6 +346,22 @@ run "$d" --plan docs/designs/a/plan.md
 { [ "$RC" = "1" ] && grep -q "$NOSYM" <<<"$OUT"; } \
   && ok "a design folder that is a directory link blocks" \
   || bad "directory-linked design folder (rc=$RC: $OUT)"
+# loop-dev.md reads <slug> from the path as given, so `a/../b` is gated as b
+# but folded as a. A design plan path may not carry . or .. segments; a single
+# leading ./ is stripped first, since it names the same path.
+d=$(newrepo rd-dotdot); cfg "$d" "require_design: never"; mkdesign "$d" locked
+mkdesign_at "$d/docs/designs/a" draft
+run "$d" --plan docs/designs/a/../offline-stamp/plan.md
+{ [ "$RC" = "1" ] && grep -q "must not contain . or .. segments" <<<"$OUT"; } \
+  && ok "a design plan path with a .. segment blocks" || bad "docs/designs/a/../b (rc=$RC: $OUT)"
+d=$(newrepo rd-leading-dot); cfg "$d" "require_design: always"; mkdesign "$d" locked
+run "$d" --plan "./$PLANREL"
+{ [ "$RC" = "0" ] && grep -q "passes design-check" <<<"$OUT"; } \
+  && ok "a leading ./ on a design plan is stripped, not blocked" || bad "leading ./ (rc=$RC: $OUT)"
+d=$(newrepo rd-ordinary-dotdot); cfg "$d" "require_design: never"
+mkdir -p "$d/docs/plans"; printf '### Task 1\n' > "$d/docs/plans/x.md"
+run "$d" --plan docs/plans/../plans/x.md
+[ "$RC" = "0" ] && ok "an ordinary plan path with .. is unaffected" || bad "ordinary plan with .. (rc=$RC: $OUT)"
 # A trailing slash made lstat follow the link, so it skipped resolution.
 d=$(newrepo rd-trailing-slash); cfg "$d" "require_design: never"; mkdesign "$d" draft
 run "$d" --plan "$P/own-design.md/"

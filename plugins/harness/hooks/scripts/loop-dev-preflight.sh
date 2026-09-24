@@ -171,7 +171,16 @@ if [ -n "$PLAN" ]; then
     if [ "$foreign" -eq 1 ]; then
       err "--plan is outside this repo: $PLAN"
     elif [ "$touches" -eq 1 ]; then
-      if [ -n "$plan_target" ] && { [ "$plan_given" = "$plan_target" ] \
+      # loop-dev.md reads <slug> from the path as given, so `a/../b` would be
+      # gated as b but folded as a. A single leading ./ names the same path.
+      plan_raw="${PLAN#./}"
+      case "/$plan_raw/" in
+        */./*|*/../*) plan_dots=1 ;;
+        *) plan_dots=0 ;;
+      esac
+      if [ "$plan_dots" -eq 1 ]; then
+        err "design plan path must not contain . or .. segments — pass docs/designs/<slug>/plan.md: $PLAN"
+      elif [ -n "$plan_target" ] && { [ "$plan_given" = "$plan_target" ] \
            || { [ -n "$rel_given" ] && [ "$rel_given" = "$rel_target" ]; }; }; then
         case "$plan_target" in "$repo_real/docs/designs/"*/*) design_dir=$(dirname "$plan_target") ;; esac
       else
