@@ -12,6 +12,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 6.3.3] — 2026-09-24
+
+### Fixed
+- **`harness` `2.3.3`** — `loop-dev`'s `code-review` grader could report clean before any review existed. Since Claude Code v2.1.218 the bundled `/code-review` runs as a background fork: the Skill call returns a launch line and the findings arrive later, so a grader subagent that invoked it reported "none" and the real findings landed afterwards (reproduced on v2.1.282). Step 5 and the `Stop` hook's prompt now have the main session launch `/code-review <base>...<REVIEWED_SHA>` itself — the fork keeps its own context, and the ref range pins it to the reviewed commit — and treat the launch line as no result until the findings notification arrives. `/security-review` does not fork, so it stays a grader subagent. Instruction-only: the hook cannot see what a grader said. (XARI-150)
+
 ## [marketplace 6.3.2] — 2026-09-24
 
 ### Fixed

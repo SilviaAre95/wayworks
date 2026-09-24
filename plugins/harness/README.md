@@ -72,7 +72,10 @@ grader naming a skill you do not have is the common case (`bugs` needs
 > **Upgrade-sensitive:** the default `code-review` grader dispatches Anthropic's
 > *bundled* `/code-review` skill by name. Bundled-skill invocation policy is set
 > by Claude Code, not by this plugin — v2.1.215 stopped auto-running `/verify`
-> and `/code-review` from description-matching alone. Re-check this grader
+> and `/code-review` from description-matching alone, and since v2.1.218 it runs
+> as a background fork whose findings arrive after the Skill call returns — so
+> the loop launches it from the main session, never through a grader subagent
+> that would report before they land. Re-check this grader
 > actually fires after a Claude Code upgrade: a degraded grader still stamps the
 > marker, so the loop cannot detect it for you.
 
