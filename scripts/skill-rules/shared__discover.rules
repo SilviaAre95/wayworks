@@ -1,0 +1,15 @@
+# Load-bearing rules for shared:discover.
+lenses are inferred from the topic and --lens overrides them :: --lens.*overrid|overrid.*--lens
+code preset is technical + product :: code.*technical.*product
+article preset is prior art + counter-arguments + evidence :: article.*prior art.*counter-arguments.*evidence
+talk preset is prior art + audience :: talk.*prior art.*audience
+one parallel subagent per lens :: one .*subagent per lens|subagent per lens
+the brief ends with "What this changes" :: ^## What this changes
+the vault is found from the user's global CLAUDE.md, never hardcoded :: global CLAUDE.md
+the vault's own _agent/INSTRUCTIONS.md decides where the brief goes :: INSTRUCTIONS.md
+no vault: the brief goes to docs/discovery/<topic>.md :: docs/discovery/<topic>
+outside a repo with no vault: the current directory :: current directory
+a brief under 30 days old is reused and only checked for anything new :: 30 days
+a lens that fails or finds nothing is said explicitly and discovery is marked partial :: partial
+a denied vault write falls back to docs/discovery and is reported :: denied
+topic is slugified to kebab-case before use as a filename :: kebab-case

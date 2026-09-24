@@ -12,6 +12,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 6.3.0] — 2026-09-23
+
+### Added
+- **`harness` `2.3.0`** — `/harness:shape`: a gated design pipeline (discover → scope → attack → questions → plan → what-ifs → byproducts → map → lock) that writes `docs/designs/<slug>/design.md` + `plan.md`. `scripts/design-check.sh` reads decisions only from `## Decisions` and blocks a missing or duplicated section, any open item, a non-canonical (indented, blockquoted, numbered) checkbox or unclosed fence there, a decision without `decided-by`, an unacknowledged byproduct, a decided what-if with no task in the plan, and — from `loop-dev` — an unlocked design. `/harness:shape --publish` runs `scripts/render-map.sh --open`, which renders `design.md` itself to a local page (SRI-pinned CDN scripts, never written through a symlink); nothing is hosted. New skills `attack` (scaled adversarial panel, capped at 15) and `triage` (batch decisions). Both scripts have self-tests that prove they can fail.
+- **`harness` `2.3.0`** — `.cc-dev.yaml` `require_design: never | features | always`. The template and `harness-init` write `features`; **an absent key means `never`**, so existing repos are unaffected until they opt in. A design plan (a `--plan` inside `docs/designs/`) is gated in every mode: `--plan` is resolved first; one outside the repo under a `docs/designs/` directory (another repo's design) blocks, while any other out-of-repo plan, such as plan mode's `~/.claude/plans/*.md`, is an ordinary plan. A design plan must be the design's `plan.md` passed by its real path — not a symlink, and with no `.` or `..` segments — and its `design.md` must resolve inside the repo. `loop-dev` commits the locked design before building and the fold plus `shipped` flip before stamping; a re-run passes without `--require-locked` (`DESIGN_ALREADY_FOLDED`) only when a locked version is in history and the committed `shipped` version differs from the merge-base. A `.cc-dev.yaml` with no `graders:` key now gets the default graders instead of blocking. `loop-dev`'s `allowed-tools` narrows `Bash(rm:*)` to its exact disarm command and drops the unused `Bash(cat:*)`. `scripts/check-design-contract.sh` asserts the preflight tokens, shape's stage names, and that `rm` grant against the disarm command agree across files.
+- **`shared` `2.4.0`** — `discover`: lens-parallel research with code/article/talk presets; briefs end in "What this changes" and are reused for 30 days.
+
+### Changed
+- **`feature-bank` `1.2.3`** — a design locked by `/harness:shape` that passed loop-dev's design gate is the Gate 2 approval for the spec changes its decisions and out-of-scope rows imply: loop-dev applies them without waiting, and postflight folds them into the feature body, shown as a diff in the PR.
+
 ## [marketplace 6.2.3] — 2026-09-10
 
 ### Fixed

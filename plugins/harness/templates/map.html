@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__SLUG__ · design map</title>
+<style>
+:root { --bg:#fbfbfa; --fg:#1d1d1b; --muted:#6b6b66; --line:#e3e2de; --open:#b4561c; --deferred:#8a8a83; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#161615; --fg:#ecebe7; --muted:#a09f99; --line:#2e2e2b; --open:#e8955a; --deferred:#8f8e88; }
+}
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.55 system-ui, -apple-system, sans-serif; }
+header { padding:16px; border-bottom:1px solid var(--line); }
+h1 { margin:0; font-size:18px; }
+nav, .filter { display:flex; gap:4px; flex-wrap:wrap; }
+nav { padding:8px 16px; border-bottom:1px solid var(--line); }
+nav button, .filter button { background:none; border:1px solid transparent; border-radius:6px; padding:6px 10px; color:var(--muted); font:inherit; cursor:pointer; }
+nav button[aria-selected="true"], .filter button:focus { color:var(--fg); border-color:var(--line); }
+main { padding:16px; max-width:1100px; margin:0 auto; }
+.filter { margin-bottom:12px; }
+table { border-collapse:collapse; display:block; overflow-x:auto; }
+th, td { border:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:top; }
+pre { overflow-x:auto; }
+pre.mermaid { text-align:center; }
+li.open { color:var(--open); }
+li.deferred { color:var(--deferred); }
+</style>
+</head>
+<body>
+<header><h1>__SLUG__</h1></header>
+<nav role="tablist"></nav>
+<main></main>
+<script id="design-data" type="application/json">
+__DESIGN_SECTIONS__
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js" integrity="sha384-948ahk4ZmxYVYOc+rxN1H2gM1EJ2Duhp7uHtZ4WSLkV4Vtx5MUqnV+l7u9B+jFv+" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.16/dist/purify.min.js" integrity="sha384-a7SzOxErzJ3ZpQz0zJ32d67dSitNzPcbfybc/ykU9KJhMgZkwqfSxlhhdJRS+XGL" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.min.js" integrity="sha384-EOXBFmc3gx5mb+vn0vPvvGqACToJD24hhacX5Yx+8NUUQrHIle/Qi5Bg9o3zKwW2" crossorigin="anonymous"></script>
+<script>
+// Renders design.md as written; it never redraws a diagram, so the page shows
+// exactly what design-check.sh read. Markdown is sanitized before it reaches
+// the DOM, and mermaid runs in strict mode, because a design may quote hostile
+// input (a what-if about injection is still text).
+const sections = JSON.parse(document.getElementById('design-data').textContent);
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: dark ? 'dark' : 'default' });
+const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+marked.use({ gfm: true, renderer: {
+  code({ text, lang }) { return lang === 'mermaid' ? '<pre class="mermaid">' + esc(text) + '</pre>' : false; }
+} });
+const nav = document.querySelector('nav'), main = document.querySelector('main');
+const panels = sections.map((s, i) => {
+  const btn = document.createElement('button');
+  btn.textContent = s.title; btn.setAttribute('role', 'tab');
+  btn.addEventListener('click', () => show(i));
+  nav.appendChild(btn);
+  const panel = document.createElement('section');
+  panel.innerHTML = DOMPurify.sanitize(marked.parse(s.md));
+  if (s.title === 'Decisions') addFilter(panel);
+  main.appendChild(panel);
+  return { btn, panel, drawn: false };
+});
+// Mermaid measures its container, so a diagram in a hidden tab renders at zero
+// size. Draw each tab's diagrams the first time it is shown.
+async function show(i) {
+  panels.forEach((p, j) => { p.panel.hidden = j !== i; p.btn.setAttribute('aria-selected', String(j === i)); });
+  const p = panels[i];
+  if (!p.drawn) { p.drawn = true; await mermaid.run({ nodes: p.panel.querySelectorAll('pre.mermaid') }); }
+}
+function classify(li) {
+  const box = li.querySelector('input[type=checkbox]');
+  if (box) return box.checked ? 'decided' : 'open';
+  return /^\s*\[~\]/.test(li.textContent) ? 'deferred' : null;
+}
+function addFilter(panel) {
+  const items = [...panel.querySelectorAll('li')]
+    .map(li => [li, classify(li)]).filter(([, c]) => c);
+  items.forEach(([li, c]) => li.classList.add(c));
+  const bar = document.createElement('div'); bar.className = 'filter';
+  ['all', 'open', 'decided', 'deferred'].forEach(k => {
+    const b = document.createElement('button'); b.textContent = k;
+    b.addEventListener('click', () => items.forEach(([li, c]) => { li.hidden = k !== 'all' && c !== k; }));
+    bar.appendChild(b);
+  });
+  panel.prepend(bar);
+}
+if (panels.length) show(0);
+</script>
+</body>
+</html>

@@ -18,11 +18,22 @@ Tiered autonomy + a build-test-fix loop, so development becomes "kick off a work
 Claude stop until it's green — fixing and retrying up to 5 times, then summarizing.
 Read-only tools are auto-approved in every tier so exploration never stalls.
 
+### `/harness:shape <topic> [--stage <name>] [--publish]`
+
+Moves human supervision *before* code, so `/harness:loop-dev` can build unattended. Walks a topic through nine stages — discover (`shared:discover`, code preset) → scope (in/out review) → attack scope (`harness:attack --target scope`) → feature questions (brainstorming discipline) → plan (`superpowers:writing-plans`) → what-ifs (`harness:attack --target plan`) → byproducts (undirected work, acknowledged) → map (Mermaid flow + component diagrams) → lock — writing `docs/designs/<slug>/design.md` and `plan.md`. Attack and triage stages produce numbered findings and batch-decided lines (`- [x|~| ] <A|Q|W|B><n> · ... · decided-by: ...`); resumable via frontmatter `stage:`, and `--stage <name>` re-opens from any point (re-opening `plan` re-runs what-ifs and byproducts too, since a new plan can create new ones).
+
+**The gate**, `scripts/design-check.sh`, is deterministic — no model in the loop. It reads decision lines only from the `## Decisions` section (bullets and to-dos elsewhere are ignored) and blocks on: a missing or duplicated `## Decisions` section, any open (`- [ ]`) item, a non-canonical checkbox there (indented, blockquoted, `*`, `+`, numbered) or an unclosed code fence, a decided item with no `decided-by: you|accepted-default`, an unacknowledged byproduct, and a decided what-if (`W`) with no matching task in `plan.md`. Locking requires the gate green **and** the user's explicit yes. A `shipped` design never re-opens: `shipped` means loop-dev built from it and is opening its PR, so a change of mind is a new slug.
+
+**`require_design`** in `.cc-dev.yaml` gates `/harness:loop-dev` on a shaped design: `never` (absent key defaults here — existing repos are unaffected) does no classification. A *design plan* is a `--plan` inside `docs/designs/`. `features` has the agent classify the task as feature vs. fix/chore/docs and blocks a feature with no design plan; `always` blocks any build without one. In every mode, `--plan` is resolved to a real path first (`docs/./designs`, `//` and symlinks). One outside the repo under a `docs/designs/` directory — another repo's design — is blocked before anything else runs; any other out-of-repo plan (plan mode writes `~/.claude/plans/*.md`) is an ordinary plan. A design plan must be the design's own `plan.md` passed by its real path (a symlink into or out of `docs/designs/`, a `.` or `..` segment after an optional leading `./`, or a `--plan` ending in `/`, blocks), its `design.md` must also resolve inside the repo, and the locked design must pass `design-check.sh`. loop-dev commits the locked design before building and commits the fold and `shipped` flip before stamping; a re-run of the same `--plan` passes without `--require-locked` only when a locked version is in history and the committed `shipped` version differs from the merge-base — otherwise it blocks on `shipped != locked`.
+
+**`--publish`** renders `design.md` itself — the Mermaid flow, components, and scope board — to a local HTML page via `scripts/render-map.sh --open`, which opens it with `open` (macOS) or `xdg-open` where present and otherwise just prints the path. It needs `jq`. The page lands in `.wayworks/maps/`, which is git-ignored; nothing is hosted or committed, and it never writes through a symlink there. The page's three CDN scripts are version-pinned and carry SRI hashes.
+
 ### `/harness:loop-dev <task> [--check-plan]`
 
 Extends `/harness:loop-build` into a full staged dev loop: read the task (a bare
 tracker key is fetched, never guessed at), spec preflight, plan (pass
-`--plan <path>` to hand it a written plan, e.g. from superpowers), build,
+`--plan <path>` to hand it a written plan, e.g. from superpowers; a design
+plan from `docs/designs/` is gated as above), build,
 **review stages** (`code-review`, `security`, `bugs` by default; add `design`
 for frontend repos — any grader name maps to the same-named skill) each run
 as a dispatched subagent against the diff, then a **dev-test stage** that

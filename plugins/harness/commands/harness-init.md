@@ -25,10 +25,12 @@ Set up the harness in the current project. Make each change visible and ask befo
    .cc-deploy.log
    .cc-loop-standdowns.log
    .cc-loop-gate.lock*
+   .wayworks/
    ```
    `.cc-verify` is project config (not transient state) and **should be committed** so a fresh clone retains the correct gate command. Do NOT add it to `.gitignore`.
+   `.wayworks/` holds locally rendered design maps (`/harness:shape --publish`) — never committed.
 
-3. **Dev loop config** — if `.cc-dev.yaml` does not exist at the project root, copy it from the plugin's `templates/.cc-dev.yaml`. This is committed config (like `.cc-verify`) — do NOT add it to `.gitignore`.
+3. **Dev loop config** — if `.cc-dev.yaml` does not exist at the project root, copy it from the plugin's `templates/.cc-dev.yaml`. This is committed config (like `.cc-verify`) — do NOT add it to `.gitignore`. If `.cc-dev.yaml` already exists without a `require_design:` key, show the template's `require_design` line and ask whether to add it. Absent means `never`. Whenever this step writes `require_design: features` (or `always`), tell the user that features will then need a design from `/harness:shape`, which needs the superpowers plugin (`/plugin install superpowers@claude-plugins-official`).
 
 4. **Deploy loop config** — if `.cc-deploy.yaml` does not exist at the project root, generate it by **detecting where this repo deploys**, then confirm the detected target with the user before writing:
    - **Railway** — `railway.json`, `railway.toml`, or a linked Railway project present → copy `templates/.cc-deploy.railway.yaml`.

@@ -49,6 +49,10 @@ Every gate is a hook. If any of this changes, the loops stop enforcing and keep 
 
 Re-check after any Claude Code upgrade. A degraded grader looks identical to a working one from the outside.
 
+### Third-party skills invoked by name
+
+`/harness:shape` invokes one third-party skill by name: `superpowers:writing-plans`, in stage 5 (plan). Stage 4 (feature questions) follows `superpowers:brainstorming`'s one-topic-at-a-time discipline as written in `shape.md` — it does not invoke that skill. A rename of `writing-plans` in the `superpowers` marketplace breaks `shape`. The guard is `shape.md`'s precondition, a model instruction rather than a hard check: it tells the agent to confirm `superpowers:writing-plans` resolves before stage 1 and to stop with an install hint when it doesn't. No script enforces it, so a model that skips the check reaches stage 5 and fails there. Unlike the bundled-skill risk above, there is still no marker to stamp over the missing dependency — the plan stage cannot produce `plan.md`, and `design-check.sh` blocks the lock without it.
+
 ### Frontmatter fields in use
 
 `description`, `name`, `user-invocable`, `argument-hint`, `allowed-tools` (6, all in commands), `tools` (2, both agents), `model`, `paths`. Enforced by `scripts/lint-skills.sh`, which checks *our* conformance — not whether Claude Code still honours these keys. Counts are deliberately coarse now; the previous exact figures went stale silently.

@@ -19,3 +19,9 @@ graders: [code-review, security, bugs]   # review stages the agent must run + pa
 max_retries: 3                            # failed deterministic attempts before circuit breaker
 base: main                                # diff base the reviews compare against
 open_pr: true                             # false = stop at green, do not open a PR
+require_design: features                  # never | features | always. A --plan inside docs/designs/
+                                          # must be a LOCKED design passing design-check in every mode.
+                                          # features: loop-dev classifies the task; anything adding
+                                          # behavior without a locked design stops ("run /harness:shape
+                                          # first"); fixes/chores/docs pass and are logged in the PR body.
+                                          # An absent key means never.

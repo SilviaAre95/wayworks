@@ -1,0 +1,16 @@
+# Load-bearing rules for harness:attack.
+scope lenses: ambiguity, missing actors, feature-bank conflicts, cheapest cut :: target scope.*lenses.*ambiguity.*missing actors.*feature-bank.*cheapest cut
+plan lenses: connectivity, concurrency/races, auth/session expiry, partial failure, data limits, abuse :: connectivity.*concurrency.*auth.*partial failure.*data limits.*abuse
+small scope is one user flow with no new data store or actor :: one user flow
+small scope gets one attacker covering all lenses :: one attacker covers every lens
+larger scope gets one attacker per lens, in parallel :: one attacker per lens
+attackers are fresh subagents that did not write the artifact :: did not write
+merge step dedupes and ranks by severity :: [Dd]edupe.*rank|rank.*[Dd]edupe
+triage is capped at the top 15 :: cap the ranked list at the top 15
+overflow is recorded deferred with a one-line reason :: deferred with a one-line reason
+scope findings use prefix A, plan findings use prefix W :: `A`.*`W`|prefix `?A
+each finding carries severity high, med or low :: high.*med.*low
+each finding carries a proposed decision :: proposed decision
+findings go to harness:triage :: ranked list to `harness:triage`
+attackers never edit the artifact they attack :: never edit
+IDs continue from the highest existing ID :: highest existing

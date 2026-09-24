@@ -116,6 +116,12 @@ bash scripts/check-skill-rules.sh || err "a skill lost a load-bearing rule"
 echo "== Skill-rules checker self-test"
 bash scripts/check-skill-rules.test.sh || err "check-skill-rules.test.sh failed"
 
+echo "== Design pipeline token contract"
+bash scripts/check-design-contract.sh || err "design pipeline token contract broken"
+
+echo "== Design contract checker self-test"
+bash scripts/check-design-contract.test.sh || err "check-design-contract.test.sh failed"
+
 echo "== Harness shell tests"
 for t in plugins/harness/test/*.test.sh; do
   echo "-- $t"
