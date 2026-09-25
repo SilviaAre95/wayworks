@@ -397,6 +397,28 @@ rm -rf "$d"
 
 d=$(mktemp -d); wsetup "$d"
 CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+git -C "$d" worktree add -q "$d/.claude/worktrees/grader" 2>/dev/null
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+check "wait: a grader worktree appearing mid-panel is not code" "" "$(rounds "$d")" "^1$"
+git -C "$d/.claude/worktrees/grader" -c user.email=t@t -c user.name=t commit -q --allow-empty -m g
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+check "wait: ...nor its HEAD moving" "" "$(rounds "$d")" "^1$"
+git -C "$d" worktree remove --force "$d/.claude/worktrees/grader"
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+check "wait: ...nor its removal" "" "$(rounds "$d")" "^1$"
+rm -rf "$d"
+
+d=$(mktemp -d); wsetup "$d"; s=$(mktemp -d); gsetup "$s"
+git -C "$d" -c protocol.file.allow=always submodule add -q "$s" sub 2>/dev/null
+git -C "$d" -c user.email=t@t -c user.name=t commit -qm sub
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+echo more >> "$d/sub/f.txt"; git -C "$d/sub" -c user.email=t@t -c user.name=t commit -qam more
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+check "wait: a tracked submodule moving is still code" "" "$(rounds "$d")" "^2$"
+rm -rf "$d" "$s"
+
+d=$(mktemp -d); wsetup "$d"
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
 echo loopstate > "$d/.cc-scratch"
 CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
 check "wait: .cc-* loop state is not code" "" "$(rounds "$d")" "^1$"

@@ -138,12 +138,22 @@ MAX_WAITS=8   # a full panel wakes the loop at most once per grader; 8 leaves ma
 # says to, is not a new round — and any edit or new file is. The real index is
 # never touched. Any git failure leaves it empty, which charges every stop.
 round_fp() {
-  local src idx fp rc
+  local src idx fp rc known
   src=$(cd "$DIR" && git rev-parse --git-path index 2>/dev/null) || return 1
   case "$src" in /*) ;; *) src="$DIR/$src" ;; esac
   idx=$(mktemp "${TMPDIR:-/tmp}/cc-round-index.XXXXXX") || return 1
   cp "$src" "$idx" 2>/dev/null || rm -f "$idx"   # no index yet: add builds one
+  # `add -A` records an untracked embedded repo — a grader's isolation
+  # worktree under .claude/worktrees/ — as a gitlink that appears, moves and
+  # vanishes with the panel. Keep only gitlinks the real index already has
+  # (tracked submodules, which are code).
+  known=$(git -C "$DIR" ls-files -s 2>/dev/null | awk '$1 == "160000"' | cut -f2)
   fp=$(GIT_INDEX_FILE="$idx" git -C "$DIR" add -A -- . ':(exclude).cc-*' 2>/dev/null \
+       && GIT_INDEX_FILE="$idx" git -C "$DIR" ls-files -s | awk '$1 == "160000"' | cut -f2 \
+          | while IFS= read -r p; do
+              printf '%s\n' "$known" | grep -qxF -- "$p" \
+                || GIT_INDEX_FILE="$idx" git -C "$DIR" rm -q --cached -- "$p" >/dev/null || exit 1
+            done \
        && GIT_INDEX_FILE="$idx" git -C "$DIR" write-tree 2>/dev/null); rc=$?
   rm -f "$idx" "$idx.lock"
   [ "$rc" -eq 0 ] && [ -n "$fp" ] && printf '%s' "$fp"
