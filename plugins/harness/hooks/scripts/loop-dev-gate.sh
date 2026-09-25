@@ -44,50 +44,6 @@ if [ -n "${CC_GATE_CMD:-}" ]; then GATE="$CC_GATE_CMD"
 elif [ -f "$GATE_FILE" ]; then GATE="$(cat "$GATE_FILE")"
 else GATE="npm run lint && npm run build && npm test"; fi
 
-# The code under review, as a tree id: the working tree, tracked and untracked
-# (.cc-* loop state excluded), staged into a throwaway copy of the index. The
-# same code gives the same id whether it is committed, staged or neither — so
-# committing a new file after the round was charged, as the review prompt
-# says to, is not a new round — and any edit or new file is. Nothing in the
-# repo is written: the index is a copy, new objects go to a temp store that
-# borrows the real one as an alternate. Assume-unchanged bits are cleared on
-# the copy, so a flagged file cannot hide an edit. Any git failure leaves it
-# empty, which charges every stop.
-round_fp() {
-  local src objs tmp idx fp rc known
-  src=$(cd "$DIR" && git rev-parse --git-path index 2>/dev/null) || return 1
-  objs=$(cd "$DIR" && git rev-parse --git-path objects 2>/dev/null) || return 1
-  case "$src" in /*) ;; *) src="$DIR/$src" ;; esac
-  case "$objs" in /*) ;; *) objs="$DIR/$objs" ;; esac
-  tmp=$(mktemp -d "${TMPDIR:-/tmp}/cc-round-fp.XXXXXX") || return 1
-  idx="$tmp/index"; mkdir "$tmp/objects"
-  cp "$src" "$idx" 2>/dev/null   # no index yet: add builds one
-  # `add -A` records an untracked embedded repo — a grader's isolation
-  # worktree under .claude/worktrees/ — as a gitlink that appears, moves and
-  # vanishes with the panel. Keep only gitlinks the real index already has
-  # (tracked submodules, which are code).
-  known=$(git -C "$DIR" ls-files -s 2>/dev/null | awk '$1 == "160000"' | cut -f2)
-  fp=$(export GIT_INDEX_FILE="$idx" GIT_OBJECT_DIRECTORY="$tmp/objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$objs"
-       git -C "$DIR" ls-files -v 2>/dev/null | { grep '^[a-z] ' || true; } | cut -c3- \
-         | while IFS= read -r p; do git -C "$DIR" update-index --no-assume-unchanged -- "$p" || exit 1; done \
-       && git -C "$DIR" add -A -- . ':(exclude).cc-*' 2>/dev/null \
-       && git -C "$DIR" ls-files -s | awk '$1 == "160000"' | cut -f2 \
-          | while IFS= read -r p; do
-              printf '%s\n' "$known" | grep -qxF -- "$p" \
-                || git -C "$DIR" rm -q --cached -- "$p" >/dev/null || exit 1
-            done \
-       && git -C "$DIR" write-tree 2>/dev/null); rc=$?
-  rm -rf "$tmp"
-  [ "$rc" -eq 0 ] && [ -n "$fp" ] && printf '%s' "$fp"
-}
-# Fingerprint the agent's code as it stopped, BEFORE the verify command runs:
-# verify may write un-ignored files (reports, snapshots) that would otherwise
-# make every stop look like new code. The stored fingerprint is taken after
-# verify, so its own output is absorbed while anything the agent changes
-# between stops is not. Only needed while there is no marker to check.
-FP_PRE=""
-[ -f "$MARKER" ] || FP_PRE=$(round_fp) || FP_PRE=""
-
 # 5. Stage 1 — deterministic gate.
 ( cd "$DIR" && eval "$GATE" ) >"$LOG" 2>&1; rc=$?
 gate_foreign "$SENTINEL" "$INPUT" && exit 0   # re-armed by another session during the run
@@ -160,38 +116,48 @@ marker_fresh() {  # 0 = fresh (or unverifiable outside git), 1 = stale
 # paying for grader passes — grading that never converges is a task problem,
 # not something more rounds will fix.
 #
-# Except a stop that only waits for the panel already charged (XARI-157).
-# Graders run in the background, so an interactive loop ends its turn to wait
-# for them, and each of those stops used to cost a round: a healthy run spent
-# 3 of 3 before any grader reported. Claude Code's Stop input lists running
-# background tasks; a stop on unchanged code while a grader subagent runs is
-# free, up to MAX_WAITS per round. Changed code, nothing running, a shell-only
-# task, no background_tasks field (older Claude Code), or no git all charge as
-# before — so a loop that stops without doing anything still trips the breaker.
-# .cc-loop-dev-rounds: count, fingerprint of the charged code, free waits used.
+# Except a stop that only waits for a panel (XARI-157). Graders run in the
+# background, so an interactive loop ends its turn to wait for them, and each
+# of those stops used to cost a round: a healthy run spent 3 of 3 before any
+# grader reported. Claude Code's Stop input lists running background tasks.
+# A round is bound to the panel it pays for — the committed tree the graders
+# review (the loop commits before every panel, and the marker rejects
+# uncommitted work, so HEAD^{tree} is the code under review):
+#   - nothing running: charge a round, unbound (as before)
+#   - a subagent running, round unbound: bind it to HEAD^{tree} — free
+#   - a subagent running, bound to this tree: free wait, up to MAX_WAITS
+#   - a subagent running on a new tree: a new panel — charge and bind
+# A shell-only task, no background_tasks field (older Claude Code), or no
+# commit/git all charge as before, so a loop that stops without doing anything
+# still trips the breaker. Uncommitted edits mid-panel ride on the bound tree:
+# at most MAX_WAITS free stops, never a stamp.
+# .cc-loop-dev-rounds: count, bound tree (empty = unbound), free waits used.
 MAXR=3
 if [ -f "$CFG" ]; then
   vr=$(grep -E '^max_review_rounds:' "$CFG" | head -1 | sed -E 's/^max_review_rounds:[[:space:]]*//; s/[^0-9].*$//')
   [[ "$vr" =~ ^[0-9]+$ ]] && MAXR="$vr"
 fi
 MAX_WAITS=8   # a full panel wakes the loop at most once per grader; 8 leaves margin
-review_round() {  # charge a round for the code at FP_POST; fails when the budget is spent
-  local r
-  r=$(head -1 "$ROUNDS_FILE" 2>/dev/null); [[ "$r" =~ ^[0-9]+$ ]] || r=0
-  r=$((r + 1)); printf '%s\n%s\n0\n' "$r" "$FP_POST" > "$ROUNDS_FILE"
-  [ "$r" -le "$MAXR" ]
-}
-graders_running() {  # a grader subagent is still in flight (Stop input, CC >= 2.1.282)
+TREE=$(git -C "$DIR" rev-parse -q --verify 'HEAD^{tree}' 2>/dev/null)
+graders_running() {  # a subagent is still in flight (Stop input, CC >= 2.1.282)
   printf '%s' "$INPUT" | jq -e '[.background_tasks[]? | select(.type == "subagent" and .status == "running")] | length > 0' >/dev/null 2>&1
 }
-panel_wait() {  # 0 = free wait on the panel already charged for this code
-  local r fp w
-  [ -n "$FP_PRE" ] && [ -n "$FP_POST" ] && graders_running || return 1
-  r=$(sed -n 1p "$ROUNDS_FILE" 2>/dev/null); [[ "$r" =~ ^[0-9]+$ ]] || return 1
-  fp=$(sed -n 2p "$ROUNDS_FILE" 2>/dev/null); [ "$fp" = "$FP_PRE" ] || return 1
+review_round() {  # charge a round, bound to TREE if a panel is running; fails when the budget is spent
+  local r bound=""
+  r=$(head -1 "$ROUNDS_FILE" 2>/dev/null); [[ "$r" =~ ^[0-9]+$ ]] || r=0
+  [ -n "$TREE" ] && graders_running && bound="$TREE"
+  r=$((r + 1)); printf '%s\n%s\n0\n' "$r" "$bound" > "$ROUNDS_FILE"
+  [ "$r" -le "$MAXR" ]
+}
+panel_wait() {  # 0 = free: binds the charged round to this panel, or waits on it
+  local r bound w
+  [ -n "$TREE" ] && graders_running || return 1
+  r=$(sed -n 1p "$ROUNDS_FILE" 2>/dev/null); [[ "$r" =~ ^[0-9]+$ ]] && [ "$r" -ge 1 ] || return 1
+  bound=$(sed -n 2p "$ROUNDS_FILE" 2>/dev/null)
   w=$(sed -n 3p "$ROUNDS_FILE" 2>/dev/null); [[ "$w" =~ ^[0-9]+$ ]] || w=0
-  [ "$w" -lt "$MAX_WAITS" ] || return 1
-  printf '%s\n%s\n%s\n' "$r" "$FP_POST" "$((w + 1))" > "$ROUNDS_FILE"
+  if [ -z "$bound" ]; then printf '%s\n%s\n%s\n' "$r" "$TREE" "$w" > "$ROUNDS_FILE"; return 0; fi
+  [ "$bound" = "$TREE" ] && [ "$w" -lt "$MAX_WAITS" ] || return 1
+  printf '%s\n%s\n%s\n' "$r" "$bound" "$((w + 1))" > "$ROUNDS_FILE"
 }
 wait_notice() {  # allow the stop: the loop pauses for its panel and stays armed
   jq -n --arg r "$(head -1 "$ROUNDS_FILE")" --arg max "$MAXR" \
@@ -227,7 +193,6 @@ if [ ! -f "$MARKER" ]; then
     fi
   fi
 
-  FP_POST=$(round_fp) || FP_POST=""
   if panel_wait; then wait_notice; exit 0; fi
   if ! review_round; then review_breaker; exit 0; fi
   # A charged stop always blocks with the grading instructions — a running
@@ -258,7 +223,6 @@ fi
 #    fingerprinted; inside a repo it used to skip every check above.
 if ! marker_fresh; then
   rm -f "$MARKER"
-  FP_POST=$(round_fp) || FP_POST=""
   if ! review_round; then review_breaker; exit 0; fi
   jq -n --arg stamp "$STAMP" \
     '{decision:"block", reason:("Reviews marker is stale or does not match what was reviewed: the working tree changed after the graders passed (late edits or background jobs?), the tree holds uncommitted tracked changes no worktree grader saw, or the stamped REVIEWED_SHA is not the certified tree (a grader on the wrong branch, e.g. main) or is missing. An empty (touched) marker is only accepted outside a git repo. Commit, re-run the affected graders against the current HEAD SHA, fix any findings, then re-stamp:\n\n  " + $stamp)}'

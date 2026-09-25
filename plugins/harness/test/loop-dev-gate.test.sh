@@ -336,8 +336,8 @@ check "override: round 2 trips breaker" "" "$out" "Review circuit breaker"
 rm -rf "$d"
 
 # 22b. Waiting for graders is not a review round (XARI-157). Claude Code's Stop
-#      input lists running background tasks; a stop on unchanged code while a
-#      grader subagent runs is the loop pausing for the panel, not a new round.
+#      input lists running background tasks. A round is bound to the panel it
+#      pays for — HEAD^{tree} — and stops while that panel runs are free.
 #      Anything else still charges, so the breaker stays reachable.
 run_bg() { # run_bg <cwd> <background_tasks JSON array>
   printf '{"cwd":"%s","background_tasks":%s}' "$1" "$2" | CLAUDE_PROJECT_DIR="$1" bash "$GATE"
@@ -348,8 +348,10 @@ wsetup() { # wsetup <dir> — armed feature branch with one committed change
   gsetup "$1"; git -C "$1" checkout -qb feature; touch "$1/.cc-loop-dev-active"
   echo change >> "$1/f.txt"; git -C "$1" -c user.email=t@t -c user.name=t commit -qam change
 }
+gcommit() { git -C "$1" add -A -- . ':(exclude).cc-*'; git -C "$1" -c user.email=t@t -c user.name=t commit -qm "$2"; }
 rounds() { head -1 "$1/.cc-loop-dev-rounds" 2>/dev/null; }
 
+# Panel launched before the first stop.
 d=$(mktemp -d); wsetup "$d"
 out1=$(CC_GATE_CMD="true" run_bg "$d" "$SUB")
 out2=$(CC_GATE_CMD="true" run_bg "$d" "$SUB")
@@ -363,90 +365,38 @@ check "wait: says the loop is still armed" "" "$out2" "still armed"
 check "wait: loop stays armed" "" "$([ -f "$d/.cc-loop-dev-active" ] && echo present)" "present"
 rm -rf "$d"
 
-d=$(mktemp -d); wsetup "$d"
-CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
-echo fix >> "$d/f.txt"; git -C "$d" -c user.email=t@t -c user.name=t commit -qam fix
-CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
-check "wait: changed code while graders run is a new round" "" "$(rounds "$d")" "^2$"
-rm -rf "$d"
-
-d=$(mktemp -d); wsetup "$d"
-CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
-echo new > "$d/new.txt"
-CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
-check "wait: a new untracked file mid-panel is a new round" "" "$(rounds "$d")" "^2$"
-echo edited > "$d/new.txt"
-CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
-check "wait: an edited untracked file mid-panel is a new round" "" "$(rounds "$d")" "^3$"
-rm -rf "$d"
-
+# The prompted flow: blocked with nothing running, commit new work, launch.
 d=$(mktemp -d); wsetup "$d"
 echo new > "$d/added.txt"
 CC_GATE_CMD="true" run_bg "$d" '[]' >/dev/null
-git -C "$d" add added.txt; git -C "$d" -c user.email=t@t -c user.name=t commit -qm add
+gcommit "$d" add
+o=$(CC_GATE_CMD="true" run_bg "$d" "$SUB")
 CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
-check "wait: committing a new file after the charge is not a new round" "" "$(rounds "$d")" "^1$"
-check "wait: ...and the real index is untouched by fingerprinting" "" "$(git -C "$d" status --porcelain -- added.txt)" "EMPTY"
+check "wait: the panel after a block binds that round, free" "" "$(rounds "$d")" "^1$"
+check_not "wait: that stop is allowed" "$o" '"decision"'
 rm -rf "$d"
 
 d=$(mktemp -d); wsetup "$d"
-echo untracked > "$d/u.txt"
-CC_GATE_CMD="true" run_bg "$d" '[]' >/dev/null
-check "wait: fingerprinting stages nothing in the real index" "" "$(git -C "$d" status --porcelain -- u.txt)" '^?? u.txt'
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+echo fix >> "$d/f.txt"; gcommit "$d" fix
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+check "wait: a new commit under a running panel is a new round" "" "$(rounds "$d")" "^2$"
+rm -rf "$d"
+
+d=$(mktemp -d); wsetup "$d"
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+echo wip >> "$d/f.txt"; echo wip > "$d/untracked.txt"
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+check "wait: uncommitted edits ride on the bound tree (capped, never stamped)" "" "$(rounds "$d")" "^1$"
 rm -rf "$d"
 
 d=$(mktemp -d); wsetup "$d"
 CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
 git -C "$d" worktree add -q "$d/.claude/worktrees/grader" 2>/dev/null
-CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
-check "wait: a grader worktree appearing mid-panel is not code" "" "$(rounds "$d")" "^1$"
-git -C "$d/.claude/worktrees/grader" -c user.email=t@t -c user.name=t commit -q --allow-empty -m g
-CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
-check "wait: ...nor its HEAD moving" "" "$(rounds "$d")" "^1$"
+CC_GATE_CMD='echo $RANDOM > report.txt' run_bg "$d" "$SUB" >/dev/null
 git -C "$d" worktree remove --force "$d/.claude/worktrees/grader"
-CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
-check "wait: ...nor its removal" "" "$(rounds "$d")" "^1$"
-rm -rf "$d"
-
-d=$(mktemp -d); wsetup "$d"; s=$(mktemp -d); gsetup "$s"
-git -C "$d" -c protocol.file.allow=always submodule add -q "$s" sub 2>/dev/null
-git -C "$d" -c user.email=t@t -c user.name=t commit -qm sub
-CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
-echo more >> "$d/sub/f.txt"; git -C "$d/sub" -c user.email=t@t -c user.name=t commit -qam more
-CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
-check "wait: a tracked submodule moving is still code" "" "$(rounds "$d")" "^2$"
-rm -rf "$d" "$s"
-
-d=$(mktemp -d); wsetup "$d"
-for _ in 1 2 3; do CC_GATE_CMD='echo $RANDOM$RANDOM > report.txt' run_bg "$d" "$SUB" >/dev/null; done
-check "wait: files the verify command writes are not the agent's code" "" "$(rounds "$d")" "^1$"
-echo agent-edit >> "$d/f.txt"
-CC_GATE_CMD='echo $RANDOM$RANDOM > report.txt' run_bg "$d" "$SUB" >/dev/null
-check "wait: ...but an agent edit between those stops still is" "" "$(rounds "$d")" "^2$"
-rm -rf "$d"
-
-d=$(mktemp -d); wsetup "$d"
-echo "unique-$$-$RANDOM" > "$d/big.bin"; blob=$(git -C "$d" hash-object "$d/big.bin")
-CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
-check "wait: fingerprinting writes no object into the repo" "" "$(git -C "$d" cat-file -e "$blob" 2>/dev/null && echo written || echo none)" "none"
-rm -rf "$d"
-
-d=$(mktemp -d); wsetup "$d"
-CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
-# Past the racy-git window, or git re-hashes the file anyway and the test
-# would pass without the fix.
-sleep 1.1; git -C "$d" update-index -q --refresh
-git -C "$d" update-index --assume-unchanged f.txt; echo hidden >> "$d/f.txt"
-CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
-check "wait: an assume-unchanged file cannot hide an edit" "" "$(rounds "$d")" "^2$"
-check "wait: ...and the real index keeps its flag" "" "$(git -C "$d" ls-files -v f.txt)" "^h f.txt"
-rm -rf "$d"
-
-d=$(mktemp -d); wsetup "$d"
-CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
-echo loopstate > "$d/.cc-scratch"
-CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
-check "wait: .cc-* loop state is not code" "" "$(rounds "$d")" "^1$"
+CC_GATE_CMD='echo $RANDOM > report.txt' run_bg "$d" "$SUB" >/dev/null
+check "wait: grader worktrees and verify output are not code" "" "$(rounds "$d")" "^1$"
 rm -rf "$d"
 
 d=$(mktemp -d); wsetup "$d"
@@ -467,15 +417,18 @@ check "wait: past the cap a wait costs a round, into the breaker" "" "$o" "Revie
 rm -rf "$d"
 
 d=$(mktemp -d); wsetup "$d"
-CC_GATE_CMD="true" run_bg "$d" '[]' >/dev/null
-o=$(CC_GATE_CMD="true" run_bg "$d" "$SUB")
-check "wait: panel launched after a block waits free" "" "$(rounds "$d")" "^1$"
-check_not "wait: that stop is allowed" "$o" '"decision"'
-rm -rf "$d"
-
-d=$(mktemp -d); wsetup "$d"
 for _ in 1 2; do CC_GATE_CMD="true" run "$d" >/dev/null; done
 check "wait: no background_tasks field charges every stop" "" "$(rounds "$d")" "^2$"
+rm -rf "$d"
+
+d=$(mktemp -d); touch "$d/.cc-loop-dev-active"
+for _ in 1 2; do CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null; done
+check "wait: outside git every stop charges" "" "$(rounds "$d")" "^2$"
+rm -rf "$d"
+
+d=$(mktemp -d); wsetup "$d"; echo 1 > "$d/.cc-loop-dev-rounds"
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+check "wait: a legacy one-line rounds file binds, not charges" "" "$(rounds "$d")" "^1$"
 rm -rf "$d"
 
 # 23. Success path clears the rounds counter
