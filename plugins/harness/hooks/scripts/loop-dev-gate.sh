@@ -115,16 +115,48 @@ marker_fresh() {  # 0 = fresh (or unverifiable outside git), 1 = stale
 # round. Past max_review_rounds (.cc-dev.yaml, default 3) the loop must stop
 # paying for grader passes — grading that never converges is a task problem,
 # not something more rounds will fix.
+#
+# Except a stop that only waits for the panel already charged (XARI-157).
+# Graders run in the background, so an interactive loop ends its turn to wait
+# for them, and each of those stops used to cost a round: a healthy run spent
+# 3 of 3 before any grader reported. Claude Code's Stop input lists running
+# background tasks; a stop on unchanged code while a grader subagent runs is
+# free, up to MAX_WAITS per round. Changed code, nothing running, a shell-only
+# task, no background_tasks field (older Claude Code), or no git all charge as
+# before — so a loop that stops without doing anything still trips the breaker.
+# .cc-loop-dev-rounds: count, fingerprint of the charged code, free waits used.
 MAXR=3
 if [ -f "$CFG" ]; then
   vr=$(grep -E '^max_review_rounds:' "$CFG" | head -1 | sed -E 's/^max_review_rounds:[[:space:]]*//; s/[^0-9].*$//')
   [[ "$vr" =~ ^[0-9]+$ ]] && MAXR="$vr"
 fi
-review_round() {  # increment the round counter; fails when the budget is spent
+MAX_WAITS=8   # a full panel wakes the loop at most once per grader; 8 leaves margin
+ROUND_FP=""
+if git -C "$DIR" rev-parse --git-dir >/dev/null 2>&1; then
+  rmb=$(git -C "$DIR" merge-base "$BASE" HEAD 2>/dev/null)
+  [ -n "$rmb" ] && ROUND_FP=$(git -C "$DIR" diff --no-ext-diff --no-textconv --ignore-submodules=dirty "$rmb" 2>/dev/null | git -C "$DIR" hash-object --stdin)
+fi
+review_round() {  # charge a round for the code at ROUND_FP; fails when the budget is spent
   local r
-  r=$(cat "$ROUNDS_FILE" 2>/dev/null || echo 0); [[ "$r" =~ ^[0-9]+$ ]] || r=0
-  r=$((r + 1)); echo "$r" > "$ROUNDS_FILE"
+  r=$(head -1 "$ROUNDS_FILE" 2>/dev/null); [[ "$r" =~ ^[0-9]+$ ]] || r=0
+  r=$((r + 1)); printf '%s\n%s\n0\n' "$r" "$ROUND_FP" > "$ROUNDS_FILE"
   [ "$r" -le "$MAXR" ]
+}
+graders_running() {  # a grader subagent is still in flight (Stop input, CC >= 2.1.282)
+  printf '%s' "$INPUT" | jq -e '[.background_tasks[]? | select(.type == "subagent" and .status == "running")] | length > 0' >/dev/null 2>&1
+}
+panel_wait() {  # 0 = free wait on the panel already charged for this code
+  local r fp w
+  [ -n "$ROUND_FP" ] && graders_running || return 1
+  r=$(sed -n 1p "$ROUNDS_FILE" 2>/dev/null); [[ "$r" =~ ^[0-9]+$ ]] || return 1
+  fp=$(sed -n 2p "$ROUNDS_FILE" 2>/dev/null); [ "$fp" = "$ROUND_FP" ] || return 1
+  w=$(sed -n 3p "$ROUNDS_FILE" 2>/dev/null); [[ "$w" =~ ^[0-9]+$ ]] || w=0
+  [ "$w" -lt "$MAX_WAITS" ] || return 1
+  printf '%s\n%s\n%s\n' "$r" "$fp" "$((w + 1))" > "$ROUNDS_FILE"
+}
+wait_notice() {  # allow the stop: the loop pauses for its panel and stays armed
+  jq -n --arg r "$(head -1 "$ROUNDS_FILE")" --arg max "$MAXR" \
+    '{systemMessage:("Loop-dev: grader panel still running — stop allowed, loop still armed (review round " + $r + "/" + $max + "; waiting costs no round). When the graders report, act on their findings; do not re-dispatch them.")}'
 }
 review_breaker() {  # disarm and tell the agent to summarize, not re-grade
   gate_standdown "$DIR" loop-dev review-breaker "rounds=$MAXR"
@@ -156,7 +188,9 @@ if [ ! -f "$MARKER" ]; then
     fi
   fi
 
+  if panel_wait; then wait_notice; exit 0; fi
   if ! review_round; then review_breaker; exit 0; fi
+  if graders_running; then wait_notice; exit 0; fi   # panel launched before this stop
   GRADERS=$(grep -E '^graders:' "$CFG" 2>/dev/null | head -1 | sed -E 's/^graders:[[:space:]]*//; s/[[:space:]]*#.*$//')
   [ -z "$GRADERS" ] && GRADERS="[code-review, security, bugs]"
   # /code-review runs as a background fork (CC >= 2.1.218): a subagent that

@@ -29,6 +29,8 @@ Every gate is a hook. If any of this changes, the loops stop enforcing and keep 
 | Output `{systemMessage: ...}` | `console-log-scan` (non-blocking warning), `gate-owner` (a foreign session's stop was not gated) |
 | Input `stop_hook_active` | `loop-dev-gate` — multi-turn stop suppression |
 | Input `session_id` on `Stop`, equal to `CLAUDE_CODE_SESSION_ID` in a command's `!` block (verified 2.1.282; `--resume` keeps it) | `gate-owner` — a loop is gated only for the session that armed it. Either one missing falls back to gating every session |
+| Input `background_tasks` on `Stop`: entries `{type: "subagent", status: "running", …}` while a background subagent runs (verified 2.1.282 headless: listed at the stop that launched it; `claude -p` stays open and fires `Stop` again when it finishes). Not yet verified: that the bundled `/code-review` fork is listed as `subagent` in an interactive session (`-p` runs it in the foreground) | `loop-dev-gate` — a stop on unchanged code while a grader subagent runs is a free wait, not a review round. Field missing → every stop charges, as before |
+| Output `{systemMessage: ...}` on an allowed `Stop` | `loop-dev-gate` — tells the user a grader wait was allowed and the loop is still armed |
 | Input `tool_name`, `tool_input`, `cwd`, `file_path` | `PreToolUse`/`PostToolUse` scripts |
 | `${CLAUDE_PLUGIN_ROOT}` expansion in `hooks.json` | every hook registration |
 

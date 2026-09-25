@@ -335,6 +335,68 @@ out=$(CC_GATE_CMD="true" run "$d")
 check "override: round 2 trips breaker" "" "$out" "Review circuit breaker"
 rm -rf "$d"
 
+# 22b. Waiting for graders is not a review round (XARI-157). Claude Code's Stop
+#      input lists running background tasks; a stop on unchanged code while a
+#      grader subagent runs is the loop pausing for the panel, not a new round.
+#      Anything else still charges, so the breaker stays reachable.
+run_bg() { # run_bg <cwd> <background_tasks JSON array>
+  printf '{"cwd":"%s","background_tasks":%s}' "$1" "$2" | CLAUDE_PROJECT_DIR="$1" bash "$GATE"
+}
+SUB='[{"id":"a1","type":"subagent","status":"running","agent_type":"general-purpose"}]'
+SHELL_ONLY='[{"id":"b1","type":"shell","status":"running","command":"sleep 99"}]'
+wsetup() { # wsetup <dir> — armed feature branch with one committed change
+  gsetup "$1"; git -C "$1" checkout -qb feature; touch "$1/.cc-loop-dev-active"
+  echo change >> "$1/f.txt"; git -C "$1" -c user.email=t@t -c user.name=t commit -qam change
+}
+rounds() { head -1 "$1/.cc-loop-dev-rounds" 2>/dev/null; }
+
+d=$(mktemp -d); wsetup "$d"
+out1=$(CC_GATE_CMD="true" run_bg "$d" "$SUB")
+out2=$(CC_GATE_CMD="true" run_bg "$d" "$SUB")
+out3=$(CC_GATE_CMD="true" run_bg "$d" "$SUB")
+check "wait: three stops on one pending panel cost one round" "" "$(rounds "$d")" "^1$"
+check_not "wait: first stop with a panel running is not blocked" "$out1" '"decision"'
+check_not "wait: later waits are not blocked" "$out3" '"decision"'
+check "wait: says the loop is still armed" "" "$out2" "still armed"
+check "wait: loop stays armed" "" "$([ -f "$d/.cc-loop-dev-active" ] && echo present)" "present"
+rm -rf "$d"
+
+d=$(mktemp -d); wsetup "$d"
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+echo fix >> "$d/f.txt"; git -C "$d" -c user.email=t@t -c user.name=t commit -qam fix
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+check "wait: changed code while graders run is a new round" "" "$(rounds "$d")" "^2$"
+rm -rf "$d"
+
+d=$(mktemp -d); wsetup "$d"
+o=""; for _ in 1 2 3 4; do o=$(CC_GATE_CMD="true" run_bg "$d" '[]'); done
+check "wait: stops with nothing running still trip the breaker" "" "$o" "Review circuit breaker"
+rm -rf "$d"
+
+d=$(mktemp -d); wsetup "$d"
+for _ in 1 2 3; do CC_GATE_CMD="true" run_bg "$d" "$SHELL_ONLY" >/dev/null; done
+check "wait: a background shell is not a pending grader" "" "$(rounds "$d")" "^3$"
+rm -rf "$d"
+
+d=$(mktemp -d); wsetup "$d"; printf 'max_review_rounds: 1\n' > "$d/.cc-dev.yaml"
+for _ in $(seq 1 9); do CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null; done
+check "wait: 8 free waits per round (1 charged + 8 free)" "" "$(rounds "$d")" "^1$"
+o=$(CC_GATE_CMD="true" run_bg "$d" "$SUB")
+check "wait: past the cap a wait costs a round, into the breaker" "" "$o" "Review circuit breaker"
+rm -rf "$d"
+
+d=$(mktemp -d); wsetup "$d"
+CC_GATE_CMD="true" run_bg "$d" '[]' >/dev/null
+o=$(CC_GATE_CMD="true" run_bg "$d" "$SUB")
+check "wait: panel launched after a block waits free" "" "$(rounds "$d")" "^1$"
+check_not "wait: that stop is allowed" "$o" '"decision"'
+rm -rf "$d"
+
+d=$(mktemp -d); wsetup "$d"
+for _ in 1 2; do CC_GATE_CMD="true" run "$d" >/dev/null; done
+check "wait: no background_tasks field charges every stop" "" "$(rounds "$d")" "^2$"
+rm -rf "$d"
+
 # 23. Success path clears the rounds counter
 d=$(mktemp -d); touch "$d/.cc-loop-dev-active" "$d/.cc-dev-reviews-passed"; echo 2 > "$d/.cc-loop-dev-rounds"
 out=$(CC_GATE_CMD="true" run "$d")
