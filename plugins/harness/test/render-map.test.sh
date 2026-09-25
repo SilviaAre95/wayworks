@@ -134,6 +134,8 @@ t=$(tabs info-close '## One\n```\n``` js\n## spurious\n```\n\n## Two\nbody\n')
 [ "$t" = '["One","Two"]' ] && ok "a line with an info string does not close a fence" || bad "info-string closer: $t"
 t=$(tabs fake-fence '## One\n``` `x`\n## Two\nbody\n')
 [ "$t" = '["One","Two"]' ] && ok "a backtick in the info string is not a fence" || bad "fake fence: $t"
+t=$(tabs crlf '## One\r\n```\r\nx\r\n```\r\n\r\n## Two\r\nbody\r\n')
+[ "$t" = '["One","Two"]' ] && ok "a CRLF closer ends the fence, as design-check reads it" || bad "CRLF closer: $t"
 
 # --- bad input fails ---------------------------------------------------------
 bash "$SCRIPT" >/dev/null 2>&1; [ "$?" = "2" ] && ok "no args is a usage error" || bad "no args should exit 2"

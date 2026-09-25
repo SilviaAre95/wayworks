@@ -242,6 +242,16 @@ EOF
 ); run "$d"
 expect_block "a line with an info string does not close a fence" "BLOCK: Q9"
 
+d=$(mk crlf locked <<EOF
+$GOOD
+\`\`\`
+example
+\`\`\`
+- [ ] Q9 · med · after a CRLF fence · open
+EOF
+); perl -pi -e 's/\n/\r\n/' "$d/design.md"; run "$d"
+expect_block "a CRLF closer ends the fence (open item after it is seen)" "BLOCK: Q9"
+
 # --- anchored markers and bounded echo --------------------------------------
 d=$(mk undecided locked <<<"$GOOD
 - [x] Q8 · med · x → y · undecided-by: you"); run "$d"

@@ -43,7 +43,8 @@ slug=$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1' "$DESIGN" \
 # forge one) and jq splits on the mark. Fences follow CommonMark, the same
 # rules design-check.sh uses: 0–3 spaces of indent, a run of 3+ backticks or
 # tildes (a backtick info string holds no backtick), closed only by a run of
-# the same character at least as long with nothing after it. Every
+# the same character at least as long with nothing after it but whitespace
+# (a CRLF line's \r included, as design-check's [[:space:]] does). Every
 # '<' is escaped so nothing in the design can close the
 # <script type="application/json"> it sits in.
 json=$(awk '
@@ -57,7 +58,7 @@ json=$(awk '
   { gsub(/\036/, "") }
   fence($0) {
     if (!f) { if (!(substr(FR, 1, 1) == "`" && index(FI, "`"))) { f = 1; fc = substr(FR, 1, 1); fl = length(FR) } }
-    else if (substr(FR, 1, 1) == fc && length(FR) >= fl && FI ~ /^[ \t]*$/) f = 0
+    else if (substr(FR, 1, 1) == fc && length(FR) >= fl && FI ~ /^[ \t\r]*$/) f = 0
     print; next
   }
   !f && /^## / { print "\036" $0; next }
