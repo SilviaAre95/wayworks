@@ -159,8 +159,17 @@ if [ ! -f "$MARKER" ]; then
   if ! review_round; then review_breaker; exit 0; fi
   GRADERS=$(grep -E '^graders:' "$CFG" 2>/dev/null | head -1 | sed -E 's/^graders:[[:space:]]*//; s/[[:space:]]*#.*$//')
   [ -z "$GRADERS" ] && GRADERS="[code-review, security, bugs]"
-  jq -n --arg g "$GRADERS" --arg stamp "$STAMP" \
-    '{decision:"block", reason:("Deterministic gate is green. Now run the review stages: " + $g + ". Commit everything, record REVIEWED_SHA=$(git rev-parse HEAD), and dispatch one subagent per grader with that SHA — each must confirm its HEAD matches it and echo it in its report. Fix every blocking finding and re-verify. When ALL graders are clean, every one echoed the same REVIEWED_SHA, it still equals HEAD, and the tree is clean, stamp the marker with that SHA:\n\n  " + $stamp + "\n\n(outside a git repo: touch .cc-dev-reviews-passed)\n\nDo NOT create the marker before the reviews are actually clean.")}'
+  # /code-review runs as a background fork (CC >= 2.1.218): a subagent that
+  # invokes it reports before the findings exist, so the agent launches it
+  # itself, pinned by ref range, and it echoes no SHA (XARI-150).
+  CR=false
+  [[ "$GRADERS" =~ (^|[^A-Za-z0-9_:-])code-review([^A-Za-z0-9_-]|$) ]] && CR=true
+  jq -n --arg g "$GRADERS" --arg stamp "$STAMP" --arg b "$BASE" --argjson cr "$CR" \
+    '{decision:"block", reason:("Deterministic gate is green. Now run the review stages: " + $g + ". Commit everything, record REVIEWED_SHA=$(git rev-parse HEAD), and launch every grader at once, one each. "
+      + (if $cr then "Invoke /code-review " + $b + "...<REVIEWED_SHA> yourself, not in a subagent, and wait for its findings notification (the launch line is not a result). Dispatch one subagent per grader other than code-review" else "Dispatch one subagent per grader" end)
+      + " with that SHA — each must confirm its HEAD matches it and echo it in its report. Fix every blocking finding and re-verify. When ALL graders are clean, every grader subagent echoed the same REVIEWED_SHA"
+      + (if $cr then ", /code-review ran on that SHA'"'"'s range" else "" end)
+      + ", it still equals HEAD, and the tree is clean, stamp the marker with that SHA:\n\n  " + $stamp + "\n\n(outside a git repo: touch .cc-dev-reviews-passed)\n\nDo NOT create the marker before the reviews are actually clean.")}'
   exit 0
 fi
 

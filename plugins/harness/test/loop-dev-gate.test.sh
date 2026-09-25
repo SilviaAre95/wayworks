@@ -62,6 +62,21 @@ check_not "graders comment stripped: no comment text" "$out" "# some comment"
 check_not "graders comment stripped: no bare #" "$out" "#"
 rm -rf "$d"
 
+# 6b. /code-review is a background fork (XARI-150): the prompt tells the agent
+#     to launch it itself, and only when it is a configured grader. The stamp
+#     condition must not demand a SHA echo the fork never produces.
+d=$(mktemp -d); touch "$d/.cc-loop-dev-active"
+printf 'graders: [code-review, bugs]\n' > "$d/.cc-dev.yaml"
+out=$(CC_GATE_CMD="true" run "$d")
+check "code-review configured: launched from main session" "" "$out" 'Invoke /code-review main\.\.\.<REVIEWED_SHA> yourself'
+check "code-review configured: other graders still subagents" "" "$out" "subagent per grader other than code-review"
+check_not "code-review configured: no echo demanded of every grader" "$out" "every one echoed"
+printf 'graders: [security, bugs, security-review]\n' > "$d/.cc-dev.yaml"
+out=$(CC_GATE_CMD="true" run "$d")
+check_not "code-review not configured: never told to launch it" "$out" "/code-review"
+check "code-review not configured: every grader a subagent" "" "$out" "subagent per grader with that SHA"
+rm -rf "$d"
+
 # 7. Deterministic gate GREEN -> failure counter reset to 0
 d=$(mktemp -d); touch "$d/.cc-loop-dev-active"; echo 2 > "$d/.cc-loop-dev-state"
 out=$(CC_GATE_CMD="true" run "$d")

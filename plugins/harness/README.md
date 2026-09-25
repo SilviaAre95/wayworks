@@ -36,7 +36,8 @@ tracker key is fetched, never guessed at), spec preflight, plan (pass
 plan from `docs/designs/` is gated as above), build,
 **review stages** (`code-review`, `security`, `bugs` by default; add `design`
 for frontend repos — any grader name maps to the same-named skill) each run
-as a dispatched subagent against the diff, then a **dev-test stage** that
+against the diff — the bundled `/code-review` launched from the main session,
+every other grader as a dispatched subagent — then a **dev-test stage** that
 exercises the change the way the product is used (feature-spec `test_plan`,
 browser flow, endpoint checks, or `pipeline-verify` for data pipelines) and a
 **feature-bank postflight** before the marker is stamped. Its `Stop` hook won't let Claude
@@ -44,13 +45,14 @@ finish until `.cc-verify` is green **and** `.cc-dev-reviews-passed` exists —
 a failing `.cc-verify` clears the marker, so a broken build forces reviews to
 re-run. In a git repo the marker is stamped with an anchor commit (the
 merge-base with `base`, frozen at stamp time), a working-tree fingerprint
-against it, and the commit every grader echoed as reviewed. The hook
+against it, and the reviewed commit — the one every grader subagent echoed
+and `/code-review` was launched on by ref range. The hook
 re-verifies both at stop time — tracked changes landing after the graders
 passed, committed or not, invalidate it, and so does a reviewed commit that is
 not exactly the certified tree (a grader whose worktree sat on `main`, or
 uncommitted tracked changes no worktree grader saw; untracked files are not
 fingerprinted). That each grader read that commit
-rests on its echoed report. An empty (`touch`ed) marker is accepted only outside a git repo — the non-git escape hatch — and is
+rests on its echoed report, or for `/code-review` on its ref-range target. An empty (`touch`ed) marker is accepted only outside a git repo — the non-git escape hatch — and is
 trust-based. On success it
 pushes the branch, opens a PR (unless `open_pr: false`), and watches the PR's
 CI checks to green before handing over. Config — graders, `max_retries`, diff
@@ -72,7 +74,10 @@ grader naming a skill you do not have is the common case (`bugs` needs
 > **Upgrade-sensitive:** the default `code-review` grader dispatches Anthropic's
 > *bundled* `/code-review` skill by name. Bundled-skill invocation policy is set
 > by Claude Code, not by this plugin — v2.1.215 stopped auto-running `/verify`
-> and `/code-review` from description-matching alone. Re-check this grader
+> and `/code-review` from description-matching alone, and since v2.1.218 it runs
+> as a background fork whose findings arrive after the Skill call returns — so
+> the loop launches it from the main session, never through a grader subagent
+> that would report before they land. Re-check this grader
 > actually fires after a Claude Code upgrade: a degraded grader still stamps the
 > marker, so the loop cannot detect it for you.
 
