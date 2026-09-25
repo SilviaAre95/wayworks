@@ -30,6 +30,19 @@ finish() {
 n=0
 [ -f "$DESIGN" ] || { block "design.md: $DESIGN does not exist"; finish; }
 
+# --- bytes -----------------------------------------------------------------
+# The loop below splits lines on \n only. CommonMark and marked also break a
+# line at a lone \r, bash drops NUL bytes the renderers keep, and invalid
+# UTF-8 made the regexes locale-dependent — each let a crafted design hide an
+# open item from the gate while the rendered page showed it. So those bytes
+# block, and the regexes run byte-wise (LC_ALL=C) where iconv is missing.
+export LC_ALL=C
+grep -aq $'\r.' "$DESIGN" && block "design.md: a carriage return not followed by a newline (renderers break the line there) — save it with LF or CRLF line endings"
+[ "$(tr -d '\000' < "$DESIGN" | wc -c)" -eq "$(wc -c < "$DESIGN")" ] || block "design.md: contains a NUL byte — remove it"
+if command -v iconv >/dev/null 2>&1; then
+  iconv -f UTF-8 -t UTF-8 "$DESIGN" >/dev/null 2>&1 || block "design.md: not valid UTF-8 — re-save it as UTF-8"
+fi
+
 # --- frontmatter -----------------------------------------------------------
 fm=$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1{print}' "$DESIGN")
 if [ -z "$fm" ]; then

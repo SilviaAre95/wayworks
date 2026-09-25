@@ -335,6 +335,20 @@ EOF
 ); run "$d"
 [ "$RC" = "0" ] && ok "a closer followed by spaces closes cleanly" || bad "space-trailed closer (rc=$RC: $OUT)"
 
+# Bytes the renderers and the gate split differently block before parsing: a
+# lone CR is a line break to CommonMark and marked but not to `read`, bash
+# drops NULs the renderers keep, and invalid UTF-8 makes the regexes
+# locale-dependent. Each let a crafted design hide an open item.
+d=$(mk lonecr locked <<<"$GOOD"); printf '\140\140\140\n\140\140\140\r- [ ] Q2 · med · after a lone CR · open\n\140\140\140\n' >> "$d/design.md"; run "$d"
+expect_block "a lone CR blocks (renderers break the line there)" "carriage return"
+d=$(mk nul locked <<<"$GOOD"); printf '\140\140\140\n\140\140\140\000\n\140\140\140\n- [ ] Q2 · med · after a NUL · open\n\140\140\140\n' >> "$d/design.md"; run "$d"
+expect_block "a NUL byte blocks" "NUL"
+d=$(mk badutf8 locked <<<"$GOOD"); printf '\140\140\140\377\n\140\140\140\n- [ ] Q2 · med · after invalid UTF-8 · open\n\140\140\140\n' >> "$d/design.md"; run "$d"
+expect_block "invalid UTF-8 blocks" "UTF-8"
+d=$(mk utf8ok locked <<<"$GOOD
+- [x] Q7 · med · año, café, 日本 → ok · decided-by: you"); run "$d"
+[ "$RC" = "0" ] && ok "valid non-ASCII UTF-8 passes" || bad "valid UTF-8 (rc=$RC: $OUT)"
+
 # --- anchored markers and bounded echo --------------------------------------
 d=$(mk undecided locked <<<"$GOOD
 - [x] Q8 · med · x → y · undecided-by: you"); run "$d"
