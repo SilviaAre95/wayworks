@@ -12,6 +12,9 @@ agent would encounter in practice.
 
 ## Setup
 
+Every call pins `CLAUDE_PROJECT_DIR="$d"`: a shell inside a Claude Code
+session inherits the real project dir, and the gate would resolve to it.
+
 ```bash
 GATE=/path/to/wayworks/plugins/harness/hooks/scripts/loop-dev-gate.sh
 d=$(mktemp -d)
@@ -27,7 +30,7 @@ echo 0 > "$d/.cc-loop-dev-state"
 ## Transition 1: armed, deterministic gate fails (no LICENSE yet)
 
 ```bash
-printf '{"cwd":"%s"}' "$d" | bash "$GATE"
+printf '{"cwd":"%s"}' "$d" | CLAUDE_PROJECT_DIR="$d" bash "$GATE"
 ```
 
 Expected output (mirrors `loop-dev-gate.test.sh` step 2 — `det-fail blocks` /
@@ -48,7 +51,7 @@ Expected output (mirrors `loop-dev-gate.test.sh` step 2 — `det-fail blocks` /
 
 ```bash
 echo "hello" > "$d/LICENSE"
-printf '{"cwd":"%s"}' "$d" | bash "$GATE"
+printf '{"cwd":"%s"}' "$d" | CLAUDE_PROJECT_DIR="$d" bash "$GATE"
 ```
 
 Expected output (mirrors `loop-dev-gate.test.sh` step 3 — `green-no-marker
@@ -57,7 +60,7 @@ asks reviews` / `green-no-marker keeps sentinel`):
 ```json
 {
   "decision": "block",
-  "reason": "Deterministic gate is green. Now run the review stages: [code-review, security, bugs]. Dispatch one subagent per grader against the diff, fix every blocking finding, and re-verify. When ALL graders are clean AND you have made no further code edits, stamp the marker to finish:\n\n  mb=$(git merge-base main HEAD) && { echo \"$mb\"; git diff \"$mb\" | git hash-object --stdin; } > .cc-dev-reviews-passed\n\n(outside a git repo: touch .cc-dev-reviews-passed)\n\nDo NOT create the marker before the reviews are actually clean."
+  "reason": "Deterministic gate is green. Now run the review stages: [code-review, security, bugs]. Commit everything, record REVIEWED_SHA=$(git rev-parse HEAD), and launch every grader at once, one each. Invoke /code-review main...<REVIEWED_SHA> yourself, not in a subagent, and wait for its findings notification (the launch line is not a result). Dispatch one subagent per grader other than code-review with that SHA — each must confirm its HEAD matches it and echo it in its report. Fix every blocking finding and re-verify. When ALL graders are clean, every grader subagent echoed the same REVIEWED_SHA, /code-review ran on that SHA's range, it still equals HEAD, and the tree is clean, stamp the marker with that SHA:\n\n  sha=<REVIEWED_SHA> && mb=$(git merge-base main HEAD) && { echo \"$mb\"; git diff --no-ext-diff --no-textconv --ignore-submodules=dirty \"$mb\" | git hash-object --stdin; echo \"$sha\"; } > .cc-dev-reviews-passed\n\n(outside a git repo: touch .cc-dev-reviews-passed)\n\nDo NOT create the marker before the reviews are actually clean."
 }
 ```
 
@@ -69,7 +72,7 @@ asks reviews` / `green-no-marker keeps sentinel`):
 
 ```bash
 touch "$d/.cc-dev-reviews-passed"
-printf '{"cwd":"%s"}' "$d" | bash "$GATE"
+printf '{"cwd":"%s"}' "$d" | CLAUDE_PROJECT_DIR="$d" bash "$GATE"
 ```
 
 Expected output (mirrors `loop-dev-gate.test.sh` step 4 — `green+marker
@@ -93,9 +96,10 @@ rm -rf "$d"
 
 ## Verified run
 
-Actually executed on 2026-07-07 against
+Actually executed on 2026-09-24 (harness 2.3.3) against
 `plugins/harness/hooks/scripts/loop-dev-gate.sh` in a fresh `mktemp -d`
-scratch dir, following the exact steps above.
+scratch dir (outside any git repo, so the touched marker is the
+non-git escape hatch), following the exact steps above.
 
 **Setup:**
 
@@ -126,7 +130,7 @@ documented expectation exactly.
 ```json
 {
   "decision": "block",
-  "reason": "Deterministic gate is green. Now run the review stages: [code-review, security, bugs]. Dispatch one subagent per grader against the diff, fix every blocking finding, and re-verify. When ALL graders are clean AND you have made no further code edits, stamp the marker to finish:\n\n  mb=$(git merge-base main HEAD) && { echo \"$mb\"; git diff \"$mb\" | git hash-object --stdin; } > .cc-dev-reviews-passed\n\n(outside a git repo: touch .cc-dev-reviews-passed)\n\nDo NOT create the marker before the reviews are actually clean."
+  "reason": "Deterministic gate is green. Now run the review stages: [code-review, security, bugs]. Commit everything, record REVIEWED_SHA=$(git rev-parse HEAD), and launch every grader at once, one each. Invoke /code-review main...<REVIEWED_SHA> yourself, not in a subagent, and wait for its findings notification (the launch line is not a result). Dispatch one subagent per grader other than code-review with that SHA — each must confirm its HEAD matches it and echo it in its report. Fix every blocking finding and re-verify. When ALL graders are clean, every grader subagent echoed the same REVIEWED_SHA, /code-review ran on that SHA's range, it still equals HEAD, and the tree is clean, stamp the marker with that SHA:\n\n  sha=<REVIEWED_SHA> && mb=$(git merge-base main HEAD) && { echo \"$mb\"; git diff --no-ext-diff --no-textconv --ignore-submodules=dirty \"$mb\" | git hash-object --stdin; echo \"$sha\"; } > .cc-dev-reviews-passed\n\n(outside a git repo: touch .cc-dev-reviews-passed)\n\nDo NOT create the marker before the reviews are actually clean."
 }
 ```
 
