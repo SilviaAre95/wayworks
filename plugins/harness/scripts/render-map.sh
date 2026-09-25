@@ -40,9 +40,10 @@ slug=$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1' "$DESIGN" \
 # Split on '## ' headings; each becomes {title, md}. A '## ' line inside a
 # code fence is content, not a tab, so awk marks only the real headings with a
 # record-separator byte (stripped from the input first, so a design cannot
-# forge one) and jq splits on the mark. Fences follow CommonMark, the same
-# rules design-check.sh uses: 0–3 spaces of indent, a run of 3+ backticks or
-# tildes (a backtick info string holds no backtick), closed only by a run of
+# forge one) and jq splits on the mark. Fences use the same rules as
+# design-check.sh: an opener is a column-0 run of 3+ backticks or tildes (a
+# backtick info string holds no backtick; an indented one may belong to a list
+# item, so neither script trusts it), closed only by a run — indented 0–3 — of
 # the same character at least as long with nothing after it but whitespace
 # (a CRLF line's \r included, as design-check's [[:space:]] does). Every
 # '<' is escaped so nothing in the design can close the
@@ -53,11 +54,11 @@ json=$(awk '
     s = substr(s, n + 1)
     if (substr(s, 1, 1) == "`") match(s, /^`+/); else if (substr(s, 1, 1) == "~") match(s, /^~+/); else return 0
     if (RLENGTH < 3) return 0
-    FR = substr(s, 1, RLENGTH); FI = substr(s, RLENGTH + 1); return 1
+    FR = substr(s, 1, RLENGTH); FI = substr(s, RLENGTH + 1); FN = n; return 1
   }
   { gsub(/\036/, "") }
   fence($0) {
-    if (!f) { if (!(substr(FR, 1, 1) == "`" && index(FI, "`"))) { f = 1; fc = substr(FR, 1, 1); fl = length(FR) } }
+    if (!f) { if (FN == 0 && !(substr(FR, 1, 1) == "`" && index(FI, "`"))) { f = 1; fc = substr(FR, 1, 1); fl = length(FR) } }
     else if (substr(FR, 1, 1) == fc && length(FR) >= fl && FI ~ /^[ \t\r]*$/) f = 0
     print; next
   }

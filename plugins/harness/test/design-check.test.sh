@@ -204,14 +204,45 @@ later example
 EOF
 ); run "$d"
 expect_block "an indented closer ends the fence (open item after it is seen)" "BLOCK: Q9"
+# Openers stay column-0: an indented fence may belong to a list item, which
+# CommonMark ends with the item, and bash cannot track containers — so the
+# gate reads through an indented fence (fail closed) rather than trust it.
 d=$(mk indentopen locked <<EOF
 $GOOD
   \`\`\`
-- [ ] Q9 · med · example inside an indented fence · open
+- [ ] Q9 · med · inside an indented fence the gate does not trust · open
   \`\`\`
 EOF
 ); run "$d"
-[ "$RC" = "0" ] && ok "checklist lines inside an indented fence are ignored" || bad "indented fence ignored (rc=$RC: $OUT)"
+expect_block "an indented opener is not trusted: lines inside it are still checked" "BLOCK: Q9"
+d=$(mk listfence locked <<EOF
+- [x] A1 · a · decided-by: you
+  \`\`\`
+- [ ] Q1 · med · after a list item fence that ends with the item · open
+  \`\`\`
+EOF
+); run "$d"
+expect_block "a fence inside a list item does not hide the next decision" "BLOCK: Q1"
+d=$(mk listfence4 locked <<EOF
+- [x] A1 · a · decided-by: you
+  \`\`\`
+  code
+    \`\`\`
+- [ ] Q1 · med · after a list item fence · open
+\`\`\`
+EOF
+); run "$d"
+expect_block "a list item's fence with a deeper closer does not hide the next decision" "BLOCK: Q1"
+d=$(mk listsec locked <<EOF
+$GOOD
+- [x] A2 · a · decided-by: you
+  \`\`\`
+## Decisions
+- [ ] Q1 · med · in a second Decisions section · open
+  \`\`\`
+EOF
+); run "$d"
+expect_block "a list item's fence does not hide a second Decisions heading" "more than one '## Decisions'"
 d=$(mk fourspace locked <<EOF
 $GOOD
     \`\`\`
@@ -220,6 +251,15 @@ $GOOD
 EOF
 ); run "$d"
 expect_block "a 4-space-indented line is not a fence (open item is seen)" "BLOCK: Q9"
+d=$(mk fourclose locked <<EOF
+$GOOD
+\`\`\`
+    \`\`\`
+\`\`\`
+- [ ] Q9 · med · after a fence with a 4-space line inside · open
+EOF
+); run "$d"
+expect_block "a 4-space-indented line does not close a fence" "BLOCK: Q9"
 d=$(mk longfence locked <<EOF
 $GOOD
 \`\`\`\`

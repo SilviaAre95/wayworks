@@ -124,12 +124,14 @@ tabs() { # tabs <slug> <body after frontmatter> — prints the rendered tab titl
 }
 t=$(tabs indent-close '## One\n```\nx\n   ```\n\n## Two\nbody\n')
 [ "$t" = '["One","Two"]' ] && ok "an indented closer ends the fence (the next heading is a tab)" || bad "indented closer: $t"
-t=$(tabs indent-open '## One\n  ```\n## spurious\n  ```\n\n## Two\nbody\n')
-[ "$t" = '["One","Two"]' ] && ok "an indented fence hides its '## ' line" || bad "indented opener: $t"
+t=$(tabs indent-open '## One\n  ```\n## shown\n  ```\n\n## Two\nbody\n')
+[ "$t" = '["One","shown","Two"]' ] && ok "an indented opener is not trusted, as in design-check (nothing hidden)" || bad "indented opener: $t"
 t=$(tabs long-fence '## One\n````\n```\n## spurious\n````\n\n## Two\nbody\n')
 [ "$t" = '["One","Two"]' ] && ok "a shorter run does not close a longer fence" || bad "shorter closer: $t"
 t=$(tabs four-space '## One\n    ```\n## Two\nbody\n')
 [ "$t" = '["One","Two"]' ] && ok "a 4-space-indented line is not a fence" || bad "4-space line: $t"
+t=$(tabs four-close '## One\n```\n    ```\n```\n\n## Two\nbody\n')
+[ "$t" = '["One","Two"]' ] && ok "a 4-space-indented line does not close a fence" || bad "4-space closer: $t"
 t=$(tabs info-close '## One\n```\n``` js\n## spurious\n```\n\n## Two\nbody\n')
 [ "$t" = '["One","Two"]' ] && ok "a line with an info string does not close a fence" || bad "info-string closer: $t"
 t=$(tabs fake-fence '## One\n``` `x`\n## Two\nbody\n')

@@ -59,15 +59,18 @@ re_ack='(^|· )ack( ·|$)'
 re_defer='(^|· )deferred: [^[:space:]]'
 # Fences follow CommonMark (0.31.2 §4.5), because the rendered doc is what a
 # human reviewed and the gate must agree with it about where code ends:
-# - an opener is 0–3 spaces, a run of 3+ backticks or tildes, then an info
+# - an opener is a run of 3+ backticks or tildes at column 0, then an info
 #   string; a backtick info string holds no backtick ("``` `x`" is inline
-#   code, not a fence, so it must not hide what follows);
+#   code, not a fence, so it must not hide what follows). CommonMark also
+#   allows 1–3 spaces, but an indented fence may belong to a list item and end
+#   with it, which this loop cannot track — trusting one let an open decision
+#   pass. So an indented "opener" is read through: at worst a false block;
 # - a closer is 0–3 spaces, a run of the opener's character at least as long,
 #   then only whitespace. Inside a ``` block a ~~~ line, a shorter run or a
 #   line with an info string is content: closing on it would let the real
 #   closer open a new fence and hide the decisions after it. So would missing
 #   an indented closer (XARI-151). Four spaces is indented code, never a fence.
-re_open='^ {0,3}(`{3,}|~{3,})(.*)$'
+re_open='^(`{3,}|~{3,})(.*)$'
 re_close='^ {0,3}(`{3,}|~{3,})[[:space:]]*$'
 decided_w=""
 infence=0; fch=""; flen=0; insec=0; seen_sec=0; nsec=0
