@@ -418,6 +418,31 @@ check "wait: a tracked submodule moving is still code" "" "$(rounds "$d")" "^2$"
 rm -rf "$d" "$s"
 
 d=$(mktemp -d); wsetup "$d"
+for _ in 1 2 3; do CC_GATE_CMD='echo $RANDOM$RANDOM > report.txt' run_bg "$d" "$SUB" >/dev/null; done
+check "wait: files the verify command writes are not the agent's code" "" "$(rounds "$d")" "^1$"
+echo agent-edit >> "$d/f.txt"
+CC_GATE_CMD='echo $RANDOM$RANDOM > report.txt' run_bg "$d" "$SUB" >/dev/null
+check "wait: ...but an agent edit between those stops still is" "" "$(rounds "$d")" "^2$"
+rm -rf "$d"
+
+d=$(mktemp -d); wsetup "$d"
+echo "unique-$$-$RANDOM" > "$d/big.bin"; blob=$(git -C "$d" hash-object "$d/big.bin")
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+check "wait: fingerprinting writes no object into the repo" "" "$(git -C "$d" cat-file -e "$blob" 2>/dev/null && echo written || echo none)" "none"
+rm -rf "$d"
+
+d=$(mktemp -d); wsetup "$d"
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+# Past the racy-git window, or git re-hashes the file anyway and the test
+# would pass without the fix.
+sleep 1.1; git -C "$d" update-index -q --refresh
+git -C "$d" update-index --assume-unchanged f.txt; echo hidden >> "$d/f.txt"
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+check "wait: an assume-unchanged file cannot hide an edit" "" "$(rounds "$d")" "^2$"
+check "wait: ...and the real index keeps its flag" "" "$(git -C "$d" ls-files -v f.txt)" "^h f.txt"
+rm -rf "$d"
+
+d=$(mktemp -d); wsetup "$d"
 CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
 echo loopstate > "$d/.cc-scratch"
 CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
