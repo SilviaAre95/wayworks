@@ -355,8 +355,10 @@ out1=$(CC_GATE_CMD="true" run_bg "$d" "$SUB")
 out2=$(CC_GATE_CMD="true" run_bg "$d" "$SUB")
 out3=$(CC_GATE_CMD="true" run_bg "$d" "$SUB")
 check "wait: three stops on one pending panel cost one round" "" "$(rounds "$d")" "^1$"
-check_not "wait: first stop with a panel running is not blocked" "$out1" '"decision"'
+check "wait: first stop on new code still blocks with the instructions" "" "$out1" "review stages"
+check "wait: ...and says not to re-dispatch a running panel" "" "$out1" "do not re-dispatch it"
 check_not "wait: later waits are not blocked" "$out3" '"decision"'
+check "wait: the notice says the work is not done" "" "$out3" "NOT done"
 check "wait: says the loop is still armed" "" "$out2" "still armed"
 check "wait: loop stays armed" "" "$([ -f "$d/.cc-loop-dev-active" ] && echo present)" "present"
 rm -rf "$d"
@@ -366,6 +368,38 @@ CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
 echo fix >> "$d/f.txt"; git -C "$d" -c user.email=t@t -c user.name=t commit -qam fix
 CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
 check "wait: changed code while graders run is a new round" "" "$(rounds "$d")" "^2$"
+rm -rf "$d"
+
+d=$(mktemp -d); wsetup "$d"
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+echo new > "$d/new.txt"
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+check "wait: a new untracked file mid-panel is a new round" "" "$(rounds "$d")" "^2$"
+echo edited > "$d/new.txt"
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+check "wait: an edited untracked file mid-panel is a new round" "" "$(rounds "$d")" "^3$"
+rm -rf "$d"
+
+d=$(mktemp -d); wsetup "$d"
+echo new > "$d/added.txt"
+CC_GATE_CMD="true" run_bg "$d" '[]' >/dev/null
+git -C "$d" add added.txt; git -C "$d" -c user.email=t@t -c user.name=t commit -qm add
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+check "wait: committing a new file after the charge is not a new round" "" "$(rounds "$d")" "^1$"
+check "wait: ...and the real index is untouched by fingerprinting" "" "$(git -C "$d" status --porcelain -- added.txt)" "EMPTY"
+rm -rf "$d"
+
+d=$(mktemp -d); wsetup "$d"
+echo untracked > "$d/u.txt"
+CC_GATE_CMD="true" run_bg "$d" '[]' >/dev/null
+check "wait: fingerprinting stages nothing in the real index" "" "$(git -C "$d" status --porcelain -- u.txt)" '^?? u.txt'
+rm -rf "$d"
+
+d=$(mktemp -d); wsetup "$d"
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+echo loopstate > "$d/.cc-scratch"
+CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null
+check "wait: .cc-* loop state is not code" "" "$(rounds "$d")" "^1$"
 rm -rf "$d"
 
 d=$(mktemp -d); wsetup "$d"

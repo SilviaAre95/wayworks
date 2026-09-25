@@ -131,11 +131,24 @@ if [ -f "$CFG" ]; then
   [[ "$vr" =~ ^[0-9]+$ ]] && MAXR="$vr"
 fi
 MAX_WAITS=8   # a full panel wakes the loop at most once per grader; 8 leaves margin
-ROUND_FP=""
-if git -C "$DIR" rev-parse --git-dir >/dev/null 2>&1; then
-  rmb=$(git -C "$DIR" merge-base "$BASE" HEAD 2>/dev/null)
-  [ -n "$rmb" ] && ROUND_FP=$(git -C "$DIR" diff --no-ext-diff --no-textconv --ignore-submodules=dirty "$rmb" 2>/dev/null | git -C "$DIR" hash-object --stdin)
-fi
+# The code under review, as a tree id: the working tree, tracked and untracked
+# (.cc-* loop state excluded), staged into a throwaway copy of the index. The
+# same code gives the same id whether it is committed, staged or neither — so
+# committing a new file after the round was charged, as the review prompt
+# says to, is not a new round — and any edit or new file is. The real index is
+# never touched. Any git failure leaves it empty, which charges every stop.
+round_fp() {
+  local src idx fp rc
+  src=$(cd "$DIR" && git rev-parse --git-path index 2>/dev/null) || return 1
+  case "$src" in /*) ;; *) src="$DIR/$src" ;; esac
+  idx=$(mktemp "${TMPDIR:-/tmp}/cc-round-index.XXXXXX") || return 1
+  cp "$src" "$idx" 2>/dev/null || rm -f "$idx"   # no index yet: add builds one
+  fp=$(GIT_INDEX_FILE="$idx" git -C "$DIR" add -A -- . ':(exclude).cc-*' 2>/dev/null \
+       && GIT_INDEX_FILE="$idx" git -C "$DIR" write-tree 2>/dev/null); rc=$?
+  rm -f "$idx" "$idx.lock"
+  [ "$rc" -eq 0 ] && [ -n "$fp" ] && printf '%s' "$fp"
+}
+ROUND_FP=$(round_fp) || ROUND_FP=""
 review_round() {  # charge a round for the code at ROUND_FP; fails when the budget is spent
   local r
   r=$(head -1 "$ROUNDS_FILE" 2>/dev/null); [[ "$r" =~ ^[0-9]+$ ]] || r=0
@@ -156,7 +169,7 @@ panel_wait() {  # 0 = free wait on the panel already charged for this code
 }
 wait_notice() {  # allow the stop: the loop pauses for its panel and stays armed
   jq -n --arg r "$(head -1 "$ROUNDS_FILE")" --arg max "$MAXR" \
-    '{systemMessage:("Loop-dev: grader panel still running — stop allowed, loop still armed (review round " + $r + "/" + $max + "; waiting costs no round). When the graders report, act on their findings; do not re-dispatch them.")}'
+    '{systemMessage:("Loop-dev: NOT done — no reviews have passed yet. Pausing for a background subagent (the grader panel, if one was launched); the loop is still armed and the next stop is gated again (review round " + $r + "/" + $max + "; waiting costs no round). When the graders report, act on their findings; do not re-dispatch them.")}'
 }
 review_breaker() {  # disarm and tell the agent to summarize, not re-grade
   gate_standdown "$DIR" loop-dev review-breaker "rounds=$MAXR"
@@ -190,7 +203,11 @@ if [ ! -f "$MARKER" ]; then
 
   if panel_wait; then wait_notice; exit 0; fi
   if ! review_round; then review_breaker; exit 0; fi
-  if graders_running; then wait_notice; exit 0; fi   # panel launched before this stop
+  # A charged stop always blocks with the grading instructions — a running
+  # subagent may be anything, not this round's panel. If it IS the panel, the
+  # next stop on this code is a free wait.
+  PRE=""
+  graders_running && PRE="A background subagent is still running. If it is this round's grader panel, do not re-dispatch it: end your turn to wait — waiting on unchanged code costs no round. Otherwise: "
   GRADERS=$(grep -E '^graders:' "$CFG" 2>/dev/null | head -1 | sed -E 's/^graders:[[:space:]]*//; s/[[:space:]]*#.*$//')
   [ -z "$GRADERS" ] && GRADERS="[code-review, security, bugs]"
   # /code-review runs as a background fork (CC >= 2.1.218): a subagent that
@@ -198,8 +215,8 @@ if [ ! -f "$MARKER" ]; then
   # itself, pinned by ref range, and it echoes no SHA (XARI-150).
   CR=false
   [[ "$GRADERS" =~ (^|[^A-Za-z0-9_:-])code-review([^A-Za-z0-9_-]|$) ]] && CR=true
-  jq -n --arg g "$GRADERS" --arg stamp "$STAMP" --arg b "$BASE" --argjson cr "$CR" \
-    '{decision:"block", reason:("Deterministic gate is green. Now run the review stages: " + $g + ". Commit everything, record REVIEWED_SHA=$(git rev-parse HEAD), and launch every grader at once, one each. "
+  jq -n --arg g "$GRADERS" --arg stamp "$STAMP" --arg b "$BASE" --argjson cr "$CR" --arg pre "$PRE" \
+    '{decision:"block", reason:($pre + "Deterministic gate is green. Now run the review stages: " + $g + ". Commit everything, record REVIEWED_SHA=$(git rev-parse HEAD), and launch every grader at once, one each. "
       + (if $cr then "Invoke /code-review " + $b + "...<REVIEWED_SHA> yourself, not in a subagent, and wait for its findings notification (the launch line is not a result). Dispatch one subagent per grader other than code-review" else "Dispatch one subagent per grader" end)
       + " with that SHA — each must confirm its HEAD matches it and echo it in its report. Fix every blocking finding and re-verify. When ALL graders are clean, every grader subagent echoed the same REVIEWED_SHA"
       + (if $cr then ", /code-review ran on that SHA'"'"'s range" else "" end)
