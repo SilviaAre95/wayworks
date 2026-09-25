@@ -188,6 +188,60 @@ d=$(mk unclosed locked <<<"$GOOD
 - [ ] Q9 · med · everything after an unclosed fence is hidden · open"); run "$d"
 expect_block "an unclosed fence blocks" "fence"
 
+# CommonMark fences (XARI-151): an opener or closer may be indented 0–3
+# spaces; a closer is the opener's character, at least as long, with no info
+# string. A column-0-only rule let an indented closer end the block in the
+# rendered doc but not in the gate, hiding every decision until the next fence.
+d=$(mk indentclose locked <<EOF
+$GOOD
+\`\`\`
+example
+   \`\`\`
+- [ ] Q9 · med · after an indented closer · open
+\`\`\`
+later example
+   \`\`\`
+EOF
+); run "$d"
+expect_block "an indented closer ends the fence (open item after it is seen)" "BLOCK: Q9"
+d=$(mk indentopen locked <<EOF
+$GOOD
+  \`\`\`
+- [ ] Q9 · med · example inside an indented fence · open
+  \`\`\`
+EOF
+); run "$d"
+[ "$RC" = "0" ] && ok "checklist lines inside an indented fence are ignored" || bad "indented fence ignored (rc=$RC: $OUT)"
+d=$(mk fourspace locked <<EOF
+$GOOD
+    \`\`\`
+- [ ] Q9 · med · after a 4-space-indented fence-looking line · open
+    \`\`\`
+EOF
+); run "$d"
+expect_block "a 4-space-indented line is not a fence (open item is seen)" "BLOCK: Q9"
+d=$(mk longfence locked <<EOF
+$GOOD
+\`\`\`\`
+\`\`\`
+- [ ] Q9 · med · example inside a 4-backtick fence · open
+\`\`\`\`
+EOF
+); run "$d"
+[ "$RC" = "0" ] && ok "a shorter run does not close a longer fence" || bad "shorter closer (rc=$RC: $OUT)"
+d=$(mk infoclose locked <<EOF
+$GOOD
+\`\`\`
+\`\`\` js
+\`\`\`
+- [ ] Q9 · med · after a fence whose inner line had an info string · open
+\`\`\`
+x
+\`\`\`
+EOF
+); run "$d"
+expect_block "a line with an info string does not close a fence" "BLOCK: Q9"
+
 # --- anchored markers and bounded echo --------------------------------------
 d=$(mk undecided locked <<<"$GOOD
 - [x] Q8 · med · x → y · undecided-by: you"); run "$d"

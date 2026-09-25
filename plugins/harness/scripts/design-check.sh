@@ -57,19 +57,34 @@ re_box='^[[:space:]]*(>[[:space:]]*)*([-*+]|[0-9]+[.)])[[:space:]]+\['
 re_by='(^|· )decided-by: (you|accepted-default)( |$)'
 re_ack='(^|· )ack( ·|$)'
 re_defer='(^|· )deferred: [^[:space:]]'
-# A fence opener/closer is ``` or ~~~ plus an info string with no backticks;
-# "``` `x`" is inline code, not a fence, so it must not hide what follows.
-# A fence closes only on its own marker: inside a ``` block a ~~~ line is
-# content, and toggling on it would let the real closer open a new fence.
-re_fence='^(```|~~~)[^`]*$'
+# Fences follow CommonMark (0.31.2 §4.5), because the rendered doc is what a
+# human reviewed and the gate must agree with it about where code ends:
+# - an opener is 0–3 spaces, a run of 3+ backticks or tildes, then an info
+#   string; a backtick info string holds no backtick ("``` `x`" is inline
+#   code, not a fence, so it must not hide what follows);
+# - a closer is 0–3 spaces, a run of the opener's character at least as long,
+#   then only whitespace. Inside a ``` block a ~~~ line, a shorter run or a
+#   line with an info string is content: closing on it would let the real
+#   closer open a new fence and hide the decisions after it. So would missing
+#   an indented closer (XARI-151). Four spaces is indented code, never a fence.
+re_open='^ {0,3}(`{3,}|~{3,})(.*)$'
+re_close='^ {0,3}(`{3,}|~{3,})[[:space:]]*$'
 decided_w=""
-infence=0; fence=""; insec=0; seen_sec=0; nsec=0
+infence=0; fch=""; flen=0; insec=0; seen_sec=0; nsec=0
 while IFS= read -r line || [ -n "$line" ]; do
   if [ "$infence" -eq 1 ]; then
-    [[ "$line" =~ $re_fence ]] && [ "${line:0:3}" = "$fence" ] && infence=0
+    if [[ "$line" =~ $re_close ]]; then
+      run="${BASH_REMATCH[1]}"
+      [ "${run:0:1}" = "$fch" ] && [ "${#run}" -ge "$flen" ] && infence=0
+    fi
     continue
   fi
-  if [[ "$line" =~ $re_fence ]]; then infence=1; fence="${line:0:3}"; continue; fi
+  if [[ "$line" =~ $re_open ]]; then
+    run="${BASH_REMATCH[1]}"; info="${BASH_REMATCH[2]}"
+    if ! { [ "${run:0:1}" = '`' ] && [[ "$info" == *'`'* ]]; }; then
+      infence=1; fch="${run:0:1}"; flen="${#run}"; continue
+    fi
+  fi
   case "$line" in
     '## '*)
       insec=0
