@@ -416,6 +416,14 @@ o=$(CC_GATE_CMD="true" run_bg "$d" "$SUB")
 check "wait: past the cap a wait costs a round, into the breaker" "" "$o" "Review circuit breaker"
 rm -rf "$d"
 
+d=$(mktemp -d); wsetup "$d"; printf 'max_review_rounds: 1\n' > "$d/.cc-dev.yaml"
+CC_GATE_CMD="true" run_bg "$d" '[]' >/dev/null
+for _ in $(seq 1 8); do CC_GATE_CMD="true" run_bg "$d" "$SUB" >/dev/null; done
+check "wait: binding a charged round is one of its 8 free stops" "" "$(rounds "$d")" "^1$"
+o=$(CC_GATE_CMD="true" run_bg "$d" "$SUB")
+check "wait: ...so the 9th stop after it costs a round" "" "$o" "Review circuit breaker"
+rm -rf "$d"
+
 d=$(mktemp -d); wsetup "$d"
 for _ in 1 2; do CC_GATE_CMD="true" run "$d" >/dev/null; done
 check "wait: no background_tasks field charges every stop" "" "$(rounds "$d")" "^2$"

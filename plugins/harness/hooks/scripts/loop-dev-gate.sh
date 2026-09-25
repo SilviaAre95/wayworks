@@ -124,7 +124,8 @@ marker_fresh() {  # 0 = fresh (or unverifiable outside git), 1 = stale
 # review (the loop commits before every panel, and the marker rejects
 # uncommitted work, so HEAD^{tree} is the code under review):
 #   - nothing running: charge a round, unbound (as before)
-#   - a subagent running, round unbound: bind it to HEAD^{tree} — free
+#   - a subagent running, round unbound: bind it to HEAD^{tree} — free, and
+#     counted as one of the round's MAX_WAITS
 #   - a subagent running, bound to this tree: free wait, up to MAX_WAITS
 #   - a subagent running on a new tree: a new panel — charge and bind
 # A shell-only task, no background_tasks field (older Claude Code), or no
@@ -155,7 +156,7 @@ panel_wait() {  # 0 = free: binds the charged round to this panel, or waits on i
   r=$(sed -n 1p "$ROUNDS_FILE" 2>/dev/null); [[ "$r" =~ ^[0-9]+$ ]] && [ "$r" -ge 1 ] || return 1
   bound=$(sed -n 2p "$ROUNDS_FILE" 2>/dev/null)
   w=$(sed -n 3p "$ROUNDS_FILE" 2>/dev/null); [[ "$w" =~ ^[0-9]+$ ]] || w=0
-  if [ -z "$bound" ]; then printf '%s\n%s\n%s\n' "$r" "$TREE" "$w" > "$ROUNDS_FILE"; return 0; fi
+  if [ -z "$bound" ]; then printf '%s\n%s\n%s\n' "$r" "$TREE" "$((w + 1))" > "$ROUNDS_FILE"; return 0; fi
   [ "$bound" = "$TREE" ] && [ "$w" -lt "$MAX_WAITS" ] || return 1
   printf '%s\n%s\n%s\n' "$r" "$bound" "$((w + 1))" > "$ROUNDS_FILE"
 }
@@ -199,7 +200,7 @@ if [ ! -f "$MARKER" ]; then
   # subagent may be anything, not this round's panel. If it IS the panel, the
   # next stop on this code is a free wait.
   PRE=""
-  graders_running && PRE="A background subagent is still running. If it is this round's grader panel, do not re-dispatch it: end your turn to wait — waiting on unchanged code costs no round. Otherwise: "
+  graders_running && PRE="A background subagent is still running. If it is this round's grader panel, do not re-dispatch it: end your turn to wait — waiting on the same commit costs no round. Otherwise: "
   GRADERS=$(grep -E '^graders:' "$CFG" 2>/dev/null | head -1 | sed -E 's/^graders:[[:space:]]*//; s/[[:space:]]*#.*$//')
   [ -z "$GRADERS" ] && GRADERS="[code-review, security, bugs]"
   # /code-review runs as a background fork (CC >= 2.1.218): a subagent that
