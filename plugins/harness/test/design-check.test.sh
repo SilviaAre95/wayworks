@@ -204,6 +204,7 @@ later example
 EOF
 ); run "$d"
 expect_block "an indented closer ends the fence (open item after it is seen)" "BLOCK: Q9"
+grep -q "ambiguous" <<<"$OUT" && bad "an indented closer ends the fence is not flagged ambiguous ($OUT)" || ok "an indented closer ends the fence is not flagged ambiguous"
 # Openers stay column-0: an indented fence may belong to a list item, which
 # CommonMark ends with the item, and bash cannot track containers — so the
 # gate reads through an indented fence (fail closed) rather than trust it.
@@ -291,6 +292,48 @@ example
 EOF
 ); perl -pi -e 's/\n/\r\n/' "$d/design.md"; run "$d"
 expect_block "a CRLF closer ends the fence (open item after it is seen)" "BLOCK: Q9"
+grep -q "ambiguous" <<<"$OUT" && bad "a CRLF closer ends the fence is not flagged ambiguous ($OUT)" || ok "a CRLF closer ends the fence is not flagged ambiguous"
+
+# Ambiguous fence lines block instead of being read either way: an indented
+# opener (a fence at top level, but it ends with its list item inside one),
+# and a near-miss closer that CommonMark and marked disagree on.
+d=$(mk indenttop locked <<EOF
+$GOOD
+  \`\`\`
+~~~
+  \`\`\`
+- [ ] Q9 · med · visible after an indented top-level fence · open
+~~~
+EOF
+); run "$d"
+expect_block "an indented top-level fence blocks as ambiguous" "indented code fence"
+d=$(mk indentthen locked <<EOF
+$GOOD
+   \`\`\`
+example
+\`\`\`
+- [ ] Q1 · med · reward expiry · open
+\`\`\`
+EOF
+); run "$d"
+expect_block "an indented fence before a later fence pair blocks" "indented code fence"
+for tail in "\t" "\`" "\f"; do
+  d=$(mk "nearclose$RANDOM" locked <<EOF
+$GOOD
+~~~
+x
+EOF
+); printf '~~~%b\n- [ ] Q9 · med · after a near-miss closer · open\n~~~\n' "$tail" >> "$d/design.md"; run "$d"
+  expect_block "a closer followed by '$tail' blocks as ambiguous" "ambiguous fence closer"
+done
+d=$(mk spaceclose locked <<EOF
+$GOOD
+~~~
+- [ ] Q9 · med · example inside a fence · open
+~~~   
+EOF
+); run "$d"
+[ "$RC" = "0" ] && ok "a closer followed by spaces closes cleanly" || bad "space-trailed closer (rc=$RC: $OUT)"
 
 # --- anchored markers and bounded echo --------------------------------------
 d=$(mk undecided locked <<<"$GOOD

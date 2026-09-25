@@ -57,29 +57,42 @@ re_box='^[[:space:]]*(>[[:space:]]*)*([-*+]|[0-9]+[.)])[[:space:]]+\['
 re_by='(^|· )decided-by: (you|accepted-default)( |$)'
 re_ack='(^|· )ack( ·|$)'
 re_defer='(^|· )deferred: [^[:space:]]'
-# Fences follow CommonMark (0.31.2 §4.5), because the rendered doc is what a
-# human reviewed and the gate must agree with it about where code ends:
+# Fences. The rendered design is what a human reviewed, so the gate must agree
+# with it about where code ends. CommonMark (0.31.2 §4.5) and marked (the map
+# page's renderer) differ at the edges, and a line-based loop cannot track
+# list items — so the gate reads only the fence lines every reader agrees on,
+# and BLOCKS on the rest rather than guess (a guess either way let an open
+# decision through, XARI-151):
 # - an opener is a run of 3+ backticks or tildes at column 0, then an info
 #   string; a backtick info string holds no backtick ("``` `x`" is inline
-#   code, not a fence, so it must not hide what follows). CommonMark also
-#   allows 1–3 spaces, but an indented fence may belong to a list item and end
-#   with it, which this loop cannot track — trusting one let an open decision
-#   pass. So an indented "opener" is read through: at worst a false block;
+#   code, not a fence). An opener indented 1–3 spaces is a fence at top level
+#   but ends with its list item inside one — ambiguous, so it blocks;
 # - a closer is 0–3 spaces, a run of the opener's character at least as long,
-#   then only whitespace. Inside a ``` block a ~~~ line, a shorter run or a
-#   line with an info string is content: closing on it would let the real
-#   closer open a new fence and hide the decisions after it. So would missing
-#   an indented closer (XARI-151). Four spaces is indented code, never a fence.
+#   then only spaces (or a CRLF \r). A near-miss — the run followed by a tab,
+#   the other fence character or any other whitespace — is read differently by
+#   the two renderers, so it blocks too. A shorter run, the other character's
+#   run, a line with an info string, or 4+ spaces of indent is plain content.
 re_open='^(`{3,}|~{3,})(.*)$'
-re_close='^ {0,3}(`{3,}|~{3,})[[:space:]]*$'
+re_indented_open='^ {1,3}(`{3,}|~{3,})'
+re_close='^ {0,3}(`{3,}|~{3,})[ '$'\r'']*$'
+re_near_close='^ {0,3}(`{3,}|~{3,})[`~[:space:]]*$'
 decided_w=""
-infence=0; fch=""; flen=0; insec=0; seen_sec=0; nsec=0
+infence=0; fch=""; flen=0; insec=0; seen_sec=0; nsec=0; ln=0
 while IFS= read -r line || [ -n "$line" ]; do
+  ln=$((ln + 1))
   if [ "$infence" -eq 1 ]; then
-    if [[ "$line" =~ $re_close ]]; then
+    if [[ "$line" =~ $re_near_close ]]; then
       run="${BASH_REMATCH[1]}"
-      [ "${run:0:1}" = "$fch" ] && [ "${#run}" -ge "$flen" ] && infence=0
+      if [ "${run:0:1}" = "$fch" ] && [ "${#run}" -ge "$flen" ]; then
+        if [[ "$line" =~ $re_close ]] && [ "${BASH_REMATCH[1]}" = "$run" ]; then infence=0
+        else block "design.md:$ln: ambiguous fence closer (renderers disagree whether it closes) — end the line after the ${fch}${fch}${fch} run"; infence=0
+        fi
+      fi
     fi
+    continue
+  fi
+  if [[ "$line" =~ $re_indented_open ]]; then
+    block "design.md:$ln: indented code fence — the gate cannot tell where it ends; start it at column 0"
     continue
   fi
   if [[ "$line" =~ $re_open ]]; then

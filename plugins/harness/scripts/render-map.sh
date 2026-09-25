@@ -40,12 +40,12 @@ slug=$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1' "$DESIGN" \
 # Split on '## ' headings; each becomes {title, md}. A '## ' line inside a
 # code fence is content, not a tab, so awk marks only the real headings with a
 # record-separator byte (stripped from the input first, so a design cannot
-# forge one) and jq splits on the mark. Fences use the same rules as
-# design-check.sh: an opener is a column-0 run of 3+ backticks or tildes (a
-# backtick info string holds no backtick; an indented one may belong to a list
-# item, so neither script trusts it), closed only by a run — indented 0–3 — of
-# the same character at least as long with nothing after it but whitespace
-# (a CRLF line's \r included, as design-check's [[:space:]] does). Every
+# forge one) and jq splits on the mark. Fences use design-check.sh's rules: a
+# column-0 opener of 3+ backticks or tildes (a backtick info string holds no
+# backtick), closed by a 0–3-space-indented run of the same character at least
+# as long with only spaces (or a CRLF \r) after it. The lines design-check
+# blocks as ambiguous — indented openers, near-miss closers — are read here as
+# content, so a draft still renders; a design that passes the gate has none. Every
 # '<' is escaped so nothing in the design can close the
 # <script type="application/json"> it sits in.
 json=$(awk '
@@ -59,7 +59,7 @@ json=$(awk '
   { gsub(/\036/, "") }
   fence($0) {
     if (!f) { if (FN == 0 && !(substr(FR, 1, 1) == "`" && index(FI, "`"))) { f = 1; fc = substr(FR, 1, 1); fl = length(FR) } }
-    else if (substr(FR, 1, 1) == fc && length(FR) >= fl && FI ~ /^[ \t\r]*$/) f = 0
+    else if (substr(FR, 1, 1) == fc && length(FR) >= fl && FI ~ /^[ \r]*$/) f = 0
     print; next
   }
   !f && /^## / { print "\036" $0; next }
