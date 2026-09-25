@@ -12,6 +12,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 6.3.5] — 2026-09-25
+
+### Fixed
+- **`harness` `2.3.5`** — `design-check.sh` recognised a code fence only at column 0, while CommonMark lets an opener or closer be indented up to 3 spaces. An indented closer ended the block in the rendered design but not in the gate, so every decision after it, including open ones, was invisible until the next fence, and the lock passed (fail-open). Fences now follow CommonMark 0.31.2: 0–3 spaces of indent, a run of 3+ backticks or tildes, closed only by a run of the same character at least as long with nothing after it. That also stops a shorter run or a line with an info string from closing a longer fence. `render-map.sh` used the same column-0 rule, so the page a reviewer reads could disagree with the gate about where fences end; it now applies the same rules. (XARI-151)
+
 ## [marketplace 6.3.4] — 2026-09-25
 
 ### Fixed
