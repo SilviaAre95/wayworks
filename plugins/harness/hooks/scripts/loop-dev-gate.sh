@@ -115,16 +115,54 @@ marker_fresh() {  # 0 = fresh (or unverifiable outside git), 1 = stale
 # round. Past max_review_rounds (.cc-dev.yaml, default 3) the loop must stop
 # paying for grader passes — grading that never converges is a task problem,
 # not something more rounds will fix.
+#
+# Except a stop that only waits for a panel (XARI-157). Graders run in the
+# background, so an interactive loop ends its turn to wait for them, and each
+# of those stops used to cost a round: a healthy run spent 3 of 3 before any
+# grader reported. Claude Code's Stop input lists running background tasks.
+# A round is bound to the panel it pays for — the committed tree the graders
+# review (the loop commits before every panel, and the marker rejects
+# uncommitted work, so HEAD^{tree} is the code under review):
+#   - nothing running: charge a round, unbound (as before)
+#   - a subagent running, round unbound: bind it to HEAD^{tree} — free, and
+#     counted as one of the round's MAX_WAITS
+#   - a subagent running, bound to this tree: free wait, up to MAX_WAITS
+#   - a subagent running on a new tree: a new panel — charge and bind
+# A shell-only task, no background_tasks field (older Claude Code), or no
+# commit/git all charge as before, so a loop that stops without doing anything
+# still trips the breaker. Uncommitted edits mid-panel ride on the bound tree:
+# at most MAX_WAITS free stops, never a stamp.
+# .cc-loop-dev-rounds: count, bound tree (empty = unbound), free waits used.
 MAXR=3
 if [ -f "$CFG" ]; then
   vr=$(grep -E '^max_review_rounds:' "$CFG" | head -1 | sed -E 's/^max_review_rounds:[[:space:]]*//; s/[^0-9].*$//')
   [[ "$vr" =~ ^[0-9]+$ ]] && MAXR="$vr"
 fi
-review_round() {  # increment the round counter; fails when the budget is spent
-  local r
-  r=$(cat "$ROUNDS_FILE" 2>/dev/null || echo 0); [[ "$r" =~ ^[0-9]+$ ]] || r=0
-  r=$((r + 1)); echo "$r" > "$ROUNDS_FILE"
+MAX_WAITS=8   # a full panel wakes the loop at most once per grader; 8 leaves margin
+TREE=$(git -C "$DIR" rev-parse -q --verify 'HEAD^{tree}' 2>/dev/null)
+graders_running() {  # a subagent is still in flight (Stop input, CC >= 2.1.282)
+  printf '%s' "$INPUT" | jq -e '[.background_tasks[]? | select(.type == "subagent" and .status == "running")] | length > 0' >/dev/null 2>&1
+}
+review_round() {  # charge a round, bound to TREE if a panel is running; fails when the budget is spent
+  local r bound=""
+  r=$(head -1 "$ROUNDS_FILE" 2>/dev/null); [[ "$r" =~ ^[0-9]+$ ]] || r=0
+  [ -n "$TREE" ] && graders_running && bound="$TREE"
+  r=$((r + 1)); printf '%s\n%s\n0\n' "$r" "$bound" > "$ROUNDS_FILE"
   [ "$r" -le "$MAXR" ]
+}
+panel_wait() {  # 0 = free: binds the charged round to this panel, or waits on it
+  local r bound w
+  [ -n "$TREE" ] && graders_running || return 1
+  r=$(sed -n 1p "$ROUNDS_FILE" 2>/dev/null); [[ "$r" =~ ^[0-9]+$ ]] && [ "$r" -ge 1 ] || return 1
+  bound=$(sed -n 2p "$ROUNDS_FILE" 2>/dev/null)
+  w=$(sed -n 3p "$ROUNDS_FILE" 2>/dev/null); [[ "$w" =~ ^[0-9]+$ ]] || w=0
+  if [ -z "$bound" ]; then printf '%s\n%s\n%s\n' "$r" "$TREE" "$((w + 1))" > "$ROUNDS_FILE"; return 0; fi
+  [ "$bound" = "$TREE" ] && [ "$w" -lt "$MAX_WAITS" ] || return 1
+  printf '%s\n%s\n%s\n' "$r" "$bound" "$((w + 1))" > "$ROUNDS_FILE"
+}
+wait_notice() {  # allow the stop: the loop pauses for its panel and stays armed
+  jq -n --arg r "$(head -1 "$ROUNDS_FILE")" --arg max "$MAXR" \
+    '{systemMessage:("Loop-dev: NOT done — no reviews have passed yet. Pausing for a background subagent (the grader panel, if one was launched); the loop is still armed and the next stop is gated again (review round " + $r + "/" + $max + "; waiting costs no round). When the graders report, act on their findings; do not re-dispatch them.")}'
 }
 review_breaker() {  # disarm and tell the agent to summarize, not re-grade
   gate_standdown "$DIR" loop-dev review-breaker "rounds=$MAXR"
@@ -156,7 +194,13 @@ if [ ! -f "$MARKER" ]; then
     fi
   fi
 
+  if panel_wait; then wait_notice; exit 0; fi
   if ! review_round; then review_breaker; exit 0; fi
+  # A charged stop always blocks with the grading instructions — a running
+  # subagent may be anything, not this round's panel. If it IS the panel, the
+  # next stop on this code is a free wait.
+  PRE=""
+  graders_running && PRE="A background subagent is still running. If it is this round's grader panel, do not re-dispatch it: end your turn to wait — waiting on the same commit costs no round. Otherwise: "
   GRADERS=$(grep -E '^graders:' "$CFG" 2>/dev/null | head -1 | sed -E 's/^graders:[[:space:]]*//; s/[[:space:]]*#.*$//')
   [ -z "$GRADERS" ] && GRADERS="[code-review, security, bugs]"
   # /code-review runs as a background fork (CC >= 2.1.218): a subagent that
@@ -164,8 +208,8 @@ if [ ! -f "$MARKER" ]; then
   # itself, pinned by ref range, and it echoes no SHA (XARI-150).
   CR=false
   [[ "$GRADERS" =~ (^|[^A-Za-z0-9_:-])code-review([^A-Za-z0-9_-]|$) ]] && CR=true
-  jq -n --arg g "$GRADERS" --arg stamp "$STAMP" --arg b "$BASE" --argjson cr "$CR" \
-    '{decision:"block", reason:("Deterministic gate is green. Now run the review stages: " + $g + ". Commit everything, record REVIEWED_SHA=$(git rev-parse HEAD), and launch every grader at once, one each. "
+  jq -n --arg g "$GRADERS" --arg stamp "$STAMP" --arg b "$BASE" --argjson cr "$CR" --arg pre "$PRE" \
+    '{decision:"block", reason:($pre + "Deterministic gate is green. Now run the review stages: " + $g + ". Commit everything, record REVIEWED_SHA=$(git rev-parse HEAD), and launch every grader at once, one each. "
       + (if $cr then "Invoke /code-review " + $b + "...<REVIEWED_SHA> yourself, not in a subagent, and wait for its findings notification (the launch line is not a result). Dispatch one subagent per grader other than code-review" else "Dispatch one subagent per grader" end)
       + " with that SHA — each must confirm its HEAD matches it and echo it in its report. Fix every blocking finding and re-verify. When ALL graders are clean, every grader subagent echoed the same REVIEWED_SHA"
       + (if $cr then ", /code-review ran on that SHA'"'"'s range" else "" end)

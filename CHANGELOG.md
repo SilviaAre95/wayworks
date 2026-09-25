@@ -12,6 +12,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 6.3.4] — 2026-09-25
+
+### Fixed
+- **`harness` `2.3.4`** — ending a turn to wait for background graders cost a `loop-dev` review round, so an interactive run could spend its whole `max_review_rounds` budget before any grader reported. The `Stop` gate now binds each round to the panel it pays for — the committed tree the graders review (`HEAD^{tree}`; the loop commits before every panel). The first stop on new code still blocks with the grading instructions; after that, a stop while a subagent runs on that tree — read from the `Stop` input's `background_tasks` — is allowed as a free wait with the loop still armed, up to 8 per round, and says plainly that nothing is done. A round charged with nothing running binds to the next panel instead of charging again. The breaker is still reachable: a new commit, a stop with nothing running, a shell-only background task, a Claude Code without `background_tasks`, or a non-git project all charge as before. `loop-dev` tells the agent to wait by ending its turn and never to re-dispatch a pending panel. (XARI-157)
+
 ## [marketplace 6.3.3] — 2026-09-24
 
 ### Fixed
