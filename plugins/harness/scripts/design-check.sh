@@ -76,7 +76,7 @@ re_defer='(^|· )deferred: [^[:space:]]'
 # Fences. The rendered design is what a human reviewed, so the gate must agree
 # with it about where code ends. CommonMark (0.31.2 §4.5) and marked (the map
 # page's renderer) differ at the edges, and a line-based loop cannot track
-# list items — so the gate reads only the fence lines every reader agrees on,
+# list items — so for fences the gate reads only the lines every reader agrees on,
 # and BLOCKS on the rest rather than guess (a guess either way let an open
 # decision through, XARI-151):
 # - an opener is a run of 3+ backticks or tildes at column 0, then an info
@@ -88,6 +88,10 @@ re_defer='(^|· )deferred: [^[:space:]]'
 #   the other fence character or any other whitespace — is read differently by
 #   the two renderers, so it blocks too. A shorter run, the other character's
 #   run, a line with an info string, or 4+ spaces of indent is plain content.
+# Not modelled, a known gap tracked separately: raw HTML blocks (a fence line
+# inside <!-- … --> or <details> is a fence here but HTML to the renderers)
+# and a "Decisions" heading nested in a list or blockquote or spelled with
+# markup or entities. The fix is an allowlist of what a design may contain.
 re_open='^(`{3,}|~{3,})(.*)$'
 re_indented_open='^ {1,3}(`{3,}|~{3,})(.*)$'
 re_close='^ {0,3}(`{3,}|~{3,}) *$'

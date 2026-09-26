@@ -45,7 +45,8 @@ slug=$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1' "$DESIGN" \
 # backtick), closed by a 0–3-space-indented run of the same character at least
 # as long with only spaces (or a CRLF \r) after it. The lines design-check
 # blocks as ambiguous — indented openers, near-miss closers — are read here as
-# content, so a draft still renders; a design that passes the gate has none. Every
+# content, so a draft still renders. (Raw HTML blocks are not modelled by either
+# script — a known gap tracked separately.) Every
 # '<' is escaped so nothing in the design can close the
 # <script type="application/json"> it sits in.
 json=$(awk '
