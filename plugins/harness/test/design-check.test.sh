@@ -689,8 +689,8 @@ expect_block "a strikethrough heading blocks" "inline markup"
 d=$(body rules 'intro\n## Scope\n---\n\ntext\n\n***\n\n## Flow & what-ifs\n\n---\n\ntext\n~~~\ncode\n~~~\n---'); run "$d"
 pass "a rule after a heading, a blank line or a fence closer passes"
 d="$TMP/fmcol0"; mkdir -p "$d"; cp "$TMP/good/plan.md" "$d/"
-printf -- '---\nslug: fmcol0\nstatus: draft\ndiscovery:\n- docs/discovery/a.md\n  - "docs/discovery/b.md"\n---\n## Decisions\n%s\n' "$GOOD" > "$d/design.md"; run "$d"
-pass "frontmatter list items at column 0 or quoted pass"
+printf -- '---\nslug: fmcol0\nstatus: draft\ndiscovery:\n- docs/discovery/a.md\n  - "docs/discovery/b.md"\n  - "[[brief]]"\n---\n## Decisions\n%s\n' "$GOOD" > "$d/design.md"; run "$d"
+pass "frontmatter list items at column 0, quoted or as a wikilink pass"
 # Round 4: a line opening with <br> starts an HTML block (CommonMark type 7)
 # that swallows the next fence line, so the gate's fence and the renderers'
 # disagree; invisible characters hide inside a heading that reads "Decisions".
@@ -704,6 +704,16 @@ for b in '## \342\200\213Decisions' '## \302\255Decisions' '## \342\200\214Decis
   d=$(body "zw$RANDOM" "$b\n\n- [ ] Q1 · open"); run "$d"
   expect_block "an invisible character blocks: '$b'" "invisible character"
 done
+# Round 5: a list of invisible characters is never complete, so the heading
+# test reads ASCII letters only — any other byte inside "Decisions" is ignored.
+for b in '## \342\201\246Decisions' '## Dec\342\201\251isions' '## \330\234Decisions' '## Deci\357\270\217sions' \
+         '## \343\205\244Decisions' '## \363\240\200\201Decisions' '## \001Decisions' '## 1. Decision log'; do
+  d=$(body "inv$RANDOM" "$b\n\n- [ ] Q1 · open"); run "$d"
+  expect_block "a heading whose letters read 'Decision…' blocks: '$b'" "not written as '## Decisions'"
+done
+d=$(body brlike '- <bridge-status>up</bridge-status>'); run "$d"
+{ [ "$RC" = "1" ] && grep -q "raw HTML" <<<"$OUT" && ! grep -q "opening with <br>" <<<"$OUT"; } \
+  && ok "a tag that only starts with 'br' is raw HTML, not a <br> opener" || bad "br-like tag (rc=$RC: $OUT)"
 d=$(body wikicolon '## Discovery\n- [[kaffecard]]: prior art for idempotent stamping\n- see [[a]] and [[b]]: both'); run "$d"
 pass "a wikilink followed by a colon is not a link definition"
 d=$(body linkdef "## Context\n\n[r]: /u '\n\140\140\140\n'\n\n## Decisions\n\n- [ ] Q1 · open\n\n[s]: /v '\n\140\140\140\n'"); run "$d"

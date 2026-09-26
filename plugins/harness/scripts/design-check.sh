@@ -76,7 +76,8 @@ fi
 #   line (indented, after a list marker) blocks, as does inline markup in a
 #   heading (code, emphasis, strikethrough, links, escapes, raw HTML,
 #   entities). Plain text renders as written, so only `## Decisions` may start
-#   with "Decision"; a second `## Decisions…` blocks, since which is the record
+#   with "Decision" — judged on the heading's ASCII letters alone, so no
+#   invisible or control character can split the word; a second `## Decisions…` blocks, since which is the record
 #   would be a guess;
 # - no setext headings: a line of only `-`, `=`, `*`, `_` and spaces must not
 #   sit directly under text (a blank line, heading or fence closer comes first);
@@ -86,9 +87,9 @@ fi
 #   (a line that opens with <br> starts an HTML block that swallows what
 #   follows). The map page keeps tags like <h2>, <ul> and <input>, so inline
 #   HTML can draw a record. `]:` blocks outside a [[wikilink]];
-# - no tab, vertical tab, form feed, non-ASCII space or invisible format
-#   character: renderers treat them as indentation or heading separators, or
-#   hide them inside a heading that then reads "Decisions";
+# - no tab, vertical tab, form feed, non-ASCII space or common invisible
+#   format character: renderers treat them as indentation or heading
+#   separators. (Headings do not rely on this list — see above.)
 # - frontmatter holds only the keys /harness:shape writes (slug, status, stage,
 #   discovery, discovery-status) and `- value` list items: a plain CommonMark
 #   renderer shows it as body text.
@@ -120,7 +121,7 @@ re_items='^ *(([-*+]|[0-9]{1,9}[.)])( +|$))*'   # leading list markers, stripped
 re_atx='^#{1,6}( (.*))?$'
 re_rule='^[-=*_ ]*[-=*_][-=*_ ]*$'
 re_fm_key='^(slug|status|stage|discovery|discovery-status):( .*)?$'
-re_fm_item='^ *- ["'"'"']?[A-Za-z0-9._/~-]'
+re_fm_item='^ *- ["'"'"']?([A-Za-z0-9._/~-]|\[\[)'
 # An autolink starts with a letter or digit: `<!`, `<?` and `</` always open HTML.
 re_autolink='^<([A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>[:space:]]*|[A-Za-z0-9][^<>@[:space:]]*@[A-Za-z0-9.-]+)>'
 re_br='^<[Bb][Rr] */?>'
@@ -159,7 +160,9 @@ heading() {
   if [[ "$p" =~ $re_markup ]] || [[ "$p" =~ $re_entity ]]; then
     block "design.md:$ln: heading uses inline markup (\` * _ ~ \\ [ < or an &entity;) — write headings as plain text"; return
   fi
-  [[ "$t" =~ $re_dec_word ]] && [ "$2" -eq 0 ] && \
+  # Letters only: any invisible or non-ASCII byte inside "Decisions" would
+  # otherwise dodge the test while the heading still reads "Decisions".
+  [[ "${t//[^A-Za-z]/}" =~ $re_dec_word ]] && [ "$2" -eq 0 ] && \
     block "design.md:$ln: a 'Decision…' heading not written as '## Decisions' at column 0 — the gate reads only that form"
 }
 fm_end=0
@@ -176,7 +179,7 @@ while IFS= read -r line || [ -n "$line" ]; do
       { [[ "$line" =~ $re_fm_key ]] || [[ "$line" =~ $re_fm_item ]] || [ -z "$line" ]; } \
         || block "design.md:$ln: frontmatter holds only slug, status, stage, discovery and discovery-status — a plain renderer shows it as body text: $(shown "$line")"
       rawhtml "$line" 0 && block "design.md:$ln: raw HTML in frontmatter"
-      oddspace "$line" && block "design.md:$ln: a tab or non-ASCII space in frontmatter — use plain spaces"
+      oddspace "$line" && block "design.md:$ln: a tab, non-ASCII space or invisible character in frontmatter — use plain spaces"
     fi
     continue
   fi
@@ -213,7 +216,7 @@ while IFS= read -r line || [ -n "$line" ]; do
   while [[ "$nowiki" =~ ^(.*)\[\[[^][]*\]\](.*)$ ]]; do nowiki="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; done
   [[ "$nowiki" == *']:'* ]] && block "design.md:$ln: ']:' starts a link reference definition — write links inline, [text](url)"
   [[ "$line" =~ $re_items ]]; c="${line:${#BASH_REMATCH[0]}}"   # the line's content after list markers
-  [[ "$c" =~ ^\<[Bb][Rr] ]] && block "design.md:$ln: a line opening with <br> starts an HTML block that hides what follows — put <br> mid-line or drop it"
+  [[ "$c" =~ $re_br ]] && block "design.md:$ln: a line opening with <br> starts an HTML block that hides what follows — put <br> mid-line or drop it"
   [ "${c:0:1}" = '>' ] && block "design.md:$ln: a blockquote — outside the design dialect; quote as plain text or in a fence"
   if [[ "$line" =~ $re_atx ]]; then
     htext="${BASH_REMATCH[2]-}"; canon=0
