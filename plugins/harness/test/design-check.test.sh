@@ -799,12 +799,19 @@ for b in '- - x' '- 1. x' '- >x'; do
   printf -- "---\nslug: fmm\nstatus: draft\ndiscovery:\n  $b\n---\n## Decisions\n%s\n" "$GOOD" > "$d/design.md"; run "$d"
   expect_block "a frontmatter item that opens a block blocks: '$b'" "frontmatter holds only"
 done
-d=$(body linkdest '## Discovery\n[brief](</docs/discovery/a b.md>)'); run "$d"
-pass "a link to a path with spaces, [t](<…>), passes"
-for b in '\\[a](<h2>)' '[a\\](<h2>)' 'x](<h2>)' '[a](<h2>'; do
+d=$(body linkdest '## Discovery\n[brief](docs/discovery/a%%20b.md)'); run "$d"
+pass "a link to a path with spaces written with %20 passes"
+# A <destination> is not exempt: code spans, bare URLs, strikethrough and
+# table cells can stop the link forming, and the tag then renders live.
+for b in '[brief](</docs/discovery/a b.md>)' '\140[\140a](<input type=checkbox>)' 'www.a.b/[a](<input type=checkbox>)' \
+         '~~[~~a](<input type=checkbox>)' '[t](<input type=checkbox x=\\>)' \
+         '\\[a](<h2>)' '[a\\](<h2>)' 'x](<h2>)' '[a](<h2>'; do
   d=$(body "ld$RANDOM" "## Scope\n$b"); run "$d"
   expect_block "an incomplete or escaped link destination is still HTML: '$b'" "raw HTML"
 done
+d="$TMP/fmlink"; mkdir -p "$d"; cp "$TMP/good/plan.md" "$d/"
+printf -- '---\nslug: fmlink\nstatus: draft\ndiscovery:\n  - "\140[\140a](<input type=checkbox>)"\n---\n## Decisions\n%s\n' "$GOOD" > "$d/design.md"; run "$d"
+expect_block "a tag in a quoted frontmatter link destination blocks" "raw HTML in frontmatter"
 d=$(mk deferblank locked < <(printf -- '%s\n- [~] Q7 · low · x · deferred: \140 \140\n' "$GOOD")); run "$d"
 expect_block "a deferral reason that is only a code span blocks" "BLOCK: Q7"
 d=$(body critok '### Decision criteria\n- must work offline\n- see [ADR 3](docs/adr/3.md) and [[offline-sync]]'); run "$d"

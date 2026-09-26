@@ -140,7 +140,6 @@ re_fm_item="^ *- ($fm_val|\"[^\"]+\"|'[^']+') *\$"
 # An autolink starts with a letter or digit: `<!`, `<?` and `</` always open HTML.
 re_autolink='^<([A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>[:space:]]*|[A-Za-z0-9][^<>@[:space:]]*@[A-Za-z0-9.-]+)>'
 re_br='^<[Bb][Rr] */?>'
-re_linkdest='^(.*(^|[^\\])\[[^][\\]*\]\()<[^<>]*>(\).*)$'   # [text](<destination>)
 re_entity='&(#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});'
 re_markup='[][`*_~\\<]'
 re_dec_word='^[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn][Ss]?$'   # the whole heading, letters only
@@ -165,9 +164,6 @@ oddspace() { local b; for b in "${odd_spaces[@]}"; do [[ "$1" == *"$b"* ]] && re
 # rawhtml <text> <allow-br 0|1>: true if the text holds raw HTML.
 rawhtml() {
   local s="$1"
-  # A complete inline link's <destination> is a URL, not a tag: [brief](</a b.md>).
-  # The link text holds no bracket or backslash, so an escaped \] cannot fake one.
-  while [[ "$s" =~ $re_linkdest ]]; do s="${BASH_REMATCH[1]}${BASH_REMATCH[3]}"; done
   while [[ "$s" == *'<'* ]]; do
     s="${s#*<}"
     [[ "$s" =~ ^[A-Za-z/!?] ]] || continue
@@ -240,7 +236,7 @@ while IFS= read -r line || [ -n "$line" ]; do
     fi
   fi
   oddspace "$line" && block "design.md:$ln: a tab, non-ASCII space or invisible character (renderers read it as indentation or a heading separator, or hide it) — use plain spaces"
-  rawhtml "$line" 1 && block "design.md:$ln: raw HTML (renderers hide or reshape it) — write &lt; for a literal '<'; code goes in a fence at column 0"
+  rawhtml "$line" 1 && block "design.md:$ln: raw HTML (renderers hide or reshape it) — write &lt; for a literal '<', %20 for a space in a link path; code goes in a fence at column 0"
   nowiki="$line"   # a [[wikilink]] holds no link label, so its "]]:" is not one
   while [[ "$nowiki" =~ ^(.*)\[\[[^][]*\]\](.*)$ ]]; do nowiki="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; done
   [[ "$nowiki" == *']:'* ]] && block "design.md:$ln: ']:' starts a link reference definition — write links inline, [text](url)"
