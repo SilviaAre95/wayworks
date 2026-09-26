@@ -62,36 +62,33 @@ fi
 
 # --- the design dialect ----------------------------------------------------
 # The rendered design is what a human reviewed, so the gate must read it the
-# way the renderers do (CommonMark 0.31.2, and marked for the map page). A line
-# loop cannot model every Markdown construct, and each blocklist round found a
-# new one that hid an open decision (XARI-151, XARI-160). So a design may use
-# only a dialect the gate reads the same way, and anything outside it blocks:
-# - the record: every non-blank line under `## Decisions` is a decision line
-#   (or a fence). Discovery and Scope may hold wikilink bullets, links and
-#   plain to-dos — only the record is parsed;
-#   Decision lines hold no raw HTML (not even <br>) and no &entities;
-# - no raw HTML: `<` then a letter, `/`, `!` or `?` (how every tag, comment
-#   and HTML block starts) blocks wherever it sits in a line — code spans
-#   included, since pairing backticks across escapes, lines and table cells is
-#   where renderers disagree — except an autolink (`<https://…>`, `<a@b.c>`)
-#   and <br>. The map page keeps tags like <h2>, <ul> and <input>, so inline
-#   HTML can draw a record. Write `&lt;` or use a code fence;
-# - no link reference definitions (`[x]: url`): marked lets their titles span
-#   lines, hiding fence lines from the gate. Write links inline;
-# - frontmatter holds only the keys /harness:shape writes (slug, status, stage,
-#   discovery, discovery-status) and indented `- value` list items: a plain
-#   CommonMark renderer shows frontmatter as body text;
-# - headings are top-level plain text: none inside a list, a blockquote or an
-#   indented block, and none using inline markup (code, emphasis, links,
-#   escapes, raw HTML, entities). Plain text renders as written, so "does this
-#   heading start with 'Decision'" is a text test, and only `## Decisions` at
-#   column 0 may. A second `## Decisions…` heading blocks: which is the record
+# way the renderers do (CommonMark 0.31.2, and marked for the map page). Three
+# rounds of review showed that a line loop modelling block structure —
+# paragraphs, list items, quotes, tabs — never converges: every round found a
+# structure it read differently (XARI-151, XARI-160). So the dialect is judged
+# one line at a time, with no structure to model, and anything outside it
+# blocks. Outside fences:
+# - the record: every non-blank line under `## Decisions` is a decision line,
+#   with no raw HTML (not even <br>), no &entity; and no code fence. Discovery
+#   and Scope may hold wikilink bullets, links and plain to-dos — only the
+#   record is parsed;
+# - headings are ATX at column 0 and plain text: a `#` run anywhere else on a
+#   line (indented, after a list marker) blocks, as does inline markup in a
+#   heading (code, emphasis, strikethrough, links, escapes, raw HTML,
+#   entities). Plain text renders as written, so only `## Decisions` may start
+#   with "Decision"; a second `## Decisions…` blocks, since which is the record
 #   would be a guess;
-# - structure is read with tabs expanded to 4-column stops, as CommonMark does,
-#   so a tab after `>` or a list marker is a container like a space.
-# - a setext heading's text is the whole paragraph its underline closes, as the
-#   renderers read it — a lazy continuation or list item followed by a less
-#   indented `---` is a rule, not a heading.
+# - no setext headings: a line of only `-`, `=`, `*`, `_` and spaces must not
+#   sit directly under text (a blank line, heading or fence closer comes first);
+# - no blockquotes, no link reference definitions (`]:` — marked lets their
+#   titles span lines), and no raw HTML anywhere: `<` then a letter, `/`, `!`
+#   or `?` blocks, code spans included, except an autolink and <br>. The map
+#   page keeps tags like <h2>, <ul> and <input>, so inline HTML can draw a record;
+# - no tab, vertical tab, form feed or non-ASCII space: renderers treat them as
+#   indentation or heading separators in ways a byte rule cannot follow;
+# - frontmatter holds only the keys /harness:shape writes (slug, status, stage,
+#   discovery, discovery-status) and `- value` list items: a plain CommonMark
+#   renderer shows it as body text.
 # Not modelled: Unicode lookalikes ("Dеcisions" with a Cyrillic е) — no text
 # rule can see what a reader's eye does.
 re_line='^- \[([ x~])\] ([AQWB][0-9]+) · (.+)$'
@@ -116,30 +113,23 @@ re_open='^(`{3,}|~{3,})(.*)$'
 re_indented_open='^ {1,3}(`{3,}|~{3,})(.*)$'
 re_close='^ {0,3}(`{3,}|~{3,}) *$'
 re_near_close='^ {0,3}(`{3,}|~{3,})[`~[:space:]]*$'
-# Structural patterns run on a tab-expanded copy of the line, so they hold no tabs.
-re_quote='^ *> ?(.*)$'
-re_marker='^( *)([-*+]|[0-9]{1,9}[.)])( +|$)(.*)$'
-re_hr='^ {0,3}((- *){3,}|(\* *){3,}|(_ *){3,})$'
-re_underline='^( *)(=+|-+) *$'
-re_linkdef='^ *\[[^]]*\]:'
+re_items='^ *(([-*+]|[0-9]{1,9}[.)])( +|$))*'   # leading list markers, stripped to find content
+re_atx='^#{1,6}( (.*))?$'
+re_rule='^[-=*_ ]*[-=*_][-=*_ ]*$'
 re_fm_key='^(slug|status|stage|discovery|discovery-status):( .*)?$'
-re_fm_item='^ +- [A-Za-z0-9._/~-]'
-re_atx='^( *)#{1,6}( (.*))?$'
+re_fm_item='^ *- ["'"'"']?[A-Za-z0-9._/~-]'
 # An autolink starts with a letter or digit: `<!`, `<?` and `</` always open HTML.
 re_autolink='^<([A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>[:space:]]*|[A-Za-z0-9][^<>@[:space:]]*@[A-Za-z0-9.-]+)>'
 re_br='^<[Bb][Rr] */?>'
 re_entity='&(#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});'
-re_markup='[][`*_\\<]'
+re_markup='[][`*_~\\<]'
 re_dec_word='^[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn]'
-# detab <line>: sets x, the line with tabs expanded to 4-column stops.
-detab() {
-  x=""; local s="$1" pre pad="    "
-  while [[ "$s" == *$'\t'* ]]; do
-    pre="${s%%$'\t'*}"; x="$x$pre"; s="${s#*$'\t'}"
-    x="$x${pad:0:$((4 - ${#x} % 4))}"
-  done
-  x="$x$s"
-}
+# Whitespace a renderer reads as indentation or a heading separator: tab, VT,
+# FF, and the non-ASCII spaces JavaScript's \s matches (as UTF-8 bytes).
+odd_spaces=($'\t' $'\v' $'\f' $'\xc2\x85' $'\xc2\xa0' $'\xe1\x9a\x80' $'\xe2\x80\xa8' $'\xe2\x80\xa9' \
+  $'\xe2\x80\xaf' $'\xe2\x81\x9f' $'\xe3\x80\x80' $'\xef\xbb\xbf')
+for i in 0 1 2 3 4 5 6 7 8 9 a; do odd_spaces+=($'\xe2\x80'"$(printf "\\x8$i")"); done   # U+2000–U+200A
+oddspace() { local b; for b in "${odd_spaces[@]}"; do [[ "$1" == *"$b"* ]] && return 0; done; return 1; }
 # rawhtml <text> <allow-br 0|1>: true if the text holds raw HTML.
 rawhtml() {
   local s="$1"
@@ -152,36 +142,17 @@ rawhtml() {
   done
   return 1
 }
-# containers <line>: strip quote and list markers. Sets q (after quotes only),
-# c (after all markers), depth (quote count), mark (1 if a list marker was
-# stripped since the last quote), mcol (the column content starts at after it)
-# and interrupts (whether that marker may start a list inside a paragraph).
-containers() {
-  q="$1"; depth=0
-  while [[ "$q" =~ $re_quote ]]; do q="${BASH_REMATCH[1]}"; depth=$((depth + 1)); done
-  c="$q"; mark=0; mcol=0; interrupts=1
-  [[ "$q" =~ $re_hr ]] && return
-  while [[ "$c" =~ $re_marker ]]; do
-    mcol=$((mcol + ${#BASH_REMATCH[1]} + ${#BASH_REMATCH[2]} + ${#BASH_REMATCH[3]}))
-    case "${BASH_REMATCH[2]}" in 1.|1\)|-|\*|+) ;; *) interrupts=0 ;; esac   # only bullets and "1." interrupt
-    c="${BASH_REMATCH[4]}"; mark=1
-  done
-  [[ "$c" =~ ^[[:space:]]*$ ]] && interrupts=0   # an empty item cannot interrupt a paragraph
-}
-# heading <text> <nested 0|1> <canonical 0|1>: the allowlist for a heading.
+# heading <text> <canonical 0|1>: the allowlist for a column-0 ATX heading.
 heading() {
   local t="$1" p
   [[ "$t" =~ ^[[:space:]]*(.*[^[:space:]])?[[:space:]]*$ ]]; t="${BASH_REMATCH[1]}"
   if [[ "$t" =~ ^(.*)[[:space:]]#+$ ]]; then t="${BASH_REMATCH[1]}"; elif [[ "$t" =~ ^#+$ ]]; then t=""; fi
-  if [ "$2" -eq 1 ]; then
-    block "design.md:$ln: a heading inside a list, blockquote or indented block — design headings sit at the top level"; return
-  fi
   p="$t"   # an underscore between letters or digits is never emphasis
   while [[ "$p" =~ ^(.*[[:alnum:]])_+([[:alnum:]].*)$ ]]; do p="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; done
   if [[ "$p" =~ $re_markup ]] || [[ "$p" =~ $re_entity ]]; then
-    block "design.md:$ln: heading uses inline markup (\` * _ \\ [ < or an &entity;) — write headings as plain text"; return
+    block "design.md:$ln: heading uses inline markup (\` * _ ~ \\ [ < or an &entity;) — write headings as plain text"; return
   fi
-  [[ "$t" =~ $re_dec_word ]] && [ "$3" -eq 0 ] && \
+  [[ "$t" =~ $re_dec_word ]] && [ "$2" -eq 0 ] && \
     block "design.md:$ln: a 'Decision…' heading not written as '## Decisions' at column 0 — the gate reads only that form"
 }
 fm_end=0
@@ -189,7 +160,7 @@ fm_end=0
 fm_end="${fm_end:-0}"
 decided_w=""
 infence=0; fch=""; flen=0; insec=0; seen_sec=0; nsec=0; ln=0
-popen=0; ptext=""; pdepth=0; plo=0; phi=3; pnest=0   # the open paragraph, for setext
+prev=""   # the previous line, when it is text a rule-like line would turn into a heading
 while IFS= read -r line || [ -n "$line" ]; do
   ln=$((ln + 1))
   line="${line%$'\r'}"   # CRLF: one trailing \r (a lone \r mid-line blocked above)
@@ -198,6 +169,7 @@ while IFS= read -r line || [ -n "$line" ]; do
       { [[ "$line" =~ $re_fm_key ]] || [[ "$line" =~ $re_fm_item ]] || [ -z "$line" ]; } \
         || block "design.md:$ln: frontmatter holds only slug, status, stage, discovery and discovery-status — a plain renderer shows it as body text: $(shown "$line")"
       rawhtml "$line" 0 && block "design.md:$ln: raw HTML in frontmatter"
+      oddspace "$line" && block "design.md:$ln: a tab or non-ASCII space in frontmatter — use plain spaces"
     fi
     continue
   fi
@@ -218,40 +190,32 @@ while IFS= read -r line || [ -n "$line" ]; do
       # Block once, then skip to its closer: the design is already blocked, so
       # skipping cannot let anything through, and its closer is not re-flagged.
       block "design.md:$ln: code fence indented under a list or paragraph — the gate cannot tell where it ends; move the code block out of the list, to column 0"
-      infence=1; fch="${run:0:1}"; flen="${#run}"; popen=0; continue
+      infence=1; fch="${run:0:1}"; flen="${#run}"; prev=""; continue
     fi
   fi
   if [[ "$line" =~ $re_open ]]; then
     run="${BASH_REMATCH[1]}"; info="${BASH_REMATCH[2]}"
     if ! { [ "${run:0:1}" = '`' ] && [[ "$info" == *'`'* ]]; }; then
-      infence=1; fch="${run:0:1}"; flen="${#run}"; popen=0; continue
+      [ "$insec" -eq 1 ] && block "design.md:$ln: a code fence in the record — '## Decisions' holds only decision lines"
+      infence=1; fch="${run:0:1}"; flen="${#run}"; prev=""; continue
     fi
   fi
-  detab "$line"; containers "$x"
-  rawhtml "$c" 1 && block "design.md:$ln: raw HTML (renderers hide or reshape it) — write &lt; for a literal '<', or use a code fence"
-  [[ "$c" =~ $re_linkdef ]] && block "design.md:$ln: link reference definition — write the link inline, [text](url)"
-  if [[ "$q" =~ ^[[:space:]]*$ ]]; then popen=0
-  elif [ "$popen" -eq 1 ] && [ "$depth" -eq "$pdepth" ] && [[ "$q" =~ $re_underline ]] \
-       && [ "${#BASH_REMATCH[1]}" -ge "$plo" ] && [ "${#BASH_REMATCH[1]}" -le "$phi" ]; then
-    heading "$ptext" "$pnest" 0; popen=0   # a lone "-" is an underline here, not an item
-  elif [[ "$q" =~ $re_hr ]]; then popen=0
+  oddspace "$line" && block "design.md:$ln: a tab or non-ASCII space (renderers read it as indentation or a heading separator) — use plain spaces"
+  rawhtml "$line" 1 && block "design.md:$ln: raw HTML (renderers hide or reshape it) — write &lt; for a literal '<'; code goes in a fence at column 0"
+  [[ "$line" == *']:'* ]] && block "design.md:$ln: ']:' starts a link reference definition — write links inline, [text](url)"
+  [[ "$line" =~ $re_items ]]; c="${line:${#BASH_REMATCH[0]}}"   # the line's content after list markers
+  [ "${c:0:1}" = '>' ] && block "design.md:$ln: a blockquote — outside the design dialect; quote as plain text or in a fence"
+  if [[ "$line" =~ $re_atx ]]; then
+    htext="${BASH_REMATCH[2]-}"; canon=0
+    [[ "$line" =~ ^'## Decisions'[[:space:]]*$ ]] && canon=1
+    heading "$htext" "$canon"; prev=""
   elif [[ "$c" =~ $re_atx ]]; then
-    htext="${BASH_REMATCH[3]-}"; nested=0
-    { [ "$depth" -gt 0 ] || [ "$mark" -eq 1 ] || [ "${#BASH_REMATCH[1]}" -gt 3 ]; } && nested=1
-    canon=0; [[ "$line" =~ ^'## Decisions'[[:space:]]*$ ]] && canon=1
-    heading "$htext" "$nested" "$canon"; popen=0
-  elif [ "$popen" -eq 1 ] && [ "$depth" -le "$pdepth" ] && { [ "$mark" -eq 0 ] || [ "$interrupts" -eq 0 ]; }; then
-    ptext="$ptext $q"   # continuation, or a lazy one; a marker that cannot interrupt is text
-  elif [[ "$c" =~ ^[[:space:]]*$ ]]; then popen=0   # an empty list item
-  else
-    # An underline belongs to the paragraph when it sits 0-3 columns past where
-    # the paragraph's content starts: a list item's content column, else the
-    # first line's own indent (which may be up to 3 past an unseen item's).
-    popen=1; ptext="$c"; pdepth="$depth"; pnest=0
-    if [ "$mark" -eq 1 ]; then plo="$mcol"; phi=$((mcol + 3))
-    else [[ "$c" =~ ^( *) ]]; ind=${#BASH_REMATCH[1]}; plo=$((ind > 3 ? ind - 3 : 0)); phi=$((ind + 3))
-    fi
-    { [ "$depth" -gt 0 ] || [ "$mark" -eq 1 ]; } && pnest=1
+    block "design.md:$ln: a heading inside a list or indented — design headings sit at column 0; code goes in a fence at column 0"; prev=""
+  elif [[ "$line" =~ $re_rule ]]; then
+    [ -n "$prev" ] && block "design.md:$ln: a line of - = * or _ right under text makes that text a heading — add a blank line above it"
+    prev=""
+  elif [[ "$line" =~ ^[[:space:]]*$ ]]; then prev=""
+  else prev="$line"
   fi
   case "$line" in
     '## '*)

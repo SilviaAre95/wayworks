@@ -45,7 +45,7 @@ Shape the feature below into a locked design at `docs/designs/<slug>/design.md` 
 7. **Byproducts** — diff the plan against Scope. Everything built that nobody explicitly asked for becomes a `B` item, proposed `ack`. `harness:triage`.
 8. **Map** — write a Mermaid flow plus the what-ifs under `## Flow & what-ifs`, a Mermaid component diagram under `## Components`, and fill the `## Scope board` table.
 9. **Lock** — run `"${CLAUDE_PLUGIN_ROOT}/scripts/design-check.sh" docs/designs/<slug>`.
-   - Any `BLOCK:` → return to the stage that owns the item (`A`→3, `Q`→4, `W`→6, `B`→7) and set `stage:` to it. Missing `plan.md` → stage 5. Bad frontmatter/status, a malformed decision line, raw HTML or a heading outside the plain top-level form → fix it in place and re-run the check.
+   - Any `BLOCK:` → return to the stage that owns the item (`A`→3, `Q`→4, `W`→6, `B`→7) and set `stage:` to it. Missing `plan.md` → stage 5. Bad frontmatter/status, a malformed decision line, or a line outside the design dialect (raw HTML, a heading not plain at column 0, `---` right under text, a blockquote, a tab) → fix it in place and re-run the check.
    - Green → ask *"lock?"*. A "no" leaves the design `draft` and stops. Only on an explicit yes: set `status: locked` (`stage:` stays `lock`). Then, if the user's global CLAUDE.md declares a vault, append one line to the project note's `## Log` (the note the repo's CLAUDE.md names), written per the vault's `_agent/INSTRUCTIONS.md`. No vault or no project note → skip silently.
    - Do not commit anything: loop-dev commits the locked design on its own branch before it builds.
    - Only once `status: locked`, print the handoff as the last line: `/harness:loop-dev --plan docs/designs/<slug>/plan.md`

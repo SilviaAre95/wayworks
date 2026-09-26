@@ -24,6 +24,13 @@ mk() {
   echo "$d"
 }
 run() { OUT=$(bash "$SCRIPT" "$@" 2>&1); RC=$?; }
+# mkdoc <name>; the whole body (after frontmatter) on stdin.
+mkdoc() {
+  d="$TMP/$1"; rm -rf "$d"; mkdir -p "$d"
+  { printf -- '---\nslug: %s\nstatus: locked\nstage: lock\n---\n# t\n\n' "$1"; cat; } > "$d/design.md"
+  cp "$TMP/good/plan.md" "$d/plan.md"
+  echo "$d"
+}
 expect_block() { # $1=label $2=grep pattern
   { [ "$RC" = "1" ] && grep -q -- "$2" <<<"$OUT"; } && ok "$1" || bad "$1 (rc=$RC: $OUT)"
 }
@@ -91,20 +98,24 @@ expect_block "capital [X] is malformed" "malformed"
 # --- empty and fenced ------------------------------------------------------
 d=$(mk empty locked </dev/null); run "$d"
 expect_block "a design with no decisions blocks (asserts nothing)" "no decision"
-d=$(mk fenced locked <<<"$GOOD
+d=$(mkdoc fenced <<EOF
+## Scope
 \`\`\`
 - [ ] Q9 · med · example inside a code fence · open
-\`\`\`"); run "$d"
+\`\`\`
+
+## Decisions
+$GOOD
+EOF
+); run "$d"
 [ "$RC" = "0" ] && ok "checklist lines inside a code fence are ignored" || bad "fenced lines ignored (rc=$RC: $OUT)"
+d=$(mk recfence locked <<<"$GOOD
+~~~
+- [ ] Q9 · med · shown as code in the record · open
+~~~"); run "$d"
+expect_block "a code fence in the record blocks" "code fence in the record"
 
 # --- section scoping: only ## Decisions is parsed ---------------------------
-# mkdoc <name>; the whole body (after frontmatter) on stdin.
-mkdoc() {
-  d="$TMP/$1"; rm -rf "$d"; mkdir -p "$d"
-  { printf -- '---\nslug: %s\nstatus: locked\nstage: lock\n---\n# t\n\n' "$1"; cat; } > "$d/design.md"
-  cp "$TMP/good/plan.md" "$d/plan.md"
-  echo "$d"
-}
 d=$(mkdoc othersections <<EOF
 ## Discovery
 - [[kaffecard]] is the prior art
@@ -161,10 +172,16 @@ d=$(mk fakefence locked <<<"$GOOD
 - [ ] Q9 · med · hidden behind a fake fence · open
 \`\`\`"); run "$d"
 expect_block "a fake fence (backtick in info string) does not hide an open item" "BLOCK: Q9"
-d=$(mk tildefence locked <<<"$GOOD
+d=$(mkdoc tildefence <<EOF
+## Scope
 ~~~ text
 - [ ] Q9 · med · example inside a tilde fence · open
-~~~"); run "$d"
+~~~
+
+## Decisions
+$GOOD
+EOF
+); run "$d"
 [ "$RC" = "0" ] && ok "checklist lines inside a ~~~ fence are ignored" || bad "tilde fence ignored (rc=$RC: $OUT)"
 # A fence closes only on its own marker: inside a ``` block a ~~~ line is
 # content. Toggling on any marker let the ~~~ close the block and the real ```
@@ -264,12 +281,15 @@ $GOOD
 EOF
 ); run "$d"
 expect_block "a 4-space-indented line does not close a fence" "BLOCK: Q9"
-d=$(mk longfence locked <<EOF
-$GOOD
+d=$(mkdoc longfence <<EOF
+## Scope
 \`\`\`\`
 \`\`\`
 - [ ] Q9 · med · example inside a 4-backtick fence · open
 \`\`\`\`
+
+## Decisions
+$GOOD
 EOF
 ); run "$d"
 [ "$RC" = "0" ] && ok "a shorter run does not close a longer fence" || bad "shorter closer (rc=$RC: $OUT)"
@@ -329,11 +349,14 @@ EOF
 ); printf '~~~%b\n- [ ] Q9 · med · after a near-miss closer · open\n~~~\n' "$tail" >> "$d/design.md"; run "$d"
   expect_block "a closer followed by '$tail' blocks as ambiguous" "ambiguous fence closer"
 done
-d=$(mk spaceclose locked <<EOF
-$GOOD
+d=$(mkdoc spaceclose <<EOF
+## Scope
 ~~~
 - [ ] Q9 · med · example inside a fence · open
 ~~~   
+
+## Decisions
+$GOOD
 EOF
 ); run "$d"
 [ "$RC" = "0" ] && ok "a closer followed by spaces closes cleanly" || bad "space-trailed closer (rc=$RC: $OUT)"
@@ -363,14 +386,14 @@ for h in " ## Decisions" "##  Decisions" "##	Decisions" "### Decisions" "## deci
   d=$(mk "dechead$RANDOM" locked <<<"$GOOD
 $h
 - [ ] Q2 · med · in a disguised second record · open"); run "$d"
-  expect_block "heading '$h' blocks" "not written as '## Decisions'"
+  expect_block "heading '$h' blocks" "heading"
 done
 d=$(mk dechsetext locked <<<"$GOOD
 
 Decisions
 ---------
 - [ ] Q2 · med · under a setext Decisions heading · open"); run "$d"
-expect_block "a setext 'Decisions' heading blocks" "not written as '## Decisions'"
+expect_block "a setext 'Decisions' heading blocks" "right under text"
 d=$(mk dechcont locked <<<"$GOOD
 Discussion of the decisions
 ---------"); run "$d"
@@ -489,7 +512,18 @@ pass "autolinks and a bare '<' are not HTML"
 
 # Headings: nested ones and ones spelled with inline markup block, so any
 # heading that renders as 'Decisions' is caught by a plain text comparison.
-for h in '- ## Decisions' '> ## Decisions' '>> ### Notes' '1. # Title' \
+for q in '> ## Decisions' '>> ### Notes' '> shops only' '- > ## Decisions' '1. > # Decisions'; do
+  d=$(mkdoc "quote$RANDOM" <<EOF
+$q
+- [ ] Q2 · med · in a second rendered record · open
+
+## Decisions
+$GOOD
+EOF
+); run "$d"
+  expect_block "a blockquote blocks: '$q'" "blockquote"
+done
+for h in '- ## Decisions' '1. # Title' '  ## Decisions' '    ## Decisions' \
          '## *Decisions*' '## Decision&#115;' '## Decision&#x73;' '## &#68;ecisions' '## De&#99;isions' '## [Decisions](x)' \
          '## De`cis`ions' '## \Decisions' '## _Decisions_' '## Deci<span>sions</span>'; do
   d=$(mkdoc "head$RANDOM" <<EOF
@@ -524,7 +558,7 @@ Decisions
 $GOOD
 EOF
 ); run "$d"
-pass "a multi-line paragraph ending in 'Decisions' over --- does not block"
+expect_block "no setext: a rule-like line right under text blocks (multi-line paragraph)" "right under text"
 d=$(mkdoc setextlazy <<EOF
 ## Scope
 - shops only
@@ -535,7 +569,7 @@ Decisions
 $GOOD
 EOF
 ); run "$d"
-pass "a lazy continuation then --- is a rule, not a heading"
+expect_block "no setext: a rule-like line right under text blocks (lazy)" "right under text"
 d=$(mkdoc setextquote <<EOF
 ## Scope
 > shops only
@@ -546,7 +580,7 @@ Decisions
 $GOOD
 EOF
 ); run "$d"
-pass "a blockquote's lazy continuation then --- is a rule, not a heading"
+expect_block "a blockquote's lazy continuation blocks (no blockquotes)" "blockquote"
 d=$(mkdoc setextlist <<EOF
 ## Scope
 - Decisions
@@ -556,8 +590,8 @@ d=$(mkdoc setextlist <<EOF
 $GOOD
 EOF
 ); run "$d"
-pass "a list item then a column-0 --- is a rule, not a heading"
-for body in '> Decisions\n> ---' '- Decisions\n  ---' '## Scope\nDecisions\n=========' \
+expect_block "no setext: a rule-like line right under text blocks (list)" "right under text"
+for body in '- Decisions\n  ---' '## Scope\nDecisions\n=========' \
             '*Decisions*\n---' 'Deci<!--\n-->sions\n---' 'Deci<!--\n2. x -->sions\n---'; do
   d=$(mkdoc "setext$RANDOM" < <(printf -- "$body"'\n- [ ] Q2 · med · open · open\n\n## Decisions\n%s\n' "$GOOD")); run "$d"
   expect_block "setext heading blocks: '$body'" "heading"
@@ -617,7 +651,7 @@ d=$(mk crlffm locked <<<"$GOOD"); perl -pi -e 's/\n/\r\n/' "$d/design.md"; run "
 pass "CRLF frontmatter is skipped"
 # Any heading that starts with "Decision" is the record's word.
 for h in '### Decisions:' '### Decisions.' '### Decision' '## Decision' '### Decisions—open' \
-         '### Decisions/2' '## Decisions ##' 'Decisions:\n---'; do
+         '### Decisions/2' '## Decisions ##'; do
   d=$(body "word$RANDOM" "$h\n- [ ] Q2 · open"); run "$d"
   expect_block "heading '$h' blocks" "not written as '## Decisions'"
 done
@@ -629,7 +663,34 @@ for b in 'Decisions\n-\n\n- [ ] Q1 · open' 'Decisions\n*\n===' 'Decisions\n+\n=
   expect_block "setext heading read as the renderers read it: '$b'" "heading"
 done
 d=$(body deepunder '## Scope\nDecisions pending review\n    ---'); run "$d"
-pass "an underline indented 4+ past its paragraph is text, not a heading"
+expect_block "no setext: a rule-like line right under text blocks (deep)" "right under text"
+# Round 3: structure the old paragraph model misread. The dialect now has no
+# setext headings, no blockquotes and no odd whitespace, so none need modelling.
+for b in '    x\nDecisions\n ---\n\n- [ ] Q1 · open' '- Decisions\n===' '2. Decisions\n===' '- a\n  ---' \
+         '1. Decisions\n  ---'; do
+  d=$(body "r3u$RANDOM" "$b"); run "$d"
+  expect_block "a rule-like line under text blocks: '$b'" "right under text"
+done
+for b in '+ > Decisions\n  > ===' '> x\n2. Decisions\n   ---'; do
+  d=$(body "r3q$RANDOM" "$b"); run "$d"
+  expect_block "a quote inside or before a list blocks: '$b'" "blockquote"
+done
+for b in '##\302\240Decisions' '#\vDecisions' '#\fDecisions' '##\342\200\203Decisions' '##\343\200\200Decisions' \
+         '## \302\240Decisions' '-\t>\t## Decisions'; do
+  d=$(body "r3s$RANDOM" "$b\n- [ ] Q1 · open"); run "$d"
+  expect_block "odd whitespace blocks: '$b'" "non-ASCII space"
+done
+for b in '## Scope\n[a\\]b]: /u "\n\140\140\140\n"' '## Scope\n[a\nb]: /u "\n\140\140\140\n"'; do
+  d=$(body "r3l$RANDOM" "$b"); run "$d"
+  expect_block "a link definition with an escaped or split label blocks: '$b'" "link reference definition"
+done
+d=$(body strike '## ~~Decisions~~\n- [ ] Q9 · high · open · open'); run "$d"
+expect_block "a strikethrough heading blocks" "inline markup"
+d=$(body rules 'intro\n## Scope\n---\n\ntext\n\n***\n\n## Flow & what-ifs\n\n---\n\ntext\n~~~\ncode\n~~~\n---'); run "$d"
+pass "a rule after a heading, a blank line or a fence closer passes"
+d="$TMP/fmcol0"; mkdir -p "$d"; cp "$TMP/good/plan.md" "$d/"
+printf -- '---\nslug: fmcol0\nstatus: draft\ndiscovery:\n- docs/discovery/a.md\n  - "docs/discovery/b.md"\n---\n## Decisions\n%s\n' "$GOOD" > "$d/design.md"; run "$d"
+pass "frontmatter list items at column 0 or quoted pass"
 d=$(body linkdef "## Context\n\n[r]: /u '\n\140\140\140\n'\n\n## Decisions\n\n- [ ] Q1 · open\n\n[s]: /v '\n\140\140\140\n'"); run "$d"
 expect_block "a link reference definition blocks" "link reference definition"
 # Frontmatter is body text to a plain renderer, so it holds only shape's keys.
