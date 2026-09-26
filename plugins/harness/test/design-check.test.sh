@@ -760,6 +760,33 @@ for b in '## Decisión\n\n- [ ] Q99 · nunca decidido · open' '## Décision\n\n
   d=$(body "cb$RANDOM" "$b"); run "$d"
   expect_block "a checkbox outside the record blocks: '$b'" "checkbox outside"
 done
+# Round 9: text that reads as a checkbox without the literal bytes.
+for b in '- [ \\] Q9 · open' '- \\[x\\] A9 · no owner' '- [`x`] A9' '- [*x*] A9' '- [  ] Q9' \
+         '- &#91; &#93; Q9 · open' '- &lbrack; &rbrack; Q9' '- [&#32;] Q9' '- [&nbsp;] Q9'; do
+  d=$(body "ct$RANDOM" "## Scope\n$b"); run "$d"
+  expect_block "checkbox-looking text outside the record blocks: '$b'" "BLOCK"
+done
+d=$(body wikix '## Discovery\nSee [[x]], [[X]] and [[~]] for prior art.\n\n## Scope\n- a &amp; b, x &lt; y, "quoted" &quot;q&quot;, arr[] and AT&T'); run "$d"
+pass "one-character wikilinks, allowed entities and 'arr[]' pass"
+d=$(mk recwiki locked <<<"$GOOD
+- [x] A5 · high · duplicate of [[x]] non_goals · decided-by: you"); run "$d"
+pass "a one-character wikilink in a decision line passes"
+d="$TMP/fmwikix"; mkdir -p "$d"; cp "$TMP/good/plan.md" "$d/"
+printf -- '---\nslug: fmwikix\nstatus: draft\ndiscovery:\n  - [[x]]\n---\n## Decisions\n%s\n' "$GOOD" > "$d/design.md"; run "$d"
+pass "a one-character wikilink in frontmatter passes"
+d="$TMP/fment"; mkdir -p "$d"; cp "$TMP/good/plan.md" "$d/"
+printf -- '---\nslug: fment\nstatus: draft\ndiscovery:\n  - "&#91; ] Q1"\n---\n## Decisions\n%s\n' "$GOOD" > "$d/design.md"; run "$d"
+expect_block "an entity in frontmatter blocks" "entity in frontmatter"
+for l in '- [x] A1 · pick X ~reason · decided-by: you · done~' '- [~] Q1 · deferred: later~' \
+         '- [x] B1 · byproduct ~note · decided-by: you · ack · end~'; do
+  d=$(mk "tl$RANDOM" locked <<<"$GOOD
+$l"); run "$d"
+  expect_block "a single tilde after the marker blocks: '$l'" "a decision line holds"
+done
+for l in '- [x] Q5 · med · a \342\201\246b · decided-by: you' '- [x] Q5 · med · a \330\234b · decided-by: you'; do
+  d=$(mk "bidi$RANDOM" locked < <(printf -- "$GOOD\n$l\n")); run "$d"
+  expect_block "a bidi isolate blocks: '$l'" "invisible character"
+done
 d=$(body critok '### Decision criteria\n- must work offline\n- see [ADR 3](docs/adr/3.md) and [[offline-sync]]'); run "$d"
 pass "plain bullets and links under a 'Decision…' heading pass"
 d=$(body cjk '## 决定\n\n## 🎉 launch\n\nnotes'); run "$d"

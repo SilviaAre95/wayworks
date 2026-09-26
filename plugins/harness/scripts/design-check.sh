@@ -70,12 +70,15 @@ fi
 # blocks. Outside fences:
 # - checkboxes live only in the record: outside `## Decisions` any `[ ]`,
 #   `[x]`, `[X]` or `[~]` blocks, whatever the list marker, nesting or heading
-#   above it. Guessing which headings a reader takes as "the record"
+#   above it, and read as a reader sees it — through escapes, code and
+#   emphasis markers — with entities limited to &lt; &gt; &amp; &quot; &#39;.
+#   Unicode shapes (☐) and Mermaid node text are not checked. Guessing which headings a reader takes as "the record"
 #   (translations, look-alikes, "Decision log", sub-sections) never converged,
 #   so an open item may appear only where the gate reads;
 # - the record: every non-blank line under `## Decisions` is a decision line,
-#   with no raw HTML (not even <br>), &entity;, link, strikethrough or code
-#   fence, and no second checkbox in its text — each can show a reader
+#   with no raw HTML (not even <br>), &entity;, link, `~` after its marker
+#   (marked strikes through single tildes) or code fence, and no second
+#   checkbox in its text — each can show a reader
 #   something other than what the gate reads;
 # - headings are ATX at column 0 and plain text: a `#` run anywhere else on a
 #   line (indented, after a list marker) blocks, as does inline markup in a
@@ -137,7 +140,26 @@ re_br='^<[Bb][Rr] */?>'
 re_entity='&(#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});'
 re_markup='[][`*_~\\<]'
 re_dec_word='^[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn][Ss]?$'   # the whole heading, letters only
-re_check='\[[ xX~]\]'   # a checkbox, or text that reads as one
+re_check='\[( +| *[xX~] *)\]'   # a checkbox, or text that reads as one
+re_ok_entity='^&(lt|gt|amp|quot|#39);'   # the only entities outside the record
+# checktext <line>: sets k, the line as a reader sees its brackets — [[wikilinks]]
+# removed (they show double brackets), and the escapes, code and emphasis
+# markers that can spell "[ ]" without those bytes dropped.
+checktext() {
+  k="$1"
+  while [[ "$k" =~ ^(.*)\[\[[^][]*\]\](.*)$ ]]; do k="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; done
+  k="${k//\\/}"; k="${k//\`/}"; k="${k//\*/}"; k="${k//_/}"
+}
+# oddentity <text>: true if the text holds an entity other than &lt; &gt; &amp; &quot; &#39;.
+oddentity() {
+  local s="$1"
+  while [[ "$s" == *'&'* ]]; do
+    s="${s#*&}"
+    [[ "&$s" =~ ^$re_entity ]] || continue
+    [[ "&$s" =~ $re_ok_entity ]] || return 0
+  done
+  return 1
+}
 # Whitespace a renderer reads as indentation or a heading separator: tab, VT,
 # FF, and the non-ASCII spaces JavaScript's \s matches; and invisible format
 # characters — soft hyphen U+00AD, U+034F, U+180E, U+200B–U+200F,
@@ -146,7 +168,8 @@ odd_spaces=($'\t' $'\v' $'\f' $'\xc2\x85' $'\xc2\xa0' $'\xe1\x9a\x80' $'\xe2\x80
   $'\xe2\x80\xaf' $'\xe2\x81\x9f' $'\xe3\x80\x80' $'\xef\xbb\xbf' $'\xc2\xad' $'\xcd\x8f' $'\xe1\xa0\x8e')
 for i in 0 1 2 3 4 5 6 7 8 9 a b c d e f; do odd_spaces+=($'\xe2\x80'"$(printf "\\x8$i")"); done   # U+2000–U+200F
 for i in a b c d e; do odd_spaces+=($'\xe2\x80'"$(printf "\\xa$i")"); done   # U+202A–U+202E
-for i in 0 1 2 3 4; do odd_spaces+=($'\xe2\x81'"$(printf "\\xa$i")"); done   # U+2060–U+2064
+for i in 0 1 2 3 4 6 7 8 9; do odd_spaces+=($'\xe2\x81'"$(printf "\\xa$i")"); done   # U+2060–U+2064, U+2066–U+2069
+odd_spaces+=($'\xd8\x9c')   # U+061C: with U+200E/F, U+202A–E and U+2066–9, every bidi control
 oddspace() { local b; for b in "${odd_spaces[@]}"; do [[ "$1" == *"$b"* ]] && return 0; done; return 1; }
 # rawhtml <text> <allow-br 0|1>: true if the text holds raw HTML.
 rawhtml() {
@@ -190,7 +213,8 @@ while IFS= read -r line || [ -n "$line" ]; do
       { [[ "$line" =~ $re_fm_key ]] || [[ "$line" =~ $re_fm_item ]] || [ -z "$line" ]; } \
         || block "design.md:$ln: frontmatter holds only slug, status, stage, discovery and discovery-status — a plain renderer shows it as body text: $(shown "$line")"
       rawhtml "$line" 0 && block "design.md:$ln: raw HTML in frontmatter"
-      [[ "$line" =~ $re_check ]] && block "design.md:$ln: a checkbox in frontmatter — open items live only in the record"
+      checktext "$line"; [[ "$k" =~ $re_check ]] && block "design.md:$ln: a checkbox in frontmatter — open items live only in the record"
+      oddentity "$line" && block "design.md:$ln: an entity in frontmatter — only &lt; &gt; &amp; &quot; &#39; are allowed"
       oddspace "$line" && block "design.md:$ln: a tab, non-ASCII space or invisible character in frontmatter — use plain spaces"
     fi
     continue
@@ -230,8 +254,11 @@ while IFS= read -r line || [ -n "$line" ]; do
   [[ "$line" =~ $re_items ]]; c="${line:${#BASH_REMATCH[0]}}"   # the line's content after list markers
   [[ "$c" =~ $re_br ]] && block "design.md:$ln: a line opening with <br> starts an HTML block that hides what follows — put <br> mid-line or drop it"
   [ "${c:0:1}" = '>' ] && block "design.md:$ln: a blockquote — outside the design dialect; quote as plain text or in a fence"
-  [ "$insec" -eq 0 ] && [[ "$line" =~ $re_check ]] && \
-    block "design.md:$ln: a checkbox outside '## Decisions' — open items live only in the record; write a plain bullet or move it there"
+  if [ "$insec" -eq 0 ]; then
+    checktext "$line"
+    [[ "$k" =~ $re_check ]] && block "design.md:$ln: a checkbox outside '## Decisions' — open items live only in the record; write a plain bullet or move it there"
+    oddentity "$line" && block "design.md:$ln: an entity other than &lt; &gt; &amp; &quot; &#39; — it can spell text the gate does not see; write the character"
+  fi
   if [[ "$line" =~ $re_atx ]]; then
     htext="${BASH_REMATCH[2]-}"; canon=0
     [[ "$line" =~ ^'## Decisions'[[:space:]]*$ ]] && canon=1
@@ -257,8 +284,9 @@ while IFS= read -r line || [ -n "$line" ]; do
   esac
   [ "$insec" -eq 1 ] || continue
   [[ "$line" =~ ^[[:space:]]*$ ]] && continue
-  { rawhtml "$line" 0 || [[ "$line" =~ $re_entity ]] || [[ "$line" == *']('* ]] || [[ "$line" == *'~~'* ]] \
-    || [[ "${line:5}" =~ $re_check ]]; } && \
+  checktext "${line:5}"
+  { rawhtml "$line" 0 || [[ "$line" =~ $re_entity ]] || [[ "$line" == *']('* ]] || [[ "${line:5}" == *'~'* ]] \
+    || [[ "$k" =~ $re_check ]]; } && \
     block "design.md:$ln: a decision line holds raw HTML, an &entity;, a link, strikethrough or a second checkbox — the renderers would show text other than what the gate reads"
   case "$line" in
     '- ['*) ;;
