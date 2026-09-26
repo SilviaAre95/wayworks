@@ -82,10 +82,13 @@ fi
 #   sit directly under text (a blank line, heading or fence closer comes first);
 # - no blockquotes, no link reference definitions (`]:` — marked lets their
 #   titles span lines), and no raw HTML anywhere: `<` then a letter, `/`, `!`
-#   or `?` blocks, code spans included, except an autolink and <br>. The map
-#   page keeps tags like <h2>, <ul> and <input>, so inline HTML can draw a record;
-# - no tab, vertical tab, form feed or non-ASCII space: renderers treat them as
-#   indentation or heading separators in ways a byte rule cannot follow;
+#   or `?` blocks, code spans included, except an autolink and a mid-line <br>
+#   (a line that opens with <br> starts an HTML block that swallows what
+#   follows). The map page keeps tags like <h2>, <ul> and <input>, so inline
+#   HTML can draw a record. `]:` blocks outside a [[wikilink]];
+# - no tab, vertical tab, form feed, non-ASCII space or invisible format
+#   character: renderers treat them as indentation or heading separators, or
+#   hide them inside a heading that then reads "Decisions";
 # - frontmatter holds only the keys /harness:shape writes (slug, status, stage,
 #   discovery, discovery-status) and `- value` list items: a plain CommonMark
 #   renderer shows it as body text.
@@ -125,10 +128,14 @@ re_entity='&(#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});'
 re_markup='[][`*_~\\<]'
 re_dec_word='^[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn]'
 # Whitespace a renderer reads as indentation or a heading separator: tab, VT,
-# FF, and the non-ASCII spaces JavaScript's \s matches (as UTF-8 bytes).
+# FF, and the non-ASCII spaces JavaScript's \s matches; and invisible format
+# characters — soft hyphen U+00AD, U+034F, U+180E, U+200B–U+200F,
+# U+202A–U+202E, U+2060–U+2064 — as UTF-8 bytes.
 odd_spaces=($'\t' $'\v' $'\f' $'\xc2\x85' $'\xc2\xa0' $'\xe1\x9a\x80' $'\xe2\x80\xa8' $'\xe2\x80\xa9' \
-  $'\xe2\x80\xaf' $'\xe2\x81\x9f' $'\xe3\x80\x80' $'\xef\xbb\xbf')
-for i in 0 1 2 3 4 5 6 7 8 9 a; do odd_spaces+=($'\xe2\x80'"$(printf "\\x8$i")"); done   # U+2000–U+200A
+  $'\xe2\x80\xaf' $'\xe2\x81\x9f' $'\xe3\x80\x80' $'\xef\xbb\xbf' $'\xc2\xad' $'\xcd\x8f' $'\xe1\xa0\x8e')
+for i in 0 1 2 3 4 5 6 7 8 9 a b c d e f; do odd_spaces+=($'\xe2\x80'"$(printf "\\x8$i")"); done   # U+2000–U+200F
+for i in a b c d e; do odd_spaces+=($'\xe2\x80'"$(printf "\\xa$i")"); done   # U+202A–U+202E
+for i in 0 1 2 3 4; do odd_spaces+=($'\xe2\x81'"$(printf "\\xa$i")"); done   # U+2060–U+2064
 oddspace() { local b; for b in "${odd_spaces[@]}"; do [[ "$1" == *"$b"* ]] && return 0; done; return 1; }
 # rawhtml <text> <allow-br 0|1>: true if the text holds raw HTML.
 rawhtml() {
@@ -200,10 +207,13 @@ while IFS= read -r line || [ -n "$line" ]; do
       infence=1; fch="${run:0:1}"; flen="${#run}"; prev=""; continue
     fi
   fi
-  oddspace "$line" && block "design.md:$ln: a tab or non-ASCII space (renderers read it as indentation or a heading separator) — use plain spaces"
+  oddspace "$line" && block "design.md:$ln: a tab, non-ASCII space or invisible character (renderers read it as indentation or a heading separator, or hide it) — use plain spaces"
   rawhtml "$line" 1 && block "design.md:$ln: raw HTML (renderers hide or reshape it) — write &lt; for a literal '<'; code goes in a fence at column 0"
-  [[ "$line" == *']:'* ]] && block "design.md:$ln: ']:' starts a link reference definition — write links inline, [text](url)"
+  nowiki="$line"   # a [[wikilink]] holds no link label, so its "]]:" is not one
+  while [[ "$nowiki" =~ ^(.*)\[\[[^][]*\]\](.*)$ ]]; do nowiki="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; done
+  [[ "$nowiki" == *']:'* ]] && block "design.md:$ln: ']:' starts a link reference definition — write links inline, [text](url)"
   [[ "$line" =~ $re_items ]]; c="${line:${#BASH_REMATCH[0]}}"   # the line's content after list markers
+  [[ "$c" =~ ^\<[Bb][Rr] ]] && block "design.md:$ln: a line opening with <br> starts an HTML block that hides what follows — put <br> mid-line or drop it"
   [ "${c:0:1}" = '>' ] && block "design.md:$ln: a blockquote — outside the design dialect; quote as plain text or in a fence"
   if [[ "$line" =~ $re_atx ]]; then
     htext="${BASH_REMATCH[2]-}"; canon=0
