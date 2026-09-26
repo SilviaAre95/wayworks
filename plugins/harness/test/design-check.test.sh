@@ -129,8 +129,7 @@ $GOOD
 - [ ] verify with shop owners
 EOF
 ); run "$d"
-[ "$RC" = "0" ] && ok "checkbox-looking lines outside ## Decisions are ignored" \
-  || bad "lines outside Decisions ignored (rc=$RC: $OUT)"
+expect_block "a to-do checkbox outside ## Decisions blocks (checkboxes live only in the record)" "checkbox outside"
 d=$(mkdoc nodecisions <<<"## Discovery
 $GOOD"); run "$d"
 expect_block "a design with no ## Decisions section blocks" "Decisions"
@@ -635,22 +634,22 @@ for b in '## Scope\nEmbed it with `<div class="w">`' \
 done
 d=$(mk recspan locked <<<"$GOOD
 - [x] A1 · fine · decided-by: you \\\`</li><li><input type=\"checkbox\" disabled> Q2 · open\`"); run "$d"
-expect_block "an escaped backtick cannot hide HTML in a decision line" "raw HTML or an &entity;"
+expect_block "an escaped backtick cannot hide HTML in a decision line" "a decision line holds"
 d=$(mk recbr locked <<<"$GOOD
 - [x] Q3 · med · a<br>- [ ] Q2 · open · decided-by: you"); run "$d"
-expect_block "<br> inside a decision line blocks" "raw HTML or an &entity;"
+expect_block "<br> inside a decision line blocks" "a decision line holds"
 d=$(mk reccmt locked <<<"$GOOD
 - [x] Q5 · med · still open, nobody decided <!-- · decided-by: you -->"); run "$d"
-expect_block "a comment hiding the owner in a decision line blocks" "raw HTML or an &entity;"
+expect_block "a comment hiding the owner in a decision line blocks" "a decision line holds"
 d=$(mk recent locked <<<"$GOOD
 - [x] Q5 · med · a &#91; &#93; Q2 · open · decided-by: you"); run "$d"
-expect_block "an entity in a decision line blocks" "raw HTML or an &entity;"
+expect_block "an entity in a decision line blocks" "a decision line holds"
 # CRLF frontmatter is skipped by the gate, so render-map skips it too; a
 # heading written inside it never reaches a reader.
 d=$(mk crlffm locked <<<"$GOOD"); perl -pi -e 's/\n/\r\n/' "$d/design.md"; run "$d" --require-locked
 pass "CRLF frontmatter is skipped"
 # Any heading that starts with "Decision" is the record's word.
-for h in '### Decisions:' '### Decisions.' '### Decision' '## Decision' '### Decisions—open' \
+for h in '### Decisions:' '### Decisions.' '### Decision' '## Decision' \
          '### Decisions/2' '## Decisions ##'; do
   d=$(body "word$RANDOM" "$h\n- [ ] Q2 · open"); run "$d"
   expect_block "heading '$h' blocks" "reads as the Decisions record"
@@ -707,7 +706,7 @@ done
 # Round 5: a list of invisible characters is never complete, so the heading
 # test reads ASCII letters only — any other byte inside "Decisions" is ignored.
 for b in '## \342\201\246Decisions' '## Dec\342\201\251isions' '## \330\234Decisions' '## Deci\357\270\217sions' \
-         '## \343\205\244Decisions' '## \363\240\200\201Decisions' '## \001Decisions' '## 2. Decisions and Non-Goals'; do
+         '## \343\205\244Decisions' '## \363\240\200\201Decisions' '## \001Decisions'; do
   d=$(body "inv$RANDOM" "$b\n\n- [ ] Q1 · open"); run "$d"
   expect_block "a heading whose letters read 'Decision…' blocks: '$b'" "reads as the Decisions record"
 done
@@ -730,11 +729,11 @@ done
 # like "Decision support tool" still lock.
 for b in '## \n- [ ] Q9 · open' '## ##\n- [ ] Q9 · open' '### \342\201\246\n- [ ] Q9 · open'; do
   d=$(mk "empty$RANDOM" locked < <(printf -- "$GOOD\n$b\n")); run "$d"
-  expect_block "an empty heading blocks: '$b'" "no letter or digit"
+  expect_block "an item after an empty heading blocks: '$b'" "BLOCK"
 done
 for h in '## 1. Decision log' '## Decision record' '## Decision (open)' '### Decisions—open' '## Decision support' '# Decision tree editor'; do
   d=$(body "lead$RANDOM" "$h\n\n- [ ] Q1 · open"); run "$d"
-  expect_block "a checkbox under '$h' blocks" "checkbox under a heading"
+  expect_block "a checkbox under '$h' blocks" "checkbox outside"
   d=$(body "leadok$RANDOM" "$h\n\n- plain notes, no checkbox"); run "$d"
   pass "'$h' with no checkbox under it passes"
 done
@@ -745,10 +744,38 @@ for h in '### Decisions' '## Decision' '## \342\201\246Decisions' '## Dec\342\20
   expect_block "a heading reading exactly 'Decision(s)' blocks: '$h'" "reads as the Decisions record but is not"
 done
 d=$(body leadreset '## Decision scope\n\n## Scope\n- [ ] verify with shop owners'); run "$d"
-pass "a to-do under the next, unrelated heading passes"
+expect_block "a to-do checkbox under any heading outside the record blocks" "checkbox outside"
 d="$TMP/fmspace"; mkdir -p "$d"; cp "$TMP/good/plan.md" "$d/"
 printf -- '---\nslug: fmspace\nstatus: draft\ndiscovery:\n  - "02-Projects/homa-os/Product Brief v1.0.md"\n  - '"'"'docs/my file.md'"'"'\n---\n## Decisions\n%s\n' "$GOOD" > "$d/design.md"; run "$d"
 pass "a quoted frontmatter path with spaces passes"
+# Checkboxes live only in the record, so no heading needs to be recognised:
+# translations, enumerators, sub-sections, nesting and text forms all block.
+for b in '## Decisión\n\n- [ ] Q99 · nunca decidido · open' '## Décision\n\n- [ ] Q1 · open' \
+         '## II. Decisions\n- [ ] Q1 · open' '## A. Decision log\n- [ ] Q1 · open' \
+         '## Decision log\n\n- - [ ] Q1 · open' '## Decision log\n\n1. - [ ] Q1 · open' \
+         '## Decision log\n\n### Pending\n\n- [ ] Q1 · open' '## Decisi0ns\n- [ ] Q1 · open' \
+         '## 2\n- [ ] Q1 · open' '[ ] Q1 · open' '\\- [ ] Q1 · open' '- \\[ ] Q1 · open' \
+         '- notes\n[ ] Q1 · open' '| - [ ] Q1 | open |\n|---|---|' '[x] A9 · chosen' \
+         '### Decision criteria\n- [ ] must work offline'; do
+  d=$(body "cb$RANDOM" "$b"); run "$d"
+  expect_block "a checkbox outside the record blocks: '$b'" "checkbox outside"
+done
+d=$(body critok '### Decision criteria\n- must work offline\n- see [ADR 3](docs/adr/3.md) and [[offline-sync]]'); run "$d"
+pass "plain bullets and links under a 'Decision…' heading pass"
+d=$(body cjk '## 决定\n\n## 🎉 launch\n\nnotes'); run "$d"
+pass "non-ASCII headings pass"
+# A decision line may not hide its owner or a second item from the page.
+for l in '- [x] Q5 · high · pick db [why](u "· decided-by: you ")' \
+         '- [x] B5 · byproduct · cache ![n](u "· ack · decided-by: you ")' \
+         '- [x] Q5 · med · ~~a · decided-by: you b~~' \
+         '- [x] A5 · ok · decided-by: you · [ ] Q9 · ship without auth?'; do
+  d=$(mk "rl$RANDOM" locked <<<"$GOOD
+$l"); run "$d"
+  expect_block "a decision line cannot hide an owner or an item: '$l'" "a decision line holds"
+done
+d="$TMP/fmcb"; mkdir -p "$d"; cp "$TMP/good/plan.md" "$d/"
+printf -- '---\nslug: fmcb\nstatus: draft\ndiscovery:\n  - "- [ ] Q1 · open"\n---\n## Decisions\n%s\n' "$GOOD" > "$d/design.md"; run "$d"
+expect_block "a checkbox in a quoted frontmatter value blocks" "checkbox in frontmatter"
 d=$(body brlike '- <bridge-status>up</bridge-status>'); run "$d"
 { [ "$RC" = "1" ] && grep -q "raw HTML" <<<"$OUT" && ! grep -q "opening with <br>" <<<"$OUT"; } \
   && ok "a tag that only starts with 'br' is raw HTML, not a <br> opener" || bad "br-like tag (rc=$RC: $OUT)"

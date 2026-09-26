@@ -68,21 +68,22 @@ fi
 # structure it read differently (XARI-151, XARI-160). So the dialect is judged
 # one line at a time, with no structure to model, and anything outside it
 # blocks. Outside fences:
+# - checkboxes live only in the record: outside `## Decisions` any `[ ]`,
+#   `[x]`, `[X]` or `[~]` blocks, whatever the list marker, nesting or heading
+#   above it. Guessing which headings a reader takes as "the record"
+#   (translations, look-alikes, "Decision log", sub-sections) never converged,
+#   so an open item may appear only where the gate reads;
 # - the record: every non-blank line under `## Decisions` is a decision line,
-#   with no raw HTML (not even <br>), no &entity; and no code fence. Discovery
-#   and Scope may hold wikilink bullets, links and plain to-dos — only the
-#   record is parsed;
+#   with no raw HTML (not even <br>), &entity;, link, strikethrough or code
+#   fence, and no second checkbox in its text — each can show a reader
+#   something other than what the gate reads;
 # - headings are ATX at column 0 and plain text: a `#` run anywhere else on a
 #   line (indented, after a list marker) blocks, as does inline markup in a
 #   heading (code, emphasis, strikethrough, links, escapes, raw HTML,
-#   entities), and none without an ASCII letter or digit (an empty `## ` ends
-#   the record for the gate while the page shows nothing there). Only
-#   `## Decisions` may read as the record: a heading whose ASCII letters are
-#   "Decision" or "Decisions" blocks, and under any heading whose letters
-#   start with "Decision" ("1. Decision log", "Decisions—open") a checkbox
-#   line blocks until the next heading. Letters alone, so no invisible or
-#   control character can split the word; a title like "Decision tree editor"
-#   still passes, since no checkbox sits under it; a second `## Decisions…` blocks, since which is the record
+#   entities). A second heading whose ASCII letters are exactly "Decision" or
+#   "Decisions" blocks — letters alone, so no invisible character splits the
+#   word — though with checkboxes confined to the record it can hold nothing
+#   open; a second `## Decisions…` blocks, since which is the record
 #   would be a guess;
 # - no setext headings: a line of only `-`, `=`, `*`, `_` and spaces must not
 #   sit directly under text (a blank line, heading or fence closer comes first);
@@ -136,7 +137,7 @@ re_br='^<[Bb][Rr] */?>'
 re_entity='&(#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});'
 re_markup='[][`*_~\\<]'
 re_dec_word='^[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn][Ss]?$'   # the whole heading, letters only
-re_dec_lead='^[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn]'           # a heading that starts like one
+re_check='\[[ xX~]\]'   # a checkbox, or text that reads as one
 # Whitespace a renderer reads as indentation or a heading separator: tab, VT,
 # FF, and the non-ASCII spaces JavaScript's \s matches; and invisible format
 # characters — soft hyphen U+00AD, U+034F, U+180E, U+200B–U+200F,
@@ -164,10 +165,6 @@ heading() {
   local t="$1" p
   [[ "$t" =~ ^[[:space:]]*(.*[^[:space:]])?[[:space:]]*$ ]]; t="${BASH_REMATCH[1]}"
   if [[ "$t" =~ ^(.*)[[:space:]]#+$ ]]; then t="${BASH_REMATCH[1]}"; elif [[ "$t" =~ ^#+$ ]]; then t=""; fi
-  declead=0
-  if [[ "${t//[^A-Za-z0-9]/}" == "" ]]; then
-    block "design.md:$ln: a heading with no letter or digit — it reads as empty, so what follows looks like the section above"; return
-  fi
   p="$t"   # an underscore between letters or digits is never emphasis
   while [[ "$p" =~ ^(.*[[:alnum:]])_+([[:alnum:]].*)$ ]]; do p="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; done
   if [[ "$p" =~ $re_markup ]] || [[ "$p" =~ $re_entity ]]; then
@@ -178,13 +175,12 @@ heading() {
   [ "$2" -eq 1 ] && return
   [[ "${t//[^A-Za-z]/}" =~ $re_dec_word ]] && \
     block "design.md:$ln: a heading that reads as the Decisions record but is not '## Decisions' at column 0 — the gate reads only that form; reword it"
-  [[ "${t//[^A-Za-z]/}" =~ $re_dec_lead ]] && declead=1
 }
 fm_end=0
 [ -n "$fm" ] && fm_end=$(awk '{ sub(/\r$/, "") } NR>1 && $0=="---"{ print NR; exit }' "$DESIGN")
 fm_end="${fm_end:-0}"
 decided_w=""
-infence=0; fch=""; flen=0; insec=0; seen_sec=0; nsec=0; ln=0; declead=0
+infence=0; fch=""; flen=0; insec=0; seen_sec=0; nsec=0; ln=0
 prev=""   # the previous line, when it is text a rule-like line would turn into a heading
 while IFS= read -r line || [ -n "$line" ]; do
   ln=$((ln + 1))
@@ -194,6 +190,7 @@ while IFS= read -r line || [ -n "$line" ]; do
       { [[ "$line" =~ $re_fm_key ]] || [[ "$line" =~ $re_fm_item ]] || [ -z "$line" ]; } \
         || block "design.md:$ln: frontmatter holds only slug, status, stage, discovery and discovery-status — a plain renderer shows it as body text: $(shown "$line")"
       rawhtml "$line" 0 && block "design.md:$ln: raw HTML in frontmatter"
+      [[ "$line" =~ $re_check ]] && block "design.md:$ln: a checkbox in frontmatter — open items live only in the record"
       oddspace "$line" && block "design.md:$ln: a tab, non-ASCII space or invisible character in frontmatter — use plain spaces"
     fi
     continue
@@ -233,8 +230,8 @@ while IFS= read -r line || [ -n "$line" ]; do
   [[ "$line" =~ $re_items ]]; c="${line:${#BASH_REMATCH[0]}}"   # the line's content after list markers
   [[ "$c" =~ $re_br ]] && block "design.md:$ln: a line opening with <br> starts an HTML block that hides what follows — put <br> mid-line or drop it"
   [ "${c:0:1}" = '>' ] && block "design.md:$ln: a blockquote — outside the design dialect; quote as plain text or in a fence"
-  [ "$declead" -eq 1 ] && [[ "$line" =~ $re_box ]] && \
-    block "design.md:$ln: a checkbox under a heading that reads as the Decisions record — only '## Decisions' holds decisions; move it there or reword the heading"
+  [ "$insec" -eq 0 ] && [[ "$line" =~ $re_check ]] && \
+    block "design.md:$ln: a checkbox outside '## Decisions' — open items live only in the record; write a plain bullet or move it there"
   if [[ "$line" =~ $re_atx ]]; then
     htext="${BASH_REMATCH[2]-}"; canon=0
     [[ "$line" =~ ^'## Decisions'[[:space:]]*$ ]] && canon=1
@@ -260,8 +257,9 @@ while IFS= read -r line || [ -n "$line" ]; do
   esac
   [ "$insec" -eq 1 ] || continue
   [[ "$line" =~ ^[[:space:]]*$ ]] && continue
-  { rawhtml "$line" 0 || [[ "$line" =~ $re_entity ]]; } && \
-    block "design.md:$ln: a decision line holds raw HTML or an &entity; — the renderers would show text the gate does not read"
+  { rawhtml "$line" 0 || [[ "$line" =~ $re_entity ]] || [[ "$line" == *']('* ]] || [[ "$line" == *'~~'* ]] \
+    || [[ "${line:5}" =~ $re_check ]]; } && \
+    block "design.md:$ln: a decision line holds raw HTML, an &entity;, a link, strikethrough or a second checkbox — the renderers would show text other than what the gate reads"
   case "$line" in
     '- ['*) ;;
     *) [[ "$line" =~ $re_box ]] && n=$((n + 1))
