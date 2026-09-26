@@ -366,6 +366,7 @@ $h
   expect_block "heading '$h' blocks" "not written as '## Decisions'"
 done
 d=$(mk dechsetext locked <<<"$GOOD
+
 Decisions
 ---------
 - [ ] Q2 · med · under a setext Decisions heading · open"); run "$d"
@@ -374,6 +375,193 @@ d=$(mk dechcont locked <<<"$GOOD
 Discussion of the decisions
 ---------"); run "$d"
 grep -q "not written as" <<<"$OUT" && bad "a setext heading about decisions is fine ($OUT)" || ok "a setext heading that is not 'Decisions' is fine"
+
+# --- the design dialect is an allowlist (XARI-160) ---------------------------
+# A line gate cannot track every Markdown construct a renderer does, and each
+# blocklist round found a new one. So a design may use only the constructs the
+# gate reads the same way the renderers do; anything else blocks.
+pass() { [ "$RC" = "0" ] && ok "$1" || bad "$1 (rc=$RC: $OUT)"; }
+# What /harness:shape writes: frozen discovery claims, tables, Mermaid fences.
+d=$(mkdoc shaped <<EOF
+## Discovery
+[brief](docs/discovery/offline-stamps.md)
+- Shops lose signal in basements, so scans must work offline
+- Stamps are idempotent by card+timestamp, see <https://example.com/spec>
+- p95 sync stays <200ms on 3G
+
+## Scope
+
+| In | Out |
+|---|---|
+| offline queue | multi-device<br>shops |
+
+## Flow & what-ifs
+
+\`\`\`mermaid
+flowchart LR
+  A[Scan QR<br>offline] --> B[Queue locally]
+  B -.-> C{Online?}
+\`\`\`
+
+## Components
+
+\`\`\`mermaid
+graph TD
+  app --> queue
+\`\`\`
+
+## Scope board
+
+| Item | Scope | Decision |
+|---|---|---|
+| stamp_count rename | in | Q1 |
+
+## Decisions
+$GOOD
+EOF
+); run "$d" --require-locked
+pass "a design shaped like /harness:shape output passes"
+# The shipped template itself (frontmatter, empty tables, '## Decisions' last).
+d="$TMP/template"; mkdir -p "$d"; cp "$TMP/good/plan.md" "$d/"
+{ sed -e 's/__SLUG__/template/' -e 's/__TITLE__/Offline stamps/' "$(dirname "$SCRIPT")/../templates/design.md"; printf '%s\n' "$GOOD"; } > "$d/design.md"
+run "$d"
+pass "the /harness:shape template with decisions appended passes"
+
+# Inside the record every non-blank line must be a decision line: an escaped
+# marker, a table row or a lazy continuation renders an open item as text.
+for variant in '\- [ ] Q2 · med · escaped marker · open' '| [ ] Q2 | open |' \
+               '[ ] Q2 · med · lazy continuation of the line above · open' \
+               '### Notes' 'Some note about the decisions'; do
+  d=$(mk "rec$RANDOM" locked <<<"$GOOD
+$variant"); run "$d"
+  expect_block "a non-decision line in the record blocks: '$variant'" "malformed"
+done
+d=$(mk reccomment locked <<EOF
+$GOOD
+<!--
+\`\`\`
+-->
+- [ ] Q2 · med · shown by the renderers after the comment · open
+\`\`\`
+EOF
+); run "$d"
+expect_block "an HTML comment hiding a fence opener in the record blocks" "HTML"
+
+# Raw HTML blocks anywhere: a fence opener inside <!-- … --> is HTML to the
+# renderers, so the gate's fence would swallow the rendered record.
+d=$(mkdoc htmlscope <<EOF
+## Scope
+<!--
+\`\`\`
+-->
+
+## Decisions
+- [ ] Q2 · med · open in the rendered record · open
+
+\`\`\`
+## Decisions
+$GOOD
+EOF
+); run "$d"
+expect_block "an HTML comment hiding a fence opener outside the record blocks" "HTML"
+for h in '<h2>Decisions</h2>' '<details>' '  <div>' '- <!-- note -->' '> </div>' '<?php x ?>' '<!DOCTYPE html>'; do
+  d=$(mkdoc "html$RANDOM" <<EOF
+## Scope
+$h
+
+## Decisions
+$GOOD
+EOF
+); run "$d"
+  expect_block "a raw HTML block line blocks: '$h'" "HTML"
+done
+d=$(mkdoc autolink <<EOF
+## Scope
+<https://example.com/a>
+<ops@example.com>
+<= 5 shops, < 3 devices
+
+## Decisions
+$GOOD
+EOF
+); run "$d"
+pass "autolinks and a bare '<' are not HTML"
+
+# Headings: nested ones and ones spelled with inline markup block, so any
+# heading that renders as 'Decisions' is caught by a plain text comparison.
+for h in '- ## Decisions' '> ## Decisions' '>> ### Notes' '1. # Title' \
+         '## *Decisions*' '## Decision&#115;' '## Decision&#x73;' '## [Decisions](x)' \
+         '## De`cis`ions' '## \Decisions' '## _Decisions_' '## Deci<span>sions</span>'; do
+  d=$(mkdoc "head$RANDOM" <<EOF
+$h
+- [ ] Q2 · med · in a second rendered record · open
+
+## Decisions
+$GOOD
+EOF
+); run "$d"
+  expect_block "heading '$h' blocks" "heading"
+done
+d=$(mkdoc plainheads <<EOF
+## Flow & what-ifs
+### Rename stamp_count to stamps_total
+## Scope board ##
+
+## Decisions
+$GOOD
+EOF
+); run "$d"
+pass "plain headings with '&', intraword '_' and closing hashes pass"
+
+# Setext: the heading text is the whole paragraph the underline closes.
+d=$(mkdoc setextmulti <<EOF
+## Scope
+The team reviewed these
+Decisions
+---
+
+## Decisions
+$GOOD
+EOF
+); run "$d"
+pass "a multi-line paragraph ending in 'Decisions' over --- does not block"
+d=$(mkdoc setextlazy <<EOF
+## Scope
+- shops only
+Decisions
+---
+
+## Decisions
+$GOOD
+EOF
+); run "$d"
+pass "a lazy continuation then --- is a rule, not a heading"
+d=$(mkdoc setextquote <<EOF
+## Scope
+> shops only
+Decisions
+---
+
+## Decisions
+$GOOD
+EOF
+); run "$d"
+pass "a blockquote's lazy continuation then --- is a rule, not a heading"
+d=$(mkdoc setextlist <<EOF
+## Scope
+- Decisions
+---
+
+## Decisions
+$GOOD
+EOF
+); run "$d"
+pass "a list item then a column-0 --- is a rule, not a heading"
+for body in '> Decisions\n> ---' '- Decisions\n  ---' '## Scope\nDecisions\n=========' \
+            '*Decisions*\n---' 'Deci<!--\n-->sions\n---' 'Deci<!--\n2. x -->sions\n---'; do
+  d=$(mkdoc "setext$RANDOM" < <(printf -- "$body"'\n- [ ] Q2 · med · open · open\n\n## Decisions\n%s\n' "$GOOD")); run "$d"
+  expect_block "setext heading blocks: '$body'" "heading"
+done
 # CRLF: a valid design saved with CRLF line endings passes.
 d=$(mk crlfok locked <<<"$GOOD"); perl -pi -e 's/\n/\r\n/' "$d/design.md"; run "$d" --require-locked
 [ "$RC" = "0" ] && ok "a valid CRLF design passes" || bad "valid CRLF design (rc=$RC: $OUT)"

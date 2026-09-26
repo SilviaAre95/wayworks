@@ -45,10 +45,10 @@ slug=$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1' "$DESIGN" \
 # backtick), closed by a 0–3-space-indented run of the same character at least
 # as long with only spaces (or a CRLF \r) after it. The lines design-check
 # blocks as ambiguous — indented openers, near-miss closers — are read here as
-# content, so a draft still renders. (Raw HTML blocks are not modelled by either
-# script — a known gap tracked separately.) Every
-# '<' is escaped so nothing in the design can close the
-# <script type="application/json"> it sits in.
+# content, so a draft still renders — as are raw HTML blocks and headings
+# outside the design dialect, which design-check blocks. Every '<' is escaped
+# so nothing in the design can close the <script type="application/json"> it
+# sits in.
 json=$(awk '
   function fence(s,   n) {  # 1 if s is a fence line; sets FR (the run) and FI (the rest)
     match(s, /^ */); n = RLENGTH; if (n > 3) return 0

@@ -60,25 +60,37 @@ if [ "$REQUIRE_LOCKED" -eq 1 ] && [ "$status" != "locked" ]; then
   block "design.md: status is '${status:-<missing>}', not locked — finish it with /harness:shape"
 fi
 
-# --- decision lines --------------------------------------------------------
-# Only the `## Decisions` section is parsed: the Discovery and Scope sections
-# legitimately hold wikilink bullets (`- [[x]]`), links (`- [a](b)`) and plain
-# to-dos that are not decisions. Inside it, anything that looks like a checkbox
-# but is not the canonical `- [` at column 0 is malformed rather than skipped —
-# a skipped `  - [ ] Q9` (or blockquoted `> - [ ] Q9`) would be an open
-# question the gate never saw. A second `## Decisions…` heading blocks too:
-# which section is the record would be a guess.
+# --- the design dialect ----------------------------------------------------
+# The rendered design is what a human reviewed, so the gate must read it the
+# way the renderers do (CommonMark 0.31.2, and marked for the map page). A line
+# loop cannot model every Markdown construct, and each blocklist round found a
+# new one that hid an open decision (XARI-151, XARI-160). So a design may use
+# only a dialect the gate reads the same way, and anything outside it blocks:
+# - the record: every non-blank line under `## Decisions` is a decision line
+#   (or a fence). Discovery and Scope may hold wikilink bullets, links and
+#   plain to-dos — only the record is parsed;
+# - no raw HTML blocks: a line opening, after any quote or list markers, with
+#   `<` then a letter, `/`, `!` or `?` (how every HTML block starts) blocks,
+#   autolinks (`<https://…>`, `<a@b.c>`) excepted;
+# - headings are top-level plain text: none inside a list or blockquote, and
+#   none using inline markup (code, emphasis, links, escapes, raw HTML,
+#   entities). Plain text renders as written, so "is this heading 'Decisions'"
+#   is a text comparison, and only `## Decisions` at column 0 may say it. A
+#   second `## Decisions…` heading blocks too: which is the record is a guess.
+# - a setext heading's text is the whole paragraph its underline closes, as the
+#   renderers read it — a lazy continuation or list item followed by a less
+#   indented `---` is a rule, not a heading.
+# Not modelled: Unicode lookalikes ("Dеcisions" with a Cyrillic е) — no text
+# rule can see what a reader's eye does.
 re_line='^- \[([ x~])\] ([AQWB][0-9]+) · (.+)$'
 re_box='^[[:space:]]*(>[[:space:]]*)*([-*+]|[0-9]+[.)])[[:space:]]+\['
 re_by='(^|· )decided-by: (you|accepted-default)( |$)'
 re_ack='(^|· )ack( ·|$)'
 re_defer='(^|· )deferred: [^[:space:]]'
-# Fences. The rendered design is what a human reviewed, so the gate must agree
-# with it about where code ends. CommonMark (0.31.2 §4.5) and marked (the map
-# page's renderer) differ at the edges, and a line-based loop cannot track
-# list items — so for fences the gate reads only the lines every reader agrees on,
-# and BLOCKS on the rest rather than guess (a guess either way let an open
-# decision through, XARI-151):
+# Fences. CommonMark (0.31.2 §4.5) and marked differ at the edges, and a
+# line-based loop cannot track list items — so for fences the gate reads only
+# the lines every reader agrees on, and BLOCKS on the rest rather than guess (a
+# guess either way let an open decision through, XARI-151):
 # - an opener is a run of 3+ backticks or tildes at column 0, then an info
 #   string; a backtick info string holds no backtick ("``` `x`" is inline
 #   code, not a fence). An opener indented 1–3 spaces is a fence at top level
@@ -88,27 +100,62 @@ re_defer='(^|· )deferred: [^[:space:]]'
 #   the other fence character or any other whitespace — is read differently by
 #   the two renderers, so it blocks too. A shorter run, the other character's
 #   run, a line with an info string, or 4+ spaces of indent is plain content.
-# Not modelled, a known gap tracked separately: raw HTML blocks (a fence line
-# inside <!-- … --> or <details> is a fence here but HTML to the renderers)
-# and a "Decisions" heading nested in a list or blockquote or spelled with
-# markup or entities. The fix is an allowlist of what a design may contain.
 re_open='^(`{3,}|~{3,})(.*)$'
 re_indented_open='^ {1,3}(`{3,}|~{3,})(.*)$'
 re_close='^ {0,3}(`{3,}|~{3,}) *$'
 re_near_close='^ {0,3}(`{3,}|~{3,})[`~[:space:]]*$'
-# Only "## Decisions" at column 0 opens the record. Any other heading the
-# renderers show as "Decisions" — indented, extra spaces or a tab after the
-# hashes, another level, any case, or setext (underlined) — would be a second
-# record the gate never reads, so it blocks.
-re_dec_atx='^ {0,3}#{1,6}[[:space:]]+[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn][Ss]([[:space:]#]|$)'
-re_dec_text='^ {0,3}[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn][Ss][[:space:]]*$'
-re_setext='^ {0,3}(=+|-+)[[:space:]]*$'
-decided_w=""; prev=""
+re_quote='^ *> ?(.*)$'
+re_marker='^( *)([-*+]|[0-9]{1,9}[.)])( +|$)(.*)$'
+re_hr='^ *((-[ 	]*){3,}|(\*[ 	]*){3,}|(_[ 	]*){3,})$'
+re_underline='^( *)(=+|-+)[ 	]*$'
+re_atx='^ {0,3}#{1,6}([ 	](.*))?$'
+re_html='^[[:space:]]*<[A-Za-z/!?]'
+re_autolink='^[[:space:]]*<([A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>[:space:]]*|[^<>@[:space:]]+@[A-Za-z0-9.-]+)>'
+re_entity='&(#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});'
+re_markup='[][`*_\\<]'
+re_dec_word='^[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn][Ss]([[:space:]#]|$)'
+# containers <line>: strip quote and list markers. Sets q (after quotes only),
+# c (after all markers), depth (quote count), mark (1 if a list marker was
+# stripped since the last quote), mcol (the column content starts at after it)
+# and interrupts (whether that marker may start a list inside a paragraph).
+containers() {
+  q="$1"; depth=0
+  while [[ "$q" =~ $re_quote ]]; do q="${BASH_REMATCH[1]}"; depth=$((depth + 1)); done
+  c="$q"; mark=0; mcol=0; interrupts=1
+  [[ "$q" =~ $re_hr ]] && return
+  while [[ "$c" =~ $re_marker ]]; do
+    mcol=$((mcol + ${#BASH_REMATCH[1]} + ${#BASH_REMATCH[2]} + ${#BASH_REMATCH[3]}))
+    case "${BASH_REMATCH[2]}" in 1.|1\)|-|\*|+) ;; *) interrupts=0 ;; esac   # only bullets and "1." interrupt
+    c="${BASH_REMATCH[4]}"; mark=1
+  done
+  [[ "$c" =~ ^[[:space:]]*$ ]] && interrupts=0   # an empty item cannot interrupt a paragraph
+}
+# heading <text> <nested 0|1> <canonical 0|1>: the allowlist for a heading.
+heading() {
+  local t="$1" p
+  [[ "$t" =~ ^[[:space:]]*(.*[^[:space:]])?[[:space:]]*$ ]]; t="${BASH_REMATCH[1]}"
+  if [[ "$t" =~ ^(.*)[[:space:]]#+$ ]]; then t="${BASH_REMATCH[1]}"; elif [[ "$t" =~ ^#+$ ]]; then t=""; fi
+  if [ "$2" -eq 1 ]; then
+    block "design.md:$ln: a heading inside a list or blockquote — design headings sit at the top level"; return
+  fi
+  p="$t"   # an underscore between letters or digits is never emphasis
+  while [[ "$p" =~ ^(.*[[:alnum:]])_+([[:alnum:]].*)$ ]]; do p="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; done
+  if [[ "$p" =~ $re_markup ]] || [[ "$p" =~ $re_entity ]]; then
+    block "design.md:$ln: heading uses inline markup (\` * _ \\ [ < or an &entity;) — write headings as plain text"; return
+  fi
+  [[ "$t" =~ $re_dec_word ]] && [ "$3" -eq 0 ] && \
+    block "design.md:$ln: a 'Decisions' heading not written as '## Decisions' at column 0 — the gate reads only that form"
+}
+fm_end=0
+[ -n "$fm" ] && fm_end=$(awk '{ sub(/\r$/, "") } NR>1 && $0=="---"{ print NR; exit }' "$DESIGN")
+fm_end="${fm_end:-0}"
+decided_w=""
 infence=0; fch=""; flen=0; insec=0; seen_sec=0; nsec=0; ln=0
+popen=0; ptext=""; pdepth=0; pcol=0; pnest=0   # the open paragraph, for setext
 while IFS= read -r line || [ -n "$line" ]; do
   ln=$((ln + 1))
   line="${line%$'\r'}"   # CRLF: one trailing \r (a lone \r mid-line blocked above)
-  last="$prev"; prev="$line"
+  [ "$ln" -le "$fm_end" ] && continue
   if [ "$infence" -eq 1 ]; then
     if [[ "$line" =~ $re_near_close ]]; then
       run="${BASH_REMATCH[1]}"
@@ -126,18 +173,35 @@ while IFS= read -r line || [ -n "$line" ]; do
       # Block once, then skip to its closer: the design is already blocked, so
       # skipping cannot let anything through, and its closer is not re-flagged.
       block "design.md:$ln: code fence indented under a list or paragraph — the gate cannot tell where it ends; move the code block out of the list, to column 0"
-      infence=1; fch="${run:0:1}"; flen="${#run}"; continue
+      infence=1; fch="${run:0:1}"; flen="${#run}"; popen=0; continue
     fi
   fi
   if [[ "$line" =~ $re_open ]]; then
     run="${BASH_REMATCH[1]}"; info="${BASH_REMATCH[2]}"
     if ! { [ "${run:0:1}" = '`' ] && [[ "$info" == *'`'* ]]; }; then
-      infence=1; fch="${run:0:1}"; flen="${#run}"; continue
+      infence=1; fch="${run:0:1}"; flen="${#run}"; popen=0; continue
     fi
   fi
-  if { [[ "$line" =~ $re_dec_atx ]] && [[ "$line" != '## Decisions'* ]]; } \
-     || { [[ "$line" =~ $re_setext ]] && [[ "$last" =~ $re_dec_text ]]; }; then
-    block "design.md:$ln: a 'Decisions' heading not written as '## Decisions' at column 0 — the gate reads only that form"
+  containers "$line"
+  if [[ "$c" =~ $re_html ]] && ! [[ "$c" =~ $re_autolink ]]; then
+    block "design.md:$ln: raw HTML block (renderers hide or reshape what follows it) — write it as Markdown or put it in a code fence"
+  fi
+  if [[ "$q" =~ ^[[:space:]]*$ ]]; then popen=0
+  elif [ "$popen" -eq 1 ] && [ "$mark" -eq 0 ] && [ "$depth" -eq "$pdepth" ] \
+       && [[ "$q" =~ $re_underline ]] && [ "${#BASH_REMATCH[1]}" -ge "$pcol" ]; then
+    heading "$ptext" "$pnest" 0; popen=0
+  elif [[ "$q" =~ $re_hr ]]; then popen=0
+  elif [[ "$c" =~ $re_atx ]]; then
+    nested=0; { [ "$depth" -gt 0 ] || [ "$mark" -eq 1 ]; } && nested=1
+    canon=0; [[ "$line" == '## Decisions'* ]] && canon=1
+    heading "${BASH_REMATCH[2]}" "$nested" "$canon"; popen=0
+  elif [[ "$c" =~ ^[[:space:]]*$ ]]; then popen=0   # an empty list item
+  elif [ "$popen" -eq 1 ] && [ "$depth" -le "$pdepth" ] && { [ "$mark" -eq 0 ] || [ "$interrupts" -eq 0 ]; }; then
+    ptext="$ptext $c"   # continuation, or a lazy one
+  else
+    popen=1; ptext="$c"; pdepth="$depth"; pcol=0; pnest=0
+    [ "$mark" -eq 1 ] && pcol="$mcol"
+    { [ "$depth" -gt 0 ] || [ "$mark" -eq 1 ]; } && pnest=1
   fi
   case "$line" in
     '## '*)
@@ -151,9 +215,11 @@ while IFS= read -r line || [ -n "$line" ]; do
       continue ;;
   esac
   [ "$insec" -eq 1 ] || continue
+  [[ "$line" =~ ^[[:space:]]*$ ]] && continue
   case "$line" in
     '- ['*) ;;
-    *) [[ "$line" =~ $re_box ]] && { n=$((n + 1)); block "malformed decision line (want '- [' at column 0): $(shown "$line")"; }
+    *) [[ "$line" =~ $re_box ]] && n=$((n + 1))
+       block "malformed decision line (only '- [x|~| ] <A|Q|W|B><n> · …' lines belong under '## Decisions'): $(shown "$line")"
        continue ;;
   esac
   n=$((n + 1))
