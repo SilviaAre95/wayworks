@@ -760,12 +760,12 @@ for b in '## Decisión\n\n- [ ] Q99 · nunca decidido · open' '## Décision\n\n
   d=$(body "cb$RANDOM" "$b"); run "$d"
   expect_block "a checkbox outside the record blocks: '$b'" "checkbox outside"
 done
-# Round 9: text that reads as a checkbox without the literal bytes.
-for b in '- [ \\] Q9 · open' '- \\[x\\] A9 · no owner' '- [`x`] A9' '- [*x*] A9' '- [  ] Q9' \
-         '- &#91; &#93; Q9 · open' '- &lbrack; &rbrack; Q9' '- [&#32;] Q9' '- [&nbsp;] Q9'; do
-  d=$(body "ct$RANDOM" "## Scope\n$b"); run "$d"
-  expect_block "checkbox-looking text outside the record blocks: '$b'" "BLOCK"
-done
+# A rendered checkbox needs its literal bytes, so only those are checked
+# outside the record; text that merely reads like one is prose.
+d=$(body ctwide '## Scope\n- [  ] Q9'); run "$d"
+expect_block "a checkbox with extra spaces blocks" "checkbox outside"
+d=$(body prose '## Discovery\nThe old flow was slow &mdash; users waited &rarr; left.&nbsp;See &#8212; &copy; 2026.\n- write \\[x\\] or &#91; ] as text'); run "$d"
+pass "entities and escaped brackets in prose pass (text, not a checkbox)"
 d=$(body wikix '## Discovery\nSee [[x]], [[X]] and [[~]] for prior art.\n\n## Scope\n- a &amp; b, x &lt; y, "quoted" &quot;q&quot;, arr[] and AT&T'); run "$d"
 pass "one-character wikilinks, allowed entities and 'arr[]' pass"
 d=$(mk recwiki locked <<<"$GOOD
@@ -774,15 +774,15 @@ pass "a one-character wikilink in a decision line passes"
 d="$TMP/fmwikix"; mkdir -p "$d"; cp "$TMP/good/plan.md" "$d/"
 printf -- '---\nslug: fmwikix\nstatus: draft\ndiscovery:\n  - [[x]]\n---\n## Decisions\n%s\n' "$GOOD" > "$d/design.md"; run "$d"
 pass "a one-character wikilink in frontmatter passes"
-d="$TMP/fment"; mkdir -p "$d"; cp "$TMP/good/plan.md" "$d/"
-printf -- '---\nslug: fment\nstatus: draft\ndiscovery:\n  - "&#91; ] Q1"\n---\n## Decisions\n%s\n' "$GOOD" > "$d/design.md"; run "$d"
-expect_block "an entity in frontmatter blocks" "entity in frontmatter"
 for l in '- [x] A1 · pick X ~reason · decided-by: you · done~' '- [~] Q1 · deferred: later~' \
          '- [x] B1 · byproduct ~note · decided-by: you · ack · end~'; do
   d=$(mk "tl$RANDOM" locked <<<"$GOOD
 $l"); run "$d"
-  expect_block "a single tilde after the marker blocks: '$l'" "a decision line holds"
+  expect_block "a pair of tildes (the [~] marker's included) blocks: '$l'" "a decision line holds"
 done
+d=$(mk onetilde locked <<<"$GOOD
+- [x] W5 · high · fix takes ~10 min to apply · decided-by: you"); run "$d"
+[ "$RC" = "1" ] && grep -q "a decision line holds" <<<"$OUT" && bad "a lone tilde passes ($OUT)" || ok "a lone tilde in a decision line passes (it strikes nothing)"
 for l in '- [x] Q5 · med · a \342\201\246b · decided-by: you' '- [x] Q5 · med · a \330\234b · decided-by: you'; do
   d=$(mk "bidi$RANDOM" locked < <(printf -- "$GOOD\n$l\n")); run "$d"
   expect_block "a bidi isolate blocks: '$l'" "invisible character"
