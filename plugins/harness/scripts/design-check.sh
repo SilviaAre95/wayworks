@@ -75,11 +75,14 @@ fi
 # - headings are ATX at column 0 and plain text: a `#` run anywhere else on a
 #   line (indented, after a list marker) blocks, as does inline markup in a
 #   heading (code, emphasis, strikethrough, links, escapes, raw HTML,
-#   entities). Plain text renders as written, so only `## Decisions` may read
-#   as the record: a heading whose ASCII letters are "Decision", or start with
-#   "Decisions" ("Decisions:", "2. Decisions and goals"), blocks. Letters alone,
-#   so no invisible or control character can split the word; "Decision tree
-#   editor" and Spanish "Decisiones" pass; a second `## Decisions…` blocks, since which is the record
+#   entities), and none without an ASCII letter or digit (an empty `## ` ends
+#   the record for the gate while the page shows nothing there). Only
+#   `## Decisions` may read as the record: a heading whose ASCII letters are
+#   "Decision" or "Decisions" blocks, and under any heading whose letters
+#   start with "Decision" ("1. Decision log", "Decisions—open") a checkbox
+#   line blocks until the next heading. Letters alone, so no invisible or
+#   control character can split the word; a title like "Decision tree editor"
+#   still passes, since no checkbox sits under it; a second `## Decisions…` blocks, since which is the record
 #   would be a guess;
 # - no setext headings: a line of only `-`, `=`, `*`, `_` and spaces must not
 #   sit directly under text (a blank line, heading or fence closer comes first);
@@ -123,14 +126,17 @@ re_items='^ *(([-*+]|[0-9]{1,9}[.)])( +|$))*'   # leading list markers, stripped
 re_atx='^#{1,6}( (.*))?$'
 re_rule='^[-=*_ ]*[-=*_][-=*_ ]*$'
 re_fm_key='^(slug|status|stage|discovery|discovery-status):( .*)?$'
-fm_val='(\[\[[^][]*\]\]|[A-Za-z0-9._/~-]+)'   # one path or [[wikilink]], bare or quoted
-re_fm_item="^ *- ($fm_val|\"$fm_val\"|'$fm_val') *\$"
+# One path or [[wikilink]]; quoted, anything but the quote (a leading quote
+# cannot open a block, and rawhtml still runs on the line).
+fm_val='(\[\[[^][]*\]\]|[A-Za-z0-9._/~-]+)'
+re_fm_item="^ *- ($fm_val|\"[^\"]+\"|'[^']+') *\$"
 # An autolink starts with a letter or digit: `<!`, `<?` and `</` always open HTML.
 re_autolink='^<([A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>[:space:]]*|[A-Za-z0-9][^<>@[:space:]]*@[A-Za-z0-9.-]+)>'
 re_br='^<[Bb][Rr] */?>'
 re_entity='&(#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});'
 re_markup='[][`*_~\\<]'
-re_dec_word='^[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn]([Ss]|$)'
+re_dec_word='^[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn][Ss]?$'   # the whole heading, letters only
+re_dec_lead='^[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn]'           # a heading that starts like one
 # Whitespace a renderer reads as indentation or a heading separator: tab, VT,
 # FF, and the non-ASCII spaces JavaScript's \s matches; and invisible format
 # characters — soft hyphen U+00AD, U+034F, U+180E, U+200B–U+200F,
@@ -158,6 +164,10 @@ heading() {
   local t="$1" p
   [[ "$t" =~ ^[[:space:]]*(.*[^[:space:]])?[[:space:]]*$ ]]; t="${BASH_REMATCH[1]}"
   if [[ "$t" =~ ^(.*)[[:space:]]#+$ ]]; then t="${BASH_REMATCH[1]}"; elif [[ "$t" =~ ^#+$ ]]; then t=""; fi
+  declead=0
+  if [[ "${t//[^A-Za-z0-9]/}" == "" ]]; then
+    block "design.md:$ln: a heading with no letter or digit — it reads as empty, so what follows looks like the section above"; return
+  fi
   p="$t"   # an underscore between letters or digits is never emphasis
   while [[ "$p" =~ ^(.*[[:alnum:]])_+([[:alnum:]].*)$ ]]; do p="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; done
   if [[ "$p" =~ $re_markup ]] || [[ "$p" =~ $re_entity ]]; then
@@ -165,14 +175,16 @@ heading() {
   fi
   # Letters only: any invisible or non-ASCII byte inside "Decisions" would
   # otherwise dodge the test while the heading still reads "Decisions".
-  [[ "${t//[^A-Za-z]/}" =~ $re_dec_word ]] && [ "$2" -eq 0 ] && \
+  [ "$2" -eq 1 ] && return
+  [[ "${t//[^A-Za-z]/}" =~ $re_dec_word ]] && \
     block "design.md:$ln: a heading that reads as the Decisions record but is not '## Decisions' at column 0 — the gate reads only that form; reword it"
+  [[ "${t//[^A-Za-z]/}" =~ $re_dec_lead ]] && declead=1
 }
 fm_end=0
 [ -n "$fm" ] && fm_end=$(awk '{ sub(/\r$/, "") } NR>1 && $0=="---"{ print NR; exit }' "$DESIGN")
 fm_end="${fm_end:-0}"
 decided_w=""
-infence=0; fch=""; flen=0; insec=0; seen_sec=0; nsec=0; ln=0
+infence=0; fch=""; flen=0; insec=0; seen_sec=0; nsec=0; ln=0; declead=0
 prev=""   # the previous line, when it is text a rule-like line would turn into a heading
 while IFS= read -r line || [ -n "$line" ]; do
   ln=$((ln + 1))
@@ -221,6 +233,8 @@ while IFS= read -r line || [ -n "$line" ]; do
   [[ "$line" =~ $re_items ]]; c="${line:${#BASH_REMATCH[0]}}"   # the line's content after list markers
   [[ "$c" =~ $re_br ]] && block "design.md:$ln: a line opening with <br> starts an HTML block that hides what follows — put <br> mid-line or drop it"
   [ "${c:0:1}" = '>' ] && block "design.md:$ln: a blockquote — outside the design dialect; quote as plain text or in a fence"
+  [ "$declead" -eq 1 ] && [[ "$line" =~ $re_box ]] && \
+    block "design.md:$ln: a checkbox under a heading that reads as the Decisions record — only '## Decisions' holds decisions; move it there or reword the heading"
   if [[ "$line" =~ $re_atx ]]; then
     htext="${BASH_REMATCH[2]-}"; canon=0
     [[ "$line" =~ ^'## Decisions'[[:space:]]*$ ]] && canon=1

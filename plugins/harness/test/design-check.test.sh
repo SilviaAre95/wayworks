@@ -689,7 +689,7 @@ expect_block "a strikethrough heading blocks" "inline markup"
 d=$(body rules 'intro\n## Scope\n---\n\ntext\n\n***\n\n## Flow & what-ifs\n\n---\n\ntext\n~~~\ncode\n~~~\n---'); run "$d"
 pass "a rule after a heading, a blank line or a fence closer passes"
 d="$TMP/fmcol0"; mkdir -p "$d"; cp "$TMP/good/plan.md" "$d/"
-printf -- '---\nslug: fmcol0\nstatus: draft\ndiscovery:\n- docs/discovery/a.md\n  - "docs/discovery/b.md"\n  - "[[brief]]"\n---\n## Decisions\n%s\n' "$GOOD" > "$d/design.md"; run "$d"
+printf -- '---\nslug: fmcol0\nstatus: draft\ndiscovery:\n- docs/discovery/a.md\n  - "docs/discovery/b.md"\n  - "[[brief]]"\n  - [[other brief]]\n---\n## Decisions\n%s\n' "$GOOD" > "$d/design.md"; run "$d"
 pass "frontmatter list items at column 0, quoted or as a wikilink pass"
 # Round 4: a line opening with <br> starts an HTML block (CommonMark type 7)
 # that swallows the next fence line, so the gate's fence and the renderers'
@@ -725,6 +725,30 @@ for b in '- - ## Decisions\n- - [ ] Q1 · open' '- 1. ## Decisions' '- - # Decis
   printf -- "---\nslug: fmn\nstatus: draft\ndiscovery:\n$b\n---\n## Decisions\n%s\n" "$GOOD" > "$d/design.md"; run "$d"
   expect_block "a frontmatter item that is not one path blocks: '$b'" "frontmatter holds only"
 done
+# Round 7: an empty heading ends the record for the gate but shows nothing;
+# a checkbox under any heading that starts like "Decision" blocks, so titles
+# like "Decision support tool" still lock.
+for b in '## \n- [ ] Q9 · open' '## ##\n- [ ] Q9 · open' '### \342\201\246\n- [ ] Q9 · open'; do
+  d=$(mk "empty$RANDOM" locked < <(printf -- "$GOOD\n$b\n")); run "$d"
+  expect_block "an empty heading blocks: '$b'" "no letter or digit"
+done
+for h in '## 1. Decision log' '## Decision record' '## Decision (open)' '### Decisions—open' '## Decision support' '# Decision tree editor'; do
+  d=$(body "lead$RANDOM" "$h\n\n- [ ] Q1 · open"); run "$d"
+  expect_block "a checkbox under '$h' blocks" "checkbox under a heading"
+  d=$(body "leadok$RANDOM" "$h\n\n- plain notes, no checkbox"); run "$d"
+  pass "'$h' with no checkbox under it passes"
+done
+# A second heading that reads exactly "Decisions" misleads a reviewer even
+# with nothing checkable under it.
+for h in '### Decisions' '## Decision' '## \342\201\246Decisions' '## Dec\342\201\251isions:'; do
+  d=$(body "exact$RANDOM" "$h\n\nplain text, no checkbox"); run "$d"
+  expect_block "a heading reading exactly 'Decision(s)' blocks: '$h'" "reads as the Decisions record but is not"
+done
+d=$(body leadreset '## Decision scope\n\n## Scope\n- [ ] verify with shop owners'); run "$d"
+pass "a to-do under the next, unrelated heading passes"
+d="$TMP/fmspace"; mkdir -p "$d"; cp "$TMP/good/plan.md" "$d/"
+printf -- '---\nslug: fmspace\nstatus: draft\ndiscovery:\n  - "02-Projects/homa-os/Product Brief v1.0.md"\n  - '"'"'docs/my file.md'"'"'\n---\n## Decisions\n%s\n' "$GOOD" > "$d/design.md"; run "$d"
+pass "a quoted frontmatter path with spaces passes"
 d=$(body brlike '- <bridge-status>up</bridge-status>'); run "$d"
 { [ "$RC" = "1" ] && grep -q "raw HTML" <<<"$OUT" && ! grep -q "opening with <br>" <<<"$OUT"; } \
   && ok "a tag that only starts with 'br' is raw HTML, not a <br> opener" || bad "br-like tag (rc=$RC: $OUT)"
