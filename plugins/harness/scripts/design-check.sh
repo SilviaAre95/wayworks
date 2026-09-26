@@ -75,9 +75,11 @@ fi
 # - headings are ATX at column 0 and plain text: a `#` run anywhere else on a
 #   line (indented, after a list marker) blocks, as does inline markup in a
 #   heading (code, emphasis, strikethrough, links, escapes, raw HTML,
-#   entities). Plain text renders as written, so only `## Decisions` may start
-#   with "Decision" — judged on the heading's ASCII letters alone, so no
-#   invisible or control character can split the word; a second `## Decisions…` blocks, since which is the record
+#   entities). Plain text renders as written, so only `## Decisions` may read
+#   as the record: a heading whose ASCII letters are "Decision", or start with
+#   "Decisions" ("Decisions:", "2. Decisions and goals"), blocks. Letters alone,
+#   so no invisible or control character can split the word; "Decision tree
+#   editor" and Spanish "Decisiones" pass; a second `## Decisions…` blocks, since which is the record
 #   would be a guess;
 # - no setext headings: a line of only `-`, `=`, `*`, `_` and spaces must not
 #   sit directly under text (a blank line, heading or fence closer comes first);
@@ -91,8 +93,8 @@ fi
 #   format character: renderers treat them as indentation or heading
 #   separators. (Headings do not rely on this list — see above.)
 # - frontmatter holds only the keys /harness:shape writes (slug, status, stage,
-#   discovery, discovery-status) and `- value` list items: a plain CommonMark
-#   renderer shows it as body text.
+#   discovery, discovery-status) and `- value` list items whose value is one
+#   path or [[wikilink]]: a plain CommonMark renderer shows it as body text.
 # Not modelled: Unicode lookalikes ("Dеcisions" with a Cyrillic е) — no text
 # rule can see what a reader's eye does.
 re_line='^- \[([ x~])\] ([AQWB][0-9]+) · (.+)$'
@@ -121,13 +123,14 @@ re_items='^ *(([-*+]|[0-9]{1,9}[.)])( +|$))*'   # leading list markers, stripped
 re_atx='^#{1,6}( (.*))?$'
 re_rule='^[-=*_ ]*[-=*_][-=*_ ]*$'
 re_fm_key='^(slug|status|stage|discovery|discovery-status):( .*)?$'
-re_fm_item='^ *- ["'"'"']?([A-Za-z0-9._/~-]|\[\[)'
+fm_val='(\[\[[^][]*\]\]|[A-Za-z0-9._/~-]+)'   # one path or [[wikilink]], bare or quoted
+re_fm_item="^ *- ($fm_val|\"$fm_val\"|'$fm_val') *\$"
 # An autolink starts with a letter or digit: `<!`, `<?` and `</` always open HTML.
 re_autolink='^<([A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>[:space:]]*|[A-Za-z0-9][^<>@[:space:]]*@[A-Za-z0-9.-]+)>'
 re_br='^<[Bb][Rr] */?>'
 re_entity='&(#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});'
 re_markup='[][`*_~\\<]'
-re_dec_word='^[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn]'
+re_dec_word='^[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn]([Ss]|$)'
 # Whitespace a renderer reads as indentation or a heading separator: tab, VT,
 # FF, and the non-ASCII spaces JavaScript's \s matches; and invisible format
 # characters — soft hyphen U+00AD, U+034F, U+180E, U+200B–U+200F,
@@ -163,7 +166,7 @@ heading() {
   # Letters only: any invisible or non-ASCII byte inside "Decisions" would
   # otherwise dodge the test while the heading still reads "Decisions".
   [[ "${t//[^A-Za-z]/}" =~ $re_dec_word ]] && [ "$2" -eq 0 ] && \
-    block "design.md:$ln: a 'Decision…' heading not written as '## Decisions' at column 0 — the gate reads only that form"
+    block "design.md:$ln: a heading that reads as the Decisions record but is not '## Decisions' at column 0 — the gate reads only that form; reword it"
 }
 fm_end=0
 [ -n "$fm" ] && fm_end=$(awk '{ sub(/\r$/, "") } NR>1 && $0=="---"{ print NR; exit }' "$DESIGN")

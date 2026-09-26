@@ -653,7 +653,7 @@ pass "CRLF frontmatter is skipped"
 for h in '### Decisions:' '### Decisions.' '### Decision' '## Decision' '### Decisions—open' \
          '### Decisions/2' '## Decisions ##'; do
   d=$(body "word$RANDOM" "$h\n- [ ] Q2 · open"); run "$d"
-  expect_block "heading '$h' blocks" "not written as '## Decisions'"
+  expect_block "heading '$h' blocks" "reads as the Decisions record"
 done
 # Round 2: an item marker that cannot interrupt a paragraph is an underline
 # or text; a rule or underline indented past the paragraph's window is text.
@@ -707,9 +707,23 @@ done
 # Round 5: a list of invisible characters is never complete, so the heading
 # test reads ASCII letters only — any other byte inside "Decisions" is ignored.
 for b in '## \342\201\246Decisions' '## Dec\342\201\251isions' '## \330\234Decisions' '## Deci\357\270\217sions' \
-         '## \343\205\244Decisions' '## \363\240\200\201Decisions' '## \001Decisions' '## 1. Decision log'; do
+         '## \343\205\244Decisions' '## \363\240\200\201Decisions' '## \001Decisions' '## 2. Decisions and Non-Goals'; do
   d=$(body "inv$RANDOM" "$b\n\n- [ ] Q1 · open"); run "$d"
-  expect_block "a heading whose letters read 'Decision…' blocks: '$b'" "not written as '## Decisions'"
+  expect_block "a heading whose letters read 'Decision…' blocks: '$b'" "reads as the Decisions record"
+done
+# Only a heading that reads as the record blocks: its letters are "Decision",
+# or start with "Decisions". A feature titled "Decision…" still locks.
+d=$(body decwords '## Scope\n### Decision criteria\n## 1. Decision log\n## 42 Decisiones pendientes'); run "$d"
+pass "headings that only start with the word 'Decision' pass"
+d="$TMP/dectitle"; mkdir -p "$d"; cp "$TMP/good/plan.md" "$d/"
+{ sed -e 's/__SLUG__/dectitle/' -e 's/__TITLE__/Decision tree editor/' "$(dirname "$SCRIPT")/../templates/design.md"; printf '%s\n' "$GOOD"; } > "$d/design.md"
+run "$d"; pass "a design titled 'Decision tree editor' passes"
+# A frontmatter list item is one path or [[wikilink]]: a plain renderer shows
+# frontmatter as body text, where a nested list can hold a heading.
+for b in '- - ## Decisions\n- - [ ] Q1 · open' '- 1. ## Decisions' '- - # Decision log' '- docs/a.md and more'; do
+  d="$TMP/fmn$RANDOM"; mkdir -p "$d"; cp "$TMP/good/plan.md" "$d/"
+  printf -- "---\nslug: fmn\nstatus: draft\ndiscovery:\n$b\n---\n## Decisions\n%s\n" "$GOOD" > "$d/design.md"; run "$d"
+  expect_block "a frontmatter item that is not one path blocks: '$b'" "frontmatter holds only"
 done
 d=$(body brlike '- <bridge-status>up</bridge-status>'); run "$d"
 { [ "$RC" = "1" ] && grep -q "raw HTML" <<<"$OUT" && ! grep -q "opening with <br>" <<<"$OUT"; } \
