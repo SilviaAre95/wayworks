@@ -40,14 +40,29 @@ slug=$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1' "$DESIGN" \
 # Split on '## ' headings; each becomes {title, md}. A '## ' line inside a
 # code fence is content, not a tab, so awk marks only the real headings with a
 # record-separator byte (stripped from the input first, so a design cannot
-# forge one) and jq splits on the mark. Fence lines are ``` or ~~~ plus an
-# info string with no backticks, and a fence closes only on its own marker —
-# the same rules design-check.sh uses. Every
+# forge one) and jq splits on the mark. Fences use design-check.sh's rules: a
+# column-0 opener of 3+ backticks or tildes (a backtick info string holds no
+# backtick), closed by a 0–3-space-indented run of the same character at least
+# as long with only spaces (or a CRLF \r) after it. The lines design-check
+# blocks as ambiguous — indented openers, near-miss closers — are read here as
+# content, so a draft still renders. (Raw HTML blocks are not modelled by either
+# script — a known gap tracked separately.) Every
 # '<' is escaped so nothing in the design can close the
 # <script type="application/json"> it sits in.
 json=$(awk '
+  function fence(s,   n) {  # 1 if s is a fence line; sets FR (the run) and FI (the rest)
+    match(s, /^ */); n = RLENGTH; if (n > 3) return 0
+    s = substr(s, n + 1)
+    if (substr(s, 1, 1) == "`") match(s, /^`+/); else if (substr(s, 1, 1) == "~") match(s, /^~+/); else return 0
+    if (RLENGTH < 3) return 0
+    FR = substr(s, 1, RLENGTH); FI = substr(s, RLENGTH + 1); FN = n; return 1
+  }
   { gsub(/\036/, "") }
-  /^(```|~~~)[^`]*$/ { m = substr($0, 1, 3); if (!f) { f = 1; fm = m } else if (m == fm) f = 0; print; next }
+  fence($0) {
+    if (!f) { if (FN == 0 && !(substr(FR, 1, 1) == "`" && index(FI, "`"))) { f = 1; fc = substr(FR, 1, 1); fl = length(FR) } }
+    else if (substr(FR, 1, 1) == fc && length(FR) >= fl && FI ~ /^[ \r]*$/) f = 0
+    print; next
+  }
   !f && /^## / { print "\036" $0; next }
   { print }' "$DESIGN" | jq -Rs '
   sub("^---\n[\\s\\S]*?\n---\n"; "")

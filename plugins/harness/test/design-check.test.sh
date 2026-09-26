@@ -188,6 +188,200 @@ d=$(mk unclosed locked <<<"$GOOD
 - [ ] Q9 · med · everything after an unclosed fence is hidden · open"); run "$d"
 expect_block "an unclosed fence blocks" "fence"
 
+# CommonMark fences (XARI-151): an opener or closer may be indented 0–3
+# spaces; a closer is the opener's character, at least as long, with no info
+# string. A column-0-only rule let an indented closer end the block in the
+# rendered doc but not in the gate, hiding every decision until the next fence.
+d=$(mk indentclose locked <<EOF
+$GOOD
+\`\`\`
+example
+   \`\`\`
+- [ ] Q9 · med · after an indented closer · open
+\`\`\`
+later example
+   \`\`\`
+EOF
+); run "$d"
+expect_block "an indented closer ends the fence (open item after it is seen)" "BLOCK: Q9"
+grep -q "ambiguous" <<<"$OUT" && bad "an indented closer ends the fence is not flagged ambiguous ($OUT)" || ok "an indented closer ends the fence is not flagged ambiguous"
+# An indented fence opener blocks: at top level it is a fence, inside a list
+# item it ends with the item, and a line-based loop cannot tell which. Trusting
+# it and reading through it both let an open decision pass. It blocks exactly
+# once, then its content is skipped (the design is already blocked).
+IND="code fence indented under a list"
+once() { [ "$(grep -c "$IND" <<<"$OUT")" = "1" ] && ok "$1" || bad "$1 (rc=$RC: $OUT)"; }
+d=$(mk indentopen locked <<EOF
+$GOOD
+  \`\`\`
+- [ ] Q9 · med · inside an indented fence the gate does not trust · open
+  \`\`\`
+EOF
+); run "$d"
+expect_block "an indented opener blocks" "$IND"; once "...exactly once (its closer is not re-flagged)"
+d=$(mk listfence locked <<EOF
+- [x] A1 · a · decided-by: you
+  \`\`\`
+- [ ] Q1 · med · after a list item fence that ends with the item · open
+  \`\`\`
+EOF
+); run "$d"
+expect_block "a fence inside a list item blocks instead of hiding the next decision" "$IND"
+d=$(mk listfence4 locked <<EOF
+- [x] A1 · a · decided-by: you
+  \`\`\`
+  code
+    \`\`\`
+- [ ] Q1 · med · after a list item fence · open
+\`\`\`
+EOF
+); run "$d"
+expect_block "a list item's fence with a deeper closer blocks" "$IND"; once "...exactly once, with no spurious unclosed-fence block"
+d=$(mk listsec locked <<EOF
+$GOOD
+- [x] A2 · a · decided-by: you
+  \`\`\`
+## Decisions
+- [ ] Q1 · med · in a second Decisions section · open
+  \`\`\`
+EOF
+); run "$d"
+expect_block "a list item's fence cannot hide a second Decisions heading" "$IND"
+d=$(mk fourspace locked <<EOF
+$GOOD
+    \`\`\`
+- [ ] Q9 · med · after a 4-space-indented fence-looking line · open
+    \`\`\`
+EOF
+); run "$d"
+expect_block "a 4-space-indented line is not a fence (open item is seen)" "BLOCK: Q9"
+d=$(mk fourclose locked <<EOF
+$GOOD
+\`\`\`
+    \`\`\`
+\`\`\`
+- [ ] Q9 · med · after a fence with a 4-space line inside · open
+EOF
+); run "$d"
+expect_block "a 4-space-indented line does not close a fence" "BLOCK: Q9"
+d=$(mk longfence locked <<EOF
+$GOOD
+\`\`\`\`
+\`\`\`
+- [ ] Q9 · med · example inside a 4-backtick fence · open
+\`\`\`\`
+EOF
+); run "$d"
+[ "$RC" = "0" ] && ok "a shorter run does not close a longer fence" || bad "shorter closer (rc=$RC: $OUT)"
+d=$(mk infoclose locked <<EOF
+$GOOD
+\`\`\`
+\`\`\` js
+\`\`\`
+- [ ] Q9 · med · after a fence whose inner line had an info string · open
+\`\`\`
+x
+\`\`\`
+EOF
+); run "$d"
+expect_block "a line with an info string does not close a fence" "BLOCK: Q9"
+
+d=$(mk crlf locked <<EOF
+$GOOD
+\`\`\`
+example
+\`\`\`
+- [ ] Q9 · med · after a CRLF fence · open
+EOF
+); perl -pi -e 's/\n/\r\n/' "$d/design.md"; run "$d"
+expect_block "a CRLF closer ends the fence (open item after it is seen)" "BLOCK: Q9"
+grep -q "ambiguous" <<<"$OUT" && bad "a CRLF closer ends the fence is not flagged ambiguous ($OUT)" || ok "a CRLF closer ends the fence is not flagged ambiguous"
+
+# Ambiguous fence lines block instead of being read either way: an indented
+# opener (a fence at top level, but it ends with its list item inside one),
+# and a near-miss closer that CommonMark and marked disagree on.
+d=$(mk indenttop locked <<EOF
+$GOOD
+  \`\`\`
+~~~
+  \`\`\`
+- [ ] Q9 · med · visible after an indented top-level fence · open
+~~~
+EOF
+); run "$d"
+expect_block "an indented top-level fence blocks as ambiguous" "$IND"
+d=$(mk indentthen locked <<EOF
+$GOOD
+   \`\`\`
+example
+\`\`\`
+- [ ] Q1 · med · reward expiry · open
+\`\`\`
+EOF
+); run "$d"
+expect_block "an indented fence before a later fence pair blocks" "$IND"
+for tail in "\t" "\`" "\f"; do
+  d=$(mk "nearclose$RANDOM" locked <<EOF
+$GOOD
+~~~
+x
+EOF
+); printf '~~~%b\n- [ ] Q9 · med · after a near-miss closer · open\n~~~\n' "$tail" >> "$d/design.md"; run "$d"
+  expect_block "a closer followed by '$tail' blocks as ambiguous" "ambiguous fence closer"
+done
+d=$(mk spaceclose locked <<EOF
+$GOOD
+~~~
+- [ ] Q9 · med · example inside a fence · open
+~~~   
+EOF
+); run "$d"
+[ "$RC" = "0" ] && ok "a closer followed by spaces closes cleanly" || bad "space-trailed closer (rc=$RC: $OUT)"
+
+# Bytes the renderers and the gate split differently block before parsing: a
+# lone CR is a line break to CommonMark and marked but not to `read`, bash
+# drops NULs the renderers keep, and invalid UTF-8 makes the regexes
+# locale-dependent. Each let a crafted design hide an open item.
+d=$(mk lonecr locked <<<"$GOOD"); printf '\140\140\140\n\140\140\140\r- [ ] Q2 · med · after a lone CR · open\n\140\140\140\n' >> "$d/design.md"; run "$d"
+expect_block "a lone CR blocks (renderers break the line there)" "carriage return"
+d=$(mk nul locked <<<"$GOOD"); printf '\140\140\140\n\140\140\140\000\n\140\140\140\n- [ ] Q2 · med · after a NUL · open\n\140\140\140\n' >> "$d/design.md"; run "$d"
+expect_block "a NUL byte blocks" "NUL"
+d=$(mk badutf8 locked <<<"$GOOD"); printf '\140\140\140\377\n\140\140\140\n- [ ] Q2 · med · after invalid UTF-8 · open\n\140\140\140\n' >> "$d/design.md"; run "$d"
+expect_block "invalid UTF-8 blocks" "UTF-8"
+d=$(mk utf8ok locked <<<"$GOOD
+- [x] Q7 · med · año, café, 日本 → ok · decided-by: you"); run "$d"
+[ "$RC" = "0" ] && ok "valid non-ASCII UTF-8 passes" || bad "valid UTF-8 (rc=$RC: $OUT)"
+
+# An indented backtick run with a backtick in its info string is inline code
+# to every renderer, not a fence.
+d=$(mk indentinline locked <<<"$GOOD
+  \`\`\` \`x\` inline code"); run "$d"
+grep -q "$IND" <<<"$OUT" && bad "indented inline code is not a fence ($OUT)" || ok "indented inline code is not a fence"
+# Only '## Decisions' at column 0 opens the record: any other heading shown as
+# 'Decisions' would be a second record the gate never reads.
+for h in " ## Decisions" "##  Decisions" "##	Decisions" "### Decisions" "## decisions"; do
+  d=$(mk "dechead$RANDOM" locked <<<"$GOOD
+$h
+- [ ] Q2 · med · in a disguised second record · open"); run "$d"
+  expect_block "heading '$h' blocks" "not written as '## Decisions'"
+done
+d=$(mk dechsetext locked <<<"$GOOD
+Decisions
+---------
+- [ ] Q2 · med · under a setext Decisions heading · open"); run "$d"
+expect_block "a setext 'Decisions' heading blocks" "not written as '## Decisions'"
+d=$(mk dechcont locked <<<"$GOOD
+Discussion of the decisions
+---------"); run "$d"
+grep -q "not written as" <<<"$OUT" && bad "a setext heading about decisions is fine ($OUT)" || ok "a setext heading that is not 'Decisions' is fine"
+# CRLF: a valid design saved with CRLF line endings passes.
+d=$(mk crlfok locked <<<"$GOOD"); perl -pi -e 's/\n/\r\n/' "$d/design.md"; run "$d" --require-locked
+[ "$RC" = "0" ] && ok "a valid CRLF design passes" || bad "valid CRLF design (rc=$RC: $OUT)"
+# Author text is echoed with control bytes replaced, so a design cannot write
+# terminal escapes into the hook output.
+d=$(mk ctrlecho locked <<<"$GOOD"); printf '  - [ ] Q5 \033[31mred\033[0m\n' >> "$d/design.md"; run "$d"
+{ [ "$RC" = "1" ] && ! grep -q $'\033' <<<"$OUT"; } && ok "echoed author text carries no escape bytes" || bad "escape bytes echoed ($OUT)"
+
 # --- anchored markers and bounded echo --------------------------------------
 d=$(mk undecided locked <<<"$GOOD
 - [x] Q8 · med · x → y · undecided-by: you"); run "$d"

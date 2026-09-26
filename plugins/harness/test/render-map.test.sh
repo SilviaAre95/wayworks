@@ -114,6 +114,31 @@ mdata=$(awk '/<script id="design-data"/{f=1;next} f&&/<\/script>/{exit} f' "$OUT
   && ok "a ~~~ line inside a \`\`\` fence does not close it (no spurious tab)" \
   || bad "mixed fence markers split the design wrongly: $(printf '%s' "$mdata" | jq -c '[.[].title]' 2>/dev/null)"
 
+# CommonMark fences (XARI-151), the same rules design-check.sh uses: 0–3
+# spaces of indent on either end, and a closer at least as long as the opener.
+tabs() { # tabs <slug> <body after frontmatter> — prints the rendered tab titles
+  local m="$TMP/docs/designs/$1"; mkdir -p "$m"
+  printf -- '---\nslug: %s\nstatus: draft\n---\n%b' "$1" "$2" > "$m/design.md"
+  bash "$SCRIPT" "$m" "$OUT_DIR" >/dev/null 2>&1
+  awk '/<script id="design-data"/{f=1;next} f&&/<\/script>/{exit} f' "$OUT_DIR/$1.html" | jq -c '[.[].title]' 2>/dev/null
+}
+t=$(tabs indent-close '## One\n```\nx\n   ```\n\n## Two\nbody\n')
+[ "$t" = '["One","Two"]' ] && ok "an indented closer ends the fence (the next heading is a tab)" || bad "indented closer: $t"
+t=$(tabs indent-open '## One\n  ```\n## shown\n  ```\n\n## Two\nbody\n')
+[ "$t" = '["One","shown","Two"]' ] && ok "an indented opener is not trusted, as in design-check (nothing hidden)" || bad "indented opener: $t"
+t=$(tabs long-fence '## One\n````\n```\n## spurious\n````\n\n## Two\nbody\n')
+[ "$t" = '["One","Two"]' ] && ok "a shorter run does not close a longer fence" || bad "shorter closer: $t"
+t=$(tabs four-space '## One\n    ```\n## Two\nbody\n')
+[ "$t" = '["One","Two"]' ] && ok "a 4-space-indented line is not a fence" || bad "4-space line: $t"
+t=$(tabs four-close '## One\n```\n    ```\n```\n\n## Two\nbody\n')
+[ "$t" = '["One","Two"]' ] && ok "a 4-space-indented line does not close a fence" || bad "4-space closer: $t"
+t=$(tabs info-close '## One\n```\n``` js\n## spurious\n```\n\n## Two\nbody\n')
+[ "$t" = '["One","Two"]' ] && ok "a line with an info string does not close a fence" || bad "info-string closer: $t"
+t=$(tabs fake-fence '## One\n``` `x`\n## Two\nbody\n')
+[ "$t" = '["One","Two"]' ] && ok "a backtick in the info string is not a fence" || bad "fake fence: $t"
+t=$(tabs crlf '## One\r\n```\r\nx\r\n```\r\n\r\n## Two\r\nbody\r\n')
+[ "$t" = '["One","Two"]' ] && ok "a CRLF closer ends the fence, as design-check reads it" || bad "CRLF closer: $t"
+
 # --- bad input fails ---------------------------------------------------------
 bash "$SCRIPT" >/dev/null 2>&1; [ "$?" = "2" ] && ok "no args is a usage error" || bad "no args should exit 2"
 bash "$SCRIPT" "$TMP/nope" "$OUT_DIR" >/dev/null 2>&1; [ "$?" = "1" ] && ok "missing design.md fails" || bad "missing design should exit 1"
