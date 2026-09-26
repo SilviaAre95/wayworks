@@ -109,7 +109,7 @@ re_line='^- \[([ x~])\] ([AQWB][0-9]+) · (.+)$'
 re_box='^[[:space:]]*(>[[:space:]]*)*([-*+]|[0-9]+[.)])[[:space:]]+\['
 re_by='(^|· )decided-by: (you|accepted-default)( |$)'
 re_ack='(^|· )ack( ·|$)'
-re_defer='(^|· )deferred: [^[:space:]]'
+re_defer='(^|· )deferred: [^[:space:]`]'   # a code span could render the reason blank
 # Fences. CommonMark (0.31.2 §4.5) and marked differ at the edges, and a
 # line-based loop cannot track list items — so for fences the gate reads only
 # the lines every reader agrees on, and BLOCKS on the rest rather than guess (a
@@ -131,13 +131,16 @@ re_items='^ *(([-*+]|[0-9]{1,9}[.)])( +|$))*'   # leading list markers, stripped
 re_atx='^#{1,6}( (.*))?$'
 re_rule='^[-=*_ ]*[-=*_][-=*_ ]*$'
 re_fm_key='^(slug|status|stage|discovery|discovery-status):( .*)?$'
-# One path or [[wikilink]]; quoted, anything but the quote (a leading quote
-# cannot open a block, and rawhtml still runs on the line).
-fm_val='(\[\[[^][]*\]\]|[A-Za-z0-9._/~-]+)'
+# One [[wikilink]] or one space-free token that starts with a letter, digit,
+# `.`, `/`, `~` or a non-ASCII byte (so no list marker or `>` can open a
+# block); quoted, anything but the quote. rawhtml still runs on the line.
+fm_tok="([A-Za-z0-9._/~]|[^ -~])[^[:space:]\"']*"
+fm_val="(\\[\\[[^][]*\\]\\]|$fm_tok)"
 re_fm_item="^ *- ($fm_val|\"[^\"]+\"|'[^']+') *\$"
 # An autolink starts with a letter or digit: `<!`, `<?` and `</` always open HTML.
 re_autolink='^<([A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>[:space:]]*|[A-Za-z0-9][^<>@[:space:]]*@[A-Za-z0-9.-]+)>'
 re_br='^<[Bb][Rr] */?>'
+re_linkdest='^(.*(^|[^\\])\[[^][\\]*\]\()<[^<>]*>(\).*)$'   # [text](<destination>)
 re_entity='&(#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});'
 re_markup='[][`*_~\\<]'
 re_dec_word='^[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn][Ss]?$'   # the whole heading, letters only
@@ -162,6 +165,9 @@ oddspace() { local b; for b in "${odd_spaces[@]}"; do [[ "$1" == *"$b"* ]] && re
 # rawhtml <text> <allow-br 0|1>: true if the text holds raw HTML.
 rawhtml() {
   local s="$1"
+  # A complete inline link's <destination> is a URL, not a tag: [brief](</a b.md>).
+  # The link text holds no bracket or backslash, so an escaped \] cannot fake one.
+  while [[ "$s" =~ $re_linkdest ]]; do s="${BASH_REMATCH[1]}${BASH_REMATCH[3]}"; done
   while [[ "$s" == *'<'* ]]; do
     s="${s#*<}"
     [[ "$s" =~ ^[A-Za-z/!?] ]] || continue
@@ -199,7 +205,7 @@ while IFS= read -r line || [ -n "$line" ]; do
   if [ "$ln" -le "$fm_end" ]; then
     if [ "$ln" -gt 1 ] && [ "$ln" -lt "$fm_end" ]; then
       { [[ "$line" =~ $re_fm_key ]] || [[ "$line" =~ $re_fm_item ]] || [ -z "$line" ]; } \
-        || block "design.md:$ln: frontmatter holds only slug, status, stage, discovery and discovery-status — a plain renderer shows it as body text: $(shown "$line")"
+        || block "design.md:$ln: frontmatter holds only slug, status, stage, discovery and discovery-status, and list items holding one path (quote a path with spaces) — a plain renderer shows it as body text: $(shown "$line")"
       rawhtml "$line" 0 && block "design.md:$ln: raw HTML in frontmatter"
       checktext "$line"; [[ "$k" =~ $re_check ]] && block "design.md:$ln: a checkbox in frontmatter — open items live only in the record"
       oddspace "$line" && block "design.md:$ln: a tab, non-ASCII space or invisible character in frontmatter — use plain spaces"

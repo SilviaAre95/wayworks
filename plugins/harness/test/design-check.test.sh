@@ -787,6 +787,26 @@ for l in '- [x] Q5 · med · a \342\201\246b · decided-by: you' '- [x] Q5 · me
   d=$(mk "bidi$RANDOM" locked < <(printf -- "$GOOD\n$l\n")); run "$d"
   expect_block "a bidi isolate blocks: '$l'" "invisible character"
 done
+# Round 11 follow-ups.
+d="$TMP/fmpaths"; mkdir -p "$d"; cp "$TMP/good/plan.md" "$d/"
+printf -- '---\nslug: fmpaths\nstatus: draft\ndiscovery:\n  - docs/discovery/dise\303\261o.md\n  - \303\261and\303\272.md\n  - "~/Obsidian Vault/Resources/offline-stamps.md"\n---\n## Decisions\n%s\n' "$GOOD" > "$d/design.md"; run "$d"
+pass "a non-ASCII frontmatter path, and a quoted one with spaces, pass"
+d="$TMP/fmspaced"; mkdir -p "$d"; cp "$TMP/good/plan.md" "$d/"
+printf -- '---\nslug: fmspaced\nstatus: draft\ndiscovery:\n  - ~/Obsidian Vault/offline.md\n---\n## Decisions\n%s\n' "$GOOD" > "$d/design.md"; run "$d"
+expect_block "an unquoted frontmatter path with spaces blocks and says to quote it" "quote a path with spaces"
+for b in '- - x' '- 1. x' '- >x'; do
+  d="$TMP/fmm$RANDOM"; mkdir -p "$d"; cp "$TMP/good/plan.md" "$d/"
+  printf -- "---\nslug: fmm\nstatus: draft\ndiscovery:\n  $b\n---\n## Decisions\n%s\n" "$GOOD" > "$d/design.md"; run "$d"
+  expect_block "a frontmatter item that opens a block blocks: '$b'" "frontmatter holds only"
+done
+d=$(body linkdest '## Discovery\n[brief](</docs/discovery/a b.md>)'); run "$d"
+pass "a link to a path with spaces, [t](<…>), passes"
+for b in '\\[a](<h2>)' '[a\\](<h2>)' 'x](<h2>)' '[a](<h2>'; do
+  d=$(body "ld$RANDOM" "## Scope\n$b"); run "$d"
+  expect_block "an incomplete or escaped link destination is still HTML: '$b'" "raw HTML"
+done
+d=$(mk deferblank locked < <(printf -- '%s\n- [~] Q7 · low · x · deferred: \140 \140\n' "$GOOD")); run "$d"
+expect_block "a deferral reason that is only a code span blocks" "BLOCK: Q7"
 d=$(body critok '### Decision criteria\n- must work offline\n- see [ADR 3](docs/adr/3.md) and [[offline-sync]]'); run "$d"
 pass "plain bullets and links under a 'Decision…' heading pass"
 d=$(body cjk '## 决定\n\n## 🎉 launch\n\nnotes'); run "$d"
