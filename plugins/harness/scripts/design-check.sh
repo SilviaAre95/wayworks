@@ -70,10 +70,17 @@ fi
 #   (or a fence). Discovery and Scope may hold wikilink bullets, links and
 #   plain to-dos — only the record is parsed;
 #   Decision lines hold no raw HTML (not even <br>) and no &entities;
-# - no raw HTML outside code spans: `<` then a letter, `/`, `!` or `?` (how
-#   every tag, comment and HTML block starts) blocks wherever it sits in a
-#   line, except an autolink (`<https://…>`, `<a@b.c>`) and <br>. The map page
-#   keeps tags like <h2>, <ul> and <input>, so inline HTML can draw a record;
+# - no raw HTML: `<` then a letter, `/`, `!` or `?` (how every tag, comment
+#   and HTML block starts) blocks wherever it sits in a line — code spans
+#   included, since pairing backticks across escapes, lines and table cells is
+#   where renderers disagree — except an autolink (`<https://…>`, `<a@b.c>`)
+#   and <br>. The map page keeps tags like <h2>, <ul> and <input>, so inline
+#   HTML can draw a record. Write `&lt;` or use a code fence;
+# - no link reference definitions (`[x]: url`): marked lets their titles span
+#   lines, hiding fence lines from the gate. Write links inline;
+# - frontmatter holds only the keys /harness:shape writes (slug, status, stage,
+#   discovery, discovery-status) and indented `- value` list items: a plain
+#   CommonMark renderer shows frontmatter as body text;
 # - headings are top-level plain text: none inside a list, a blockquote or an
 #   indented block, and none using inline markup (code, emphasis, links,
 #   escapes, raw HTML, entities). Plain text renders as written, so "does this
@@ -112,8 +119,11 @@ re_near_close='^ {0,3}(`{3,}|~{3,})[`~[:space:]]*$'
 # Structural patterns run on a tab-expanded copy of the line, so they hold no tabs.
 re_quote='^ *> ?(.*)$'
 re_marker='^( *)([-*+]|[0-9]{1,9}[.)])( +|$)(.*)$'
-re_hr='^ *((- *){3,}|(\* *){3,}|(_ *){3,})$'
+re_hr='^ {0,3}((- *){3,}|(\* *){3,}|(_ *){3,})$'
 re_underline='^( *)(=+|-+) *$'
+re_linkdef='^ *\[[^]]*\]:'
+re_fm_key='^(slug|status|stage|discovery|discovery-status):( .*)?$'
+re_fm_item='^ +- [A-Za-z0-9._/~-]'
 re_atx='^( *)#{1,6}( (.*))?$'
 # An autolink starts with a letter or digit: `<!`, `<?` and `</` always open HTML.
 re_autolink='^<([A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>[:space:]]*|[A-Za-z0-9][^<>@[:space:]]*@[A-Za-z0-9.-]+)>'
@@ -130,18 +140,9 @@ detab() {
   done
   x="$x$s"
 }
-# rawhtml <text> <allow-br 0|1>: true if the text holds raw HTML outside code
-# spans. A backtick run with no exact closer is left in place, so what follows
-# it is still read — a doubt makes it block, never pass.
+# rawhtml <text> <allow-br 0|1>: true if the text holds raw HTML.
 rawhtml() {
-  local s="$1" pre run rest mid after
-  while [[ "$s" =~ ^([^\`]*)(\`+)(.*)$ ]]; do
-    pre="${BASH_REMATCH[1]}"; run="${BASH_REMATCH[2]}"; rest="${BASH_REMATCH[3]}"
-    [[ "$rest" == *"$run"* ]] || break
-    mid="${rest%%"$run"*}"; after="${rest#*"$run"}"
-    { [[ "$mid" == *\` ]] || [[ "$after" == \`* ]]; } && break   # part of a longer run
-    s="$pre $after"
-  done
+  local s="$1"
   while [[ "$s" == *'<'* ]]; do
     s="${s#*<}"
     [[ "$s" =~ ^[A-Za-z/!?] ]] || continue
@@ -188,11 +189,18 @@ fm_end=0
 fm_end="${fm_end:-0}"
 decided_w=""
 infence=0; fch=""; flen=0; insec=0; seen_sec=0; nsec=0; ln=0
-popen=0; ptext=""; pdepth=0; pcol=0; pnest=0   # the open paragraph, for setext
+popen=0; ptext=""; pdepth=0; plo=0; phi=3; pnest=0   # the open paragraph, for setext
 while IFS= read -r line || [ -n "$line" ]; do
   ln=$((ln + 1))
   line="${line%$'\r'}"   # CRLF: one trailing \r (a lone \r mid-line blocked above)
-  [ "$ln" -le "$fm_end" ] && continue
+  if [ "$ln" -le "$fm_end" ]; then
+    if [ "$ln" -gt 1 ] && [ "$ln" -lt "$fm_end" ]; then
+      { [[ "$line" =~ $re_fm_key ]] || [[ "$line" =~ $re_fm_item ]] || [ -z "$line" ]; } \
+        || block "design.md:$ln: frontmatter holds only slug, status, stage, discovery and discovery-status — a plain renderer shows it as body text: $(shown "$line")"
+      rawhtml "$line" 0 && block "design.md:$ln: raw HTML in frontmatter"
+    fi
+    continue
+  fi
   if [ "$infence" -eq 1 ]; then
     if [[ "$line" =~ $re_near_close ]]; then
       run="${BASH_REMATCH[1]}"
@@ -220,23 +228,29 @@ while IFS= read -r line || [ -n "$line" ]; do
     fi
   fi
   detab "$line"; containers "$x"
-  rawhtml "$c" 1 && block "design.md:$ln: raw HTML (renderers hide or reshape it) — write it as Markdown, or in backticks or a code fence"
+  rawhtml "$c" 1 && block "design.md:$ln: raw HTML (renderers hide or reshape it) — write &lt; for a literal '<', or use a code fence"
+  [[ "$c" =~ $re_linkdef ]] && block "design.md:$ln: link reference definition — write the link inline, [text](url)"
   if [[ "$q" =~ ^[[:space:]]*$ ]]; then popen=0
-  elif [ "$popen" -eq 1 ] && [ "$mark" -eq 0 ] && [ "$depth" -eq "$pdepth" ] \
-       && [[ "$q" =~ $re_underline ]] && [ "${#BASH_REMATCH[1]}" -ge "$pcol" ]; then
-    heading "$ptext" "$pnest" 0; popen=0
+  elif [ "$popen" -eq 1 ] && [ "$depth" -eq "$pdepth" ] && [[ "$q" =~ $re_underline ]] \
+       && [ "${#BASH_REMATCH[1]}" -ge "$plo" ] && [ "${#BASH_REMATCH[1]}" -le "$phi" ]; then
+    heading "$ptext" "$pnest" 0; popen=0   # a lone "-" is an underline here, not an item
   elif [[ "$q" =~ $re_hr ]]; then popen=0
   elif [[ "$c" =~ $re_atx ]]; then
     htext="${BASH_REMATCH[3]-}"; nested=0
     { [ "$depth" -gt 0 ] || [ "$mark" -eq 1 ] || [ "${#BASH_REMATCH[1]}" -gt 3 ]; } && nested=1
     canon=0; [[ "$line" =~ ^'## Decisions'[[:space:]]*$ ]] && canon=1
     heading "$htext" "$nested" "$canon"; popen=0
-  elif [[ "$c" =~ ^[[:space:]]*$ ]]; then popen=0   # an empty list item
   elif [ "$popen" -eq 1 ] && [ "$depth" -le "$pdepth" ] && { [ "$mark" -eq 0 ] || [ "$interrupts" -eq 0 ]; }; then
-    ptext="$ptext $c"   # continuation, or a lazy one
+    ptext="$ptext $q"   # continuation, or a lazy one; a marker that cannot interrupt is text
+  elif [[ "$c" =~ ^[[:space:]]*$ ]]; then popen=0   # an empty list item
   else
-    popen=1; ptext="$c"; pdepth="$depth"; pcol=0; pnest=0
-    [ "$mark" -eq 1 ] && pcol="$mcol"
+    # An underline belongs to the paragraph when it sits 0-3 columns past where
+    # the paragraph's content starts: a list item's content column, else the
+    # first line's own indent (which may be up to 3 past an unseen item's).
+    popen=1; ptext="$c"; pdepth="$depth"; pnest=0
+    if [ "$mark" -eq 1 ]; then plo="$mcol"; phi=$((mcol + 3))
+    else [[ "$c" =~ ^( *) ]]; ind=${#BASH_REMATCH[1]}; plo=$((ind > 3 ? ind - 3 : 0)); phi=$((ind + 3))
+    fi
     { [ "$depth" -gt 0 ] || [ "$mark" -eq 1 ]; } && pnest=1
   fi
   case "$line" in

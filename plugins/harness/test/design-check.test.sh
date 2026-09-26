@@ -588,8 +588,20 @@ expect_block "a heading on an indented list continuation line blocks" "heading i
 # Inline HTML draws a record too: the map keeps <h2>, <ul> and <input>.
 d=$(body inlinehtml '## Scope\nSee <h2>Decisions</h2><ul><li><input type="checkbox"> Q2 · open</li></ul>'); run "$d"
 expect_block "inline HTML in prose blocks" "raw HTML"
-d=$(body codespan '## Scope\nEmbed it with `<div class="w">` or ``<br>``; tables may use a<br>b.'); run "$d"
-pass "HTML inside code spans, and <br>, pass"
+d=$(body brok '## Scope\n| a | b |\n|---|---|\n| multi<br>line | `stamp_count` &lt;div&gt; |'); run "$d"
+pass "<br>, inline code without '<', and &lt; pass"
+# Code spans are not exempt: renderers pair backticks across escapes, lines and
+# table cells differently from any line rule.
+for b in '## Scope\nEmbed it with `<div class="w">`' \
+         '## Scope\n\\`<input type="checkbox" disabled>\\` Q9 open' \
+         '## Scope\nNote `a\nb` <h2>Decisions</h2> `c' \
+         '| a | b |\n|---|---|\n| `x | <h2>Decisions</h2> | y` |'; do
+  d=$(body "span$RANDOM" "$b"); run "$d"
+  expect_block "HTML in or around a code span blocks: '$b'" "raw HTML"
+done
+d=$(mk recspan locked <<<"$GOOD
+- [x] A1 · fine · decided-by: you \\\`</li><li><input type=\"checkbox\" disabled> Q2 · open\`"); run "$d"
+expect_block "an escaped backtick cannot hide HTML in a decision line" "raw HTML or an &entity;"
 d=$(mk recbr locked <<<"$GOOD
 - [x] Q3 · med · a<br>- [ ] Q2 · open · decided-by: you"); run "$d"
 expect_block "<br> inside a decision line blocks" "raw HTML or an &entity;"
@@ -609,6 +621,27 @@ for h in '### Decisions:' '### Decisions.' '### Decision' '## Decision' '### Dec
   d=$(body "word$RANDOM" "$h\n- [ ] Q2 · open"); run "$d"
   expect_block "heading '$h' blocks" "not written as '## Decisions'"
 done
+# Round 2: an item marker that cannot interrupt a paragraph is an underline
+# or text; a rule or underline indented past the paragraph's window is text.
+for b in 'Decisions\n-\n\n- [ ] Q1 · open' 'Decisions\n*\n===' 'Decisions\n+\n===' 'Decisions\n1.\n===' \
+         'Decisions\n    ***\n===' 'Decisions\n\t***\n===' '- - a\n\n    Decisions\n    ---'; do
+  d=$(body "und$RANDOM" "$b"); run "$d"
+  expect_block "setext heading read as the renderers read it: '$b'" "heading"
+done
+d=$(body deepunder '## Scope\nDecisions pending review\n    ---'); run "$d"
+pass "an underline indented 4+ past its paragraph is text, not a heading"
+d=$(body linkdef "## Context\n\n[r]: /u '\n\140\140\140\n'\n\n## Decisions\n\n- [ ] Q1 · open\n\n[s]: /v '\n\140\140\140\n'"); run "$d"
+expect_block "a link reference definition blocks" "link reference definition"
+# Frontmatter is body text to a plain renderer, so it holds only shape's keys.
+d="$TMP/fmhide"; mkdir -p "$d"; cp "$TMP/good/plan.md" "$d/"
+printf -- '---\nslug: fmhide\nstatus: draft\n## Decisions\n- [ ] Q1 · open question\n---\n## Decisions\n%s\n' "$GOOD" > "$d/design.md"; run "$d"
+expect_block "a heading and an open item inside frontmatter block" "frontmatter holds only"
+d="$TMP/fmhtml"; mkdir -p "$d"; cp "$TMP/good/plan.md" "$d/"
+printf -- '---\nslug: fmhtml\nstatus: draft <h2>Decisions</h2>\n---\n## Decisions\n%s\n' "$GOOD" > "$d/design.md"; run "$d"
+expect_block "HTML inside frontmatter blocks" "raw HTML in frontmatter"
+d="$TMP/fmlist"; mkdir -p "$d"; cp "$TMP/good/plan.md" "$d/"
+printf -- '---\nslug: fmlist\nstatus: locked\nstage: lock\ndiscovery:\n  - docs/discovery/offline-qr.md\ndiscovery-status: partial\n---\n## Decisions\n%s\n' "$GOOD" > "$d/design.md"; run "$d" --require-locked
+pass "frontmatter with shape's keys and a discovery list passes"
 # CRLF: a valid design saved with CRLF line endings passes.
 d=$(mk crlfok locked <<<"$GOOD"); perl -pi -e 's/\n/\r\n/' "$d/design.md"; run "$d" --require-locked
 [ "$RC" = "0" ] && ok "a valid CRLF design passes" || bad "valid CRLF design (rc=$RC: $OUT)"
