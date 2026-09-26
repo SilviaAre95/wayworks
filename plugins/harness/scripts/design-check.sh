@@ -236,7 +236,7 @@ while IFS= read -r line || [ -n "$line" ]; do
     fi
   fi
   oddspace "$line" && block "design.md:$ln: a tab, non-ASCII space or invisible character (renderers read it as indentation or a heading separator, or hide it) — use plain spaces"
-  rawhtml "$line" 1 && block "design.md:$ln: raw HTML (renderers hide or reshape it) — write &lt; for a literal '<', %20 for a space in a link path; code goes in a fence at column 0"
+  rawhtml "$line" 1 && block "design.md:$ln: raw HTML (renderers hide or reshape it) — put a space after '<' or reword (outside the record &lt; also works), write %20 for a space in a link path; code goes in a fence at column 0"
   nowiki="$line"   # a [[wikilink]] holds no link label, so its "]]:" is not one
   while [[ "$nowiki" =~ ^(.*)\[\[[^][]*\]\](.*)$ ]]; do nowiki="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; done
   [[ "$nowiki" == *']:'* ]] && block "design.md:$ln: ']:' starts a link reference definition — write links inline, [text](url)"
@@ -245,7 +245,7 @@ while IFS= read -r line || [ -n "$line" ]; do
   [ "${c:0:1}" = '>' ] && block "design.md:$ln: a blockquote — outside the design dialect; quote as plain text or in a fence"
   if [ "$insec" -eq 0 ]; then
     checktext "$line"
-    [[ "$k" =~ $re_check ]] && block "design.md:$ln: a checkbox outside '## Decisions' — open items live only in the record; write a plain bullet or move it there"
+    [[ "$k" =~ $re_check ]] && block "design.md:$ln: a checkbox outside '## Decisions' — open items live only in the record, and any [ ], [x] or [~] counts, even in link text or code; reword it, write a plain bullet, or move it to the record"
   fi
   if [[ "$line" =~ $re_atx ]]; then
     htext="${BASH_REMATCH[2]-}"; canon=0
