@@ -69,14 +69,19 @@ fi
 # - the record: every non-blank line under `## Decisions` is a decision line
 #   (or a fence). Discovery and Scope may hold wikilink bullets, links and
 #   plain to-dos — only the record is parsed;
-# - no raw HTML blocks: a line opening, after any quote or list markers, with
-#   `<` then a letter, `/`, `!` or `?` (how every HTML block starts) blocks,
-#   autolinks (`<https://…>`, `<a@b.c>`) excepted;
-# - headings are top-level plain text: none inside a list or blockquote, and
-#   none using inline markup (code, emphasis, links, escapes, raw HTML,
-#   entities). Plain text renders as written, so "is this heading 'Decisions'"
-#   is a text comparison, and only `## Decisions` at column 0 may say it. A
-#   second `## Decisions…` heading blocks too: which is the record is a guess.
+#   Decision lines hold no raw HTML (not even <br>) and no &entities;
+# - no raw HTML outside code spans: `<` then a letter, `/`, `!` or `?` (how
+#   every tag, comment and HTML block starts) blocks wherever it sits in a
+#   line, except an autolink (`<https://…>`, `<a@b.c>`) and <br>. The map page
+#   keeps tags like <h2>, <ul> and <input>, so inline HTML can draw a record;
+# - headings are top-level plain text: none inside a list, a blockquote or an
+#   indented block, and none using inline markup (code, emphasis, links,
+#   escapes, raw HTML, entities). Plain text renders as written, so "does this
+#   heading start with 'Decision'" is a text test, and only `## Decisions` at
+#   column 0 may. A second `## Decisions…` heading blocks: which is the record
+#   would be a guess;
+# - structure is read with tabs expanded to 4-column stops, as CommonMark does,
+#   so a tab after `>` or a list marker is a container like a space.
 # - a setext heading's text is the whole paragraph its underline closes, as the
 #   renderers read it — a lazy continuation or list item followed by a less
 #   indented `---` is a rule, not a heading.
@@ -104,16 +109,48 @@ re_open='^(`{3,}|~{3,})(.*)$'
 re_indented_open='^ {1,3}(`{3,}|~{3,})(.*)$'
 re_close='^ {0,3}(`{3,}|~{3,}) *$'
 re_near_close='^ {0,3}(`{3,}|~{3,})[`~[:space:]]*$'
+# Structural patterns run on a tab-expanded copy of the line, so they hold no tabs.
 re_quote='^ *> ?(.*)$'
 re_marker='^( *)([-*+]|[0-9]{1,9}[.)])( +|$)(.*)$'
-re_hr='^ *((-[ 	]*){3,}|(\*[ 	]*){3,}|(_[ 	]*){3,})$'
-re_underline='^( *)(=+|-+)[ 	]*$'
-re_atx='^ {0,3}#{1,6}([ 	](.*))?$'
-re_html='^[[:space:]]*<[A-Za-z/!?]'
-re_autolink='^[[:space:]]*<([A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>[:space:]]*|[^<>@[:space:]]+@[A-Za-z0-9.-]+)>'
+re_hr='^ *((- *){3,}|(\* *){3,}|(_ *){3,})$'
+re_underline='^( *)(=+|-+) *$'
+re_atx='^( *)#{1,6}( (.*))?$'
+# An autolink starts with a letter or digit: `<!`, `<?` and `</` always open HTML.
+re_autolink='^<([A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>[:space:]]*|[A-Za-z0-9][^<>@[:space:]]*@[A-Za-z0-9.-]+)>'
+re_br='^<[Bb][Rr] */?>'
 re_entity='&(#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});'
 re_markup='[][`*_\\<]'
-re_dec_word='^[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn][Ss]([[:space:]#]|$)'
+re_dec_word='^[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn]'
+# detab <line>: sets x, the line with tabs expanded to 4-column stops.
+detab() {
+  x=""; local s="$1" pre pad="    "
+  while [[ "$s" == *$'\t'* ]]; do
+    pre="${s%%$'\t'*}"; x="$x$pre"; s="${s#*$'\t'}"
+    x="$x${pad:0:$((4 - ${#x} % 4))}"
+  done
+  x="$x$s"
+}
+# rawhtml <text> <allow-br 0|1>: true if the text holds raw HTML outside code
+# spans. A backtick run with no exact closer is left in place, so what follows
+# it is still read — a doubt makes it block, never pass.
+rawhtml() {
+  local s="$1" pre run rest mid after
+  while [[ "$s" =~ ^([^\`]*)(\`+)(.*)$ ]]; do
+    pre="${BASH_REMATCH[1]}"; run="${BASH_REMATCH[2]}"; rest="${BASH_REMATCH[3]}"
+    [[ "$rest" == *"$run"* ]] || break
+    mid="${rest%%"$run"*}"; after="${rest#*"$run"}"
+    { [[ "$mid" == *\` ]] || [[ "$after" == \`* ]]; } && break   # part of a longer run
+    s="$pre $after"
+  done
+  while [[ "$s" == *'<'* ]]; do
+    s="${s#*<}"
+    [[ "$s" =~ ^[A-Za-z/!?] ]] || continue
+    [[ "<$s" =~ $re_autolink ]] && continue
+    [ "$2" -eq 1 ] && [[ "<$s" =~ $re_br ]] && continue
+    return 0
+  done
+  return 1
+}
 # containers <line>: strip quote and list markers. Sets q (after quotes only),
 # c (after all markers), depth (quote count), mark (1 if a list marker was
 # stripped since the last quote), mcol (the column content starts at after it)
@@ -136,7 +173,7 @@ heading() {
   [[ "$t" =~ ^[[:space:]]*(.*[^[:space:]])?[[:space:]]*$ ]]; t="${BASH_REMATCH[1]}"
   if [[ "$t" =~ ^(.*)[[:space:]]#+$ ]]; then t="${BASH_REMATCH[1]}"; elif [[ "$t" =~ ^#+$ ]]; then t=""; fi
   if [ "$2" -eq 1 ]; then
-    block "design.md:$ln: a heading inside a list or blockquote — design headings sit at the top level"; return
+    block "design.md:$ln: a heading inside a list, blockquote or indented block — design headings sit at the top level"; return
   fi
   p="$t"   # an underscore between letters or digits is never emphasis
   while [[ "$p" =~ ^(.*[[:alnum:]])_+([[:alnum:]].*)$ ]]; do p="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; done
@@ -144,7 +181,7 @@ heading() {
     block "design.md:$ln: heading uses inline markup (\` * _ \\ [ < or an &entity;) — write headings as plain text"; return
   fi
   [[ "$t" =~ $re_dec_word ]] && [ "$3" -eq 0 ] && \
-    block "design.md:$ln: a 'Decisions' heading not written as '## Decisions' at column 0 — the gate reads only that form"
+    block "design.md:$ln: a 'Decision…' heading not written as '## Decisions' at column 0 — the gate reads only that form"
 }
 fm_end=0
 [ -n "$fm" ] && fm_end=$(awk '{ sub(/\r$/, "") } NR>1 && $0=="---"{ print NR; exit }' "$DESIGN")
@@ -182,19 +219,18 @@ while IFS= read -r line || [ -n "$line" ]; do
       infence=1; fch="${run:0:1}"; flen="${#run}"; popen=0; continue
     fi
   fi
-  containers "$line"
-  if [[ "$c" =~ $re_html ]] && ! [[ "$c" =~ $re_autolink ]]; then
-    block "design.md:$ln: raw HTML block (renderers hide or reshape what follows it) — write it as Markdown or put it in a code fence"
-  fi
+  detab "$line"; containers "$x"
+  rawhtml "$c" 1 && block "design.md:$ln: raw HTML (renderers hide or reshape it) — write it as Markdown, or in backticks or a code fence"
   if [[ "$q" =~ ^[[:space:]]*$ ]]; then popen=0
   elif [ "$popen" -eq 1 ] && [ "$mark" -eq 0 ] && [ "$depth" -eq "$pdepth" ] \
        && [[ "$q" =~ $re_underline ]] && [ "${#BASH_REMATCH[1]}" -ge "$pcol" ]; then
     heading "$ptext" "$pnest" 0; popen=0
   elif [[ "$q" =~ $re_hr ]]; then popen=0
   elif [[ "$c" =~ $re_atx ]]; then
-    nested=0; { [ "$depth" -gt 0 ] || [ "$mark" -eq 1 ]; } && nested=1
-    canon=0; [[ "$line" == '## Decisions'* ]] && canon=1
-    heading "${BASH_REMATCH[2]}" "$nested" "$canon"; popen=0
+    htext="${BASH_REMATCH[3]-}"; nested=0
+    { [ "$depth" -gt 0 ] || [ "$mark" -eq 1 ] || [ "${#BASH_REMATCH[1]}" -gt 3 ]; } && nested=1
+    canon=0; [[ "$line" =~ ^'## Decisions'[[:space:]]*$ ]] && canon=1
+    heading "$htext" "$nested" "$canon"; popen=0
   elif [[ "$c" =~ ^[[:space:]]*$ ]]; then popen=0   # an empty list item
   elif [ "$popen" -eq 1 ] && [ "$depth" -le "$pdepth" ] && { [ "$mark" -eq 0 ] || [ "$interrupts" -eq 0 ]; }; then
     ptext="$ptext $c"   # continuation, or a lazy one
@@ -216,6 +252,8 @@ while IFS= read -r line || [ -n "$line" ]; do
   esac
   [ "$insec" -eq 1 ] || continue
   [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+  { rawhtml "$line" 0 || [[ "$line" =~ $re_entity ]]; } && \
+    block "design.md:$ln: a decision line holds raw HTML or an &entity; — the renderers would show text the gate does not read"
   case "$line" in
     '- ['*) ;;
     *) [[ "$line" =~ $re_box ]] && n=$((n + 1))

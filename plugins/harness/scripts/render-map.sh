@@ -32,7 +32,7 @@ die() { echo "render-map: $*" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || die "needs jq — install it with your package manager (https://jqlang.org/download/)"
 
 # The slug becomes a filename, so it is validated, not trusted.
-slug=$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1' "$DESIGN" \
+slug=$(awk '{ sub(/\r$/, "") } NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1' "$DESIGN" \
   | sed -nE 's/^slug:[[:space:]]*//p' | head -1 | sed -E 's/[[:space:]]+$//')
 [ -n "$slug" ] || slug=$(basename "$DIR")
 [[ "$slug" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "slug '$slug' must be kebab-case [a-z0-9-]"
@@ -40,7 +40,8 @@ slug=$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1' "$DESIGN" \
 # Split on '## ' headings; each becomes {title, md}. A '## ' line inside a
 # code fence is content, not a tab, so awk marks only the real headings with a
 # record-separator byte (stripped from the input first, so a design cannot
-# forge one) and jq splits on the mark. Fences use design-check.sh's rules: a
+# forge one) and jq splits on the mark. Frontmatter is found as design-check
+# finds it — LF or CRLF — so a `## ` line inside it is never a tab. Fences use design-check.sh's rules: a
 # column-0 opener of 3+ backticks or tildes (a backtick info string holds no
 # backtick), closed by a 0–3-space-indented run of the same character at least
 # as long with only spaces (or a CRLF \r) after it. The lines design-check
@@ -65,7 +66,7 @@ json=$(awk '
   }
   !f && /^## / { print "\036" $0; next }
   { print }' "$DESIGN" | jq -Rs '
-  sub("^---\n[\\s\\S]*?\n---\n"; "")
+  sub("^---\r?\n[\\s\\S]*?\r?\n---\r?\n"; "")
   | ("\n" + .) | split("\n\u001e## ") | .[1:]
   | map(split("\n") as $l | {title: ($l[0] | sub("\\s+$"; "")), md: ($l[1:] | join("\n"))})
   | tojson | gsub("<"; "\\u003c")' -r) || die "could not parse $DESIGN"

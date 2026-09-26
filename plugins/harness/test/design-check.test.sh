@@ -490,7 +490,7 @@ pass "autolinks and a bare '<' are not HTML"
 # Headings: nested ones and ones spelled with inline markup block, so any
 # heading that renders as 'Decisions' is caught by a plain text comparison.
 for h in '- ## Decisions' '> ## Decisions' '>> ### Notes' '1. # Title' \
-         '## *Decisions*' '## Decision&#115;' '## Decision&#x73;' '## [Decisions](x)' \
+         '## *Decisions*' '## Decision&#115;' '## Decision&#x73;' '## &#68;ecisions' '## De&#99;isions' '## [Decisions](x)' \
          '## De`cis`ions' '## \Decisions' '## _Decisions_' '## Deci<span>sions</span>'; do
   d=$(mkdoc "head$RANDOM" <<EOF
 $h
@@ -561,6 +561,53 @@ for body in '> Decisions\n> ---' '- Decisions\n  ---' '## Scope\nDecisions\n====
             '*Decisions*\n---' 'Deci<!--\n-->sions\n---' 'Deci<!--\n2. x -->sions\n---'; do
   d=$(mkdoc "setext$RANDOM" < <(printf -- "$body"'\n- [ ] Q2 · med · open · open\n\n## Decisions\n%s\n' "$GOOD")); run "$d"
   expect_block "setext heading blocks: '$body'" "heading"
+done
+
+# Review of PR #80: each of these printed DESIGN OK while commonmark 0.31.2 and
+# marked 15 showed an open Q2 under a "Decisions" heading.
+# body <printf-format> — a design whose body (after frontmatter) is the format,
+# followed by the valid record.
+body() { mkdoc "$1" < <(printf -- "$2"'\n\n## Decisions\n%s\n' "$GOOD"); }
+# An autolink starts with a letter or digit: <!, <? and </ always open HTML.
+for h in '<!--x@a.b>' '<?x@a.b>' '<![CDATA[x@a.b>'; do
+  d=$(body "auto$RANDOM" "## Scope\n$h\n\140\140\140\n-->\n\n## Decisions\n- [ ] Q2 · med · open · open\n\n\140\140\140"); run "$d"
+  expect_block "'$h' is HTML, not an autolink" "raw HTML"
+done
+# A tab after '>' or a list marker is a container, as a space is.
+for b in '>\t## Decisions\n>\t- [ ] Q2 · open' '-\t## Decisions\n\n\t- [ ] Q2 · open' \
+         '- \t## Decisions' '1.\t## Decisions' '>\t- ## Decisions' '>\tDecisions\n>\t---' \
+         '- foo\n\n\tDecisions\n\t---'; do
+  d=$(body "tab$RANDOM" "$b"); run "$d"
+  expect_block "a tab-separated container is read: '$b'" "heading"
+done
+d=$(body tabhtml '-\t<h2>Decisions</h2>'); run "$d"
+expect_block "HTML after a tab-separated list marker blocks" "raw HTML"
+# A heading on a list continuation line indented 4+ spaces is still a heading.
+d=$(body contind '- a\n\n    ## Decisions\n\n    - [ ] Q2 · open'); run "$d"
+expect_block "a heading on an indented list continuation line blocks" "heading inside"
+# Inline HTML draws a record too: the map keeps <h2>, <ul> and <input>.
+d=$(body inlinehtml '## Scope\nSee <h2>Decisions</h2><ul><li><input type="checkbox"> Q2 · open</li></ul>'); run "$d"
+expect_block "inline HTML in prose blocks" "raw HTML"
+d=$(body codespan '## Scope\nEmbed it with `<div class="w">` or ``<br>``; tables may use a<br>b.'); run "$d"
+pass "HTML inside code spans, and <br>, pass"
+d=$(mk recbr locked <<<"$GOOD
+- [x] Q3 · med · a<br>- [ ] Q2 · open · decided-by: you"); run "$d"
+expect_block "<br> inside a decision line blocks" "raw HTML or an &entity;"
+d=$(mk reccmt locked <<<"$GOOD
+- [x] Q5 · med · still open, nobody decided <!-- · decided-by: you -->"); run "$d"
+expect_block "a comment hiding the owner in a decision line blocks" "raw HTML or an &entity;"
+d=$(mk recent locked <<<"$GOOD
+- [x] Q5 · med · a &#91; &#93; Q2 · open · decided-by: you"); run "$d"
+expect_block "an entity in a decision line blocks" "raw HTML or an &entity;"
+# CRLF frontmatter is skipped by the gate, so render-map skips it too; a
+# heading written inside it never reaches a reader.
+d=$(mk crlffm locked <<<"$GOOD"); perl -pi -e 's/\n/\r\n/' "$d/design.md"; run "$d" --require-locked
+pass "CRLF frontmatter is skipped"
+# Any heading that starts with "Decision" is the record's word.
+for h in '### Decisions:' '### Decisions.' '### Decision' '## Decision' '### Decisions—open' \
+         '### Decisions/2' '## Decisions ##' 'Decisions:\n---'; do
+  d=$(body "word$RANDOM" "$h\n- [ ] Q2 · open"); run "$d"
+  expect_block "heading '$h' blocks" "not written as '## Decisions'"
 done
 # CRLF: a valid design saved with CRLF line endings passes.
 d=$(mk crlfok locked <<<"$GOOD"); perl -pi -e 's/\n/\r\n/' "$d/design.md"; run "$d" --require-locked
