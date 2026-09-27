@@ -1,6 +1,6 @@
 ---
 description: Set up the harness in this project — permission policy, verify gate, gitignore
-allowed-tools: Read, Edit, Write, Bash(cat:*), Bash(ls:*)
+allowed-tools: Read, Edit, Write, Glob
 ---
 
 Set up the harness in the current project. Make each change visible and ask before overwriting existing values.
