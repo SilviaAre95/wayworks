@@ -2,10 +2,11 @@
 # Compare the required status checks LIVE on the default branch against
 # .github/required-checks.txt.
 #
-# Deliberately NOT part of `make check`. Reading a ruleset needs admin
-# permission that CI's default token does not have, and `make check` is
-# documented as the exact script CI runs — a step that silently skips in CI
-# would make that claim false. Run this by hand after touching branch
+# Deliberately NOT part of `make check`. It needs network access to GitHub,
+# and `make check` must run offline: the harness loop gates run it as their
+# verify command, and a step that skipped without a network would make "make
+# check is what CI runs" false. (The branch-rules endpoint it reads needs no
+# admin permission, only read access.) Run this by hand after touching branch
 # protection, or when a PR shows a required check that never reports.
 #
 # Usage:  bash scripts/check-ruleset.sh [owner/repo]
@@ -37,7 +38,7 @@ command -v jq >/dev/null || die "jq is not installed"
 branch=$(gh api "repos/$REPO" --jq .default_branch 2>&1) \
   || die "could not read $REPO's default branch. Response: $branch"
 rules=$(gh api --paginate --slurp "repos/$REPO/rules/branches/$branch" 2>&1) \
-  || die "could not read the rules on $branch for $REPO. Needs read access on the repo — check \`gh auth status\`.
+  || die "could not read the rules on $branch for $REPO. Needs read access to the repo — check \`gh auth status\`.
 Response: $rules"
 
 rules=$(printf '%s' "$rules" | jq -c 'add // []') || die "unexpected response for the rules on $branch: $rules"
