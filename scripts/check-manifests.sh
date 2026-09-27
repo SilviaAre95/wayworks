@@ -16,9 +16,15 @@ fail=0
 err() { echo "ERROR: $*" >&2; fail=1; }
 
 MKT=.claude-plugin/marketplace.json
+SHAPE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/manifest-shape.jq
+# Shape first, on the JSON: every later step splits names into lines and would
+# be fooled by one that is not a unique [a-z0-9-] string.
+shape=$(jq -r -f "$SHAPE" "$MKT") || { err "$MKT is not valid JSON"; exit 1; }
+if [ -n "$shape" ]; then
+  while IFS= read -r v; do err "$MKT: $v"; done <<<"$shape"
+  exit 1
+fi
 while IFS= read -r name; do
-  # The name becomes a path; anything but [a-z0-9-] could split or escape it.
-  [[ "$name" =~ ^[a-z0-9][a-z0-9-]*$ ]] || { err "marketplace plugin name '$name' is not [a-z0-9-]"; continue; }
   manifest="plugins/$name/.claude-plugin/plugin.json"
   if [ ! -f "$manifest" ]; then
     err "marketplace lists '$name' but $manifest does not exist"; continue
@@ -28,6 +34,7 @@ while IFS= read -r name; do
   [ "$pn" = "$name" ] || err "$manifest: name '$pn' != marketplace entry '$name'"
   pv=$(jq -r .version "$manifest")
   mv=$(jq -r .version <<<"$entry")
+  [[ "$pv" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || err "$manifest: version $pv is not X.Y.Z"
   [ "$mv" = "$pv" ] || err "$manifest: version $pv != marketplace version $mv"
   pd=$(jq -r '.description // empty' "$manifest")
   md=$(jq -r '.description // empty' <<<"$entry")

@@ -10,6 +10,12 @@
 #   - A plugin added or removed (a rename is both) changes the plugin set, so
 #     metadata.version must rise too; a new plugin enters at 1.0.0.
 #
+# Guaranteed only for a marketplace.json that passes manifest-shape.jq (unique
+# [a-z0-9-] names, source ./plugins/<name>, X.Y.Z versions), and only against
+# the base CI ran on — the ruleset requires branches to be up to date so that
+# base is main's tip at merge. Not covered: a PR that edits this script or
+# ci.yml (the job runs the PR's copy), and top-level marketplace fields.
+#
 # Per plugin, not per PR: grepping the diff for any "version" line let one
 # plugin's bump cover another plugin's unbumped change. check-manifests.sh
 # holds the two manifests in sync.
@@ -52,8 +58,14 @@ higher() {  # $2 > $1, both plain X.Y.Z; anything else is not a bump
 }
 
 mkt_base=$(at "$mb" "$MKT"); mkt_head=$(at HEAD "$MKT")
-jq -e '.plugins | type == "array"' <<<"$mkt_head" >/dev/null 2>&1 \
-  || { err "$MKT at HEAD is missing or has no plugins array"; exit 1; }
+# Shape first (the same allowlist check-manifests.sh applies): everything below
+# splits names into lines, so a name outside [a-z0-9-] could hide an entry.
+shape=$(jq -r -f "$(dirname "${BASH_SOURCE[0]}")/manifest-shape.jq" <<<"$mkt_head" 2>/dev/null) \
+  || { err "$MKT at HEAD is missing or not valid JSON"; exit 1; }
+if [ -n "$shape" ]; then
+  while IFS= read -r v; do err "$MKT at HEAD: $v"; done <<<"$shape"
+  exit 1
+fi
 set_changed=0
 # Plugins that changed: files under plugins/<name>/, plus any marketplace entry
 # that differs outside its version.

@@ -26,7 +26,7 @@ fresh() {  # repo on main with plugins a and b at 1.0.0, then a branch
     mkdir -p "$R/plugins/$p/.claude-plugin"
     echo "{\"name\":\"$p\",\"version\":\"1.0.0\",\"description\":\"$p\"}" > "$R/plugins/$p/.claude-plugin/plugin.json"
     echo "$p" > "$R/plugins/$p/README.md"
-    mktjq ".plugins += [{\"name\":\"$p\",\"version\":\"1.0.0\",\"description\":\"$p\"}]"
+    mktjq ".plugins += [{\"name\":\"$p\",\"source\":\"./plugins/$p\",\"version\":\"1.0.0\",\"description\":\"$p\"}]"
   done
   echo "# log" > "$R/CHANGELOG.md"
   g add -A; g commit -q -m base; g checkout -q -b pr
@@ -66,7 +66,7 @@ expect_pass "1.9.0 -> 1.10.0 compares as semver, not text"
 addc() {  # addc <version> — add plugin c
   mkdir -p "$R/plugins/c/.claude-plugin"
   echo "{\"name\":\"c\",\"version\":\"$1\",\"description\":\"c\"}" > "$R/plugins/c/.claude-plugin/plugin.json"
-  mktjq ".plugins += [{\"name\":\"c\",\"version\":\"$1\",\"description\":\"c\"}]"; log c
+  mktjq ".plugins += [{\"name\":\"c\",\"source\":\"./plugins/c\",\"version\":\"$1\",\"description\":\"c\"}]"; log c
 }
 fresh newp; addc 1.0.0; mktjq '.metadata.version="1.1.0"'; commit_run
 expect_pass "a new plugin at 1.0.0 with a marketplace bump passes"
@@ -81,7 +81,7 @@ expect_fail "removing a plugin without a marketplace bump fails" "plugin set cha
 fresh rename; setver a 1.2.0; log a; g add -A; g commit -q -m m; g checkout -q main; g merge -q pr; g checkout -q -b pr2
 g mv plugins/a plugins/z; echo x >> "$R/plugins/z/README.md"
 jq '.name="z"' "$R/plugins/z/.claude-plugin/plugin.json" > "$R/t" && mv "$R/t" "$R/plugins/z/.claude-plugin/plugin.json"
-mktjq '(.plugins[] | select(.name=="a") | .name) = "z"'; log z; commit_run
+mktjq '(.plugins[] | select(.name=="a")) |= (.name = "z" | .source = "./plugins/z")'; log z; commit_run
 expect_fail "renaming a plugin without a marketplace bump fails" "plugin set changed"
 expect_fail "a renamed plugin enters at 1.0.0" "z is new since base"
 
@@ -92,9 +92,15 @@ fresh moved; g mv plugins/a/README.md docs-README.md; commit_run
 expect_fail "moving a file out of a plugin is a change to that plugin" "a changed but"
 
 fresh pre; echo x >> "$R/plugins/a/README.md"; setver a 1.0.0-rc1; log a; commit_run
-expect_fail "a prerelease suffix is not a bump" "1.0.0 -> 1.0.0-rc1"
+expect_fail "a prerelease suffix is not a bump" "is not X.Y.Z"
 fresh badmkt; echo x >> "$R/plugins/a/README.md"; echo '{}' > "$R/.claude-plugin/marketplace.json"; log a; commit_run
 expect_fail "a marketplace.json with no plugins array fails closed" "no plugins array"
+
+# A name holding a newline read as two existing names and hid a new entry.
+fresh nlname; mktjq '.plugins += [{"name":"a\na","source":"./plugins/a","version":"9.9.9","description":"x"}]'; log x; commit_run
+expect_fail "a plugin name with a newline fails the shape check" 'plugin name "a\\na"'
+fresh dup; mktjq '.plugins += [.plugins[0]]'; log x; commit_run
+expect_fail "a duplicated plugin name fails the shape check" "listed more than once"
 
 fresh badname; mkdir -p "$R/plugins/Bad.Name"; echo x > "$R/plugins/Bad.Name/f"; log x; commit_run
 expect_fail "a plugin dir outside [a-z0-9-] fails" "is not \[a-z0-9-\]"

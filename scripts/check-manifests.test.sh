@@ -49,7 +49,17 @@ expect_fail "listed plugin without a manifest fails" "does not exist"
 reset; mkdir -p "$TMP/plugins/orphan"; run
 expect_fail "unlisted plugin dir fails" "plugins/orphan exists"
 reset; jqedit "$MP" '.plugins += [{"name":"../../x","version":"1.0.0","description":"d"}]'; run
-expect_fail "a plugin name outside [a-z0-9-] fails" "is not \[a-z0-9-\]"
+expect_fail "a plugin name outside [a-z0-9-] fails" "is not a \[a-z0-9-\] string"
+reset; jqedit "$MP" '.plugins += [{"name":"harness\nshared","source":"./plugins/harness","version":"9.9.9","description":"x"}]'; run
+expect_fail "a name holding a newline cannot pose as existing plugins" 'plugin name "harness\\nshared"'
+reset; jqedit "$MP" '.plugins += [(.plugins[] | select(.name=="harness"))]'; run
+expect_fail "a duplicated plugin name fails" "listed more than once"
+reset; jqedit "$MP" '(.plugins[] | select(.name=="harness") | .source) = {"source":"github","repo":"x/y"}'; run
+expect_fail "a source other than ./plugins/<name> fails" "is not \"./plugins/harness\""
+reset; jqedit "$MP" '(.plugins[] | select(.name=="harness") | .version) = "2.3.8-rc1"'; run
+expect_fail "a marketplace version outside X.Y.Z fails" "is not X.Y.Z"
+reset; jqedit plugins/harness/.claude-plugin/plugin.json 'del(.version)'; jqedit "$MP" '(.plugins[] | select(.name=="harness")) |= del(.version)'; run
+expect_fail "a version missing from both manifests fails" "is not X.Y.Z"
 OUT=$(MANIFEST_ROOT="$TMP/nope" bash "$CHECK" 2>&1); RC=$?
 expect_fail "a missing root fails instead of checking the wrong dir" "cannot cd"
 

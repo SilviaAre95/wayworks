@@ -33,6 +33,7 @@ ids=$(printf '%s' "$rulesets" | jq -r '.[] | select(.target=="branch") | .id' 2>
 [ -n "$ids" ] || die "no branch rulesets found on $REPO — if branch protection is configured the classic way instead, this script does not cover it"
 
 required=""
+strict=false
 for id in $ids; do
   detail=$(gh api "repos/$REPO/rulesets/$id" 2>&1) \
     || die "could not read ruleset $id.
@@ -53,6 +54,8 @@ Response: $detail"
     continue
   fi
   printf '%s\n' "$contexts" | sed 's/^/  requires: /'
+  printf '%s' "$detail" | jq -e '.rules[] | select(.type=="required_status_checks")
+    | .parameters.strict_required_status_checks_policy == true' >/dev/null && strict=true
   required=$(printf '%s\n%s' "$required" "$contexts")
 done
 
@@ -69,7 +72,15 @@ if [ -z "$live" ]; then
 fi
 
 if [ "$live" = "$want" ]; then
-  echo "IN SYNC — live ruleset matches $CONTRACT."
+  # check-release-rule.sh compares versions against base; without "require
+  # branches to be up to date" two PRs green against the same old main can
+  # merge under one version.
+  if [ "$strict" != true ]; then
+    echo "MISMATCH — the checks are required but not strict. Turn on \"Require branches"
+    echo "to be up to date before merging\"; the release check's guarantee depends on it."
+    exit 1
+  fi
+  echo "IN SYNC — live ruleset matches $CONTRACT, strict."
   exit 0
 fi
 
