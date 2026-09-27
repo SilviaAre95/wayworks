@@ -10,13 +10,13 @@
 #
 # Root override (for the self-test): MANIFEST_ROOT=<dir>.
 set -uo pipefail
+SHAPE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/manifest-shape.jq  # before the cd below
 cd "${MANIFEST_ROOT:-$(dirname "$0")/..}" || { echo "ERROR: cannot cd to manifest root" >&2; exit 2; }
 
 fail=0
 err() { echo "ERROR: $*" >&2; fail=1; }
 
 MKT=.claude-plugin/marketplace.json
-SHAPE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/manifest-shape.jq
 # Shape first, on the JSON: every later step splits names into lines and would
 # be fooled by one that is not a unique [a-z0-9-] string.
 shape=$(jq -r -f "$SHAPE" "$MKT") || { err "$MKT is not valid JSON"; exit 1; }

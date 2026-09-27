@@ -6,8 +6,9 @@
 # as several existing plugins and hide a new entry from every later check.
 # Values are echoed with tojson so no violation message can split either.
 # Used by check-manifests.sh and check-release-rule.sh.
-def semver: type == "string" and test("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$");
-def plugin_name: type == "string" and test("^[a-z0-9][a-z0-9-]*$");
+# \A and \z, not ^ and $: in jq's regex, $ also matches before a final newline.
+def semver: type == "string" and test("\\A(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\z");
+def plugin_name: type == "string" and test("\\A[a-z0-9][a-z0-9-]*\\z");
 
 if (.plugins | type) != "array" then "marketplace.json has no plugins array"
 else
