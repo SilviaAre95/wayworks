@@ -27,6 +27,9 @@ bash scripts/check-manifests.sh || err "marketplace.json and a plugin.json disag
 echo "== Manifest sync checker self-test"
 bash scripts/check-manifests.test.sh || err "check-manifests.test.sh failed"
 
+echo "== Release-rule checker self-test"
+bash scripts/check-release-rule.test.sh || err "check-release-rule.test.sh failed"
+
 echo "== No redundant conventional paths in plugin manifests"
 # Claude Code auto-discovers commands/, skills/, agents/, and hooks/hooks.json.
 # Declaring those same paths in plugin.json makes it load them TWICE, and the
