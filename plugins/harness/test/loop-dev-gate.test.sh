@@ -254,11 +254,20 @@ rm -rf "$d"
 #      Previously the gate read "deterministic gate green" as "work is verified"
 #      when it actually meant "no work exists", and demanded a marker that would
 #      certify graders passed on a change nobody made. The loop could not exit.
-d=$(mktemp -d); gsetup "$d"; touch "$d/.cc-loop-dev-active"
+#      On a feature branch: on the base branch itself, see 16b2.
+d=$(mktemp -d); gsetup "$d"; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
 out=$(CC_GATE_CMD="true" run "$d")
 check "empty diff: does not demand reviews" "" "$out" "nothing to review"
 check "empty diff: no stamp command offered" "" "$([ -n "${out##*merge-base*}" ] && echo absent || echo present)" "absent"
 check "empty diff: no block decision" "" "$([ -n "${out##*\"block\"*}" ] && echo none || echo blocked)" "none"
+rm -rf "$d"
+
+# 16b2. On the base branch itself the merge-base is always HEAD, so no work
+#       and committed work look the same; the gate cannot tell and goes to
+#       review. The cost of never letting a loop run on main skip review.
+d=$(mktemp -d); gsetup "$d"; touch "$d/.cc-loop-dev-active"
+out=$(CC_GATE_CMD="true" run "$d")
+check "on the base branch, even an empty run goes to review" "" "$out" "review stages"
 rm -rf "$d"
 
 # 16c. A tracked change IS work -> the gate must still demand reviews.
@@ -266,6 +275,132 @@ d=$(mktemp -d); gsetup "$d"; touch "$d/.cc-loop-dev-active"
 echo change >> "$d/f.txt"
 out=$(CC_GATE_CMD="true" run "$d")
 check "tracked diff still demands reviews" "" "$out" "review stages"
+rm -rf "$d"
+
+# 16c2. Repo diff config must not hide work. `git diff` runs diff.external and
+#       textconv, so an external tool that prints nothing (or a textconv to
+#       empty) made a real change read as "no diff", and the loop stopped
+#       with no reviews. The config lives in .git/, which the agent can write.
+for how in external textconv; do
+  for state in committed uncommitted; do
+    d=$(mktemp -d); gsetup "$d"; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
+    printf 'base: main\n' > "$d/.cc-dev.yaml"
+    if [ "$how" = external ]; then
+      git -C "$d" config diff.external true
+    else
+      git -C "$d" config diff.nul.textconv 'cat /dev/null #'; echo '* diff=nul' > "$d/.git/info/attributes"
+    fi
+    echo change >> "$d/f.txt"
+    [ "$state" = committed ] && gcommit "$d" -am work
+    out=$(CC_GATE_CMD="true" run "$d")
+    check "diff.$how, $state change: still demands reviews" "" "$out" "review stages"
+    rm -rf "$d"
+  done
+done
+
+# 16c3. Committed work is compared as tree objects, which no diff driver,
+#       filter, index flag or submodule setting can change. Each vector is set
+#       up AFTER the commit (before it, the commit itself would store the
+#       base's bytes: only an uncommitted change exists, and that is
+#       agent-writable state outside this exit's guarantee).
+for vec in filter; do  # a submodule pointer bump changes the tree too, by construction
+  d=$(mktemp -d); gsetup "$d"; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
+  printf 'base: main\n' > "$d/.cc-dev.yaml"
+  echo change >> "$d/f.txt"; gcommit "$d" -am work
+  case $vec in
+    filter) git -C "$d" config filter.hide.clean 'git show main:%f'; echo '* filter=hide' > "$d/.git/info/attributes"; touch "$d/f.txt" ;;
+  esac
+  out=$(CC_GATE_CMD="true" run "$d")
+  check "$vec, committed change: still demands reviews" "" "$out" "review stages"
+  rm -rf "$d"
+done
+
+# 16c4. A base that resolves to the checked-out branch makes the merge-base
+#       HEAD and every committed change vanish: HEAD aliases (HEAD, ORIG_HEAD,
+#       main-worktree/HEAD, and `head` on a case-insensitive filesystem) and
+#       the branch's own name. Only a real branch ref other than the
+#       checked-out one may anchor the exit.
+for b in HEAD ORIG_HEAD head main-worktree/HEAD feature refs/heads/feature Feature FEATURE heads/Feature; do
+  d=$(mktemp -d); gsetup "$d"; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
+  printf 'base: %s\n' "$b" > "$d/.cc-dev.yaml"
+  echo change >> "$d/f.txt"; gcommit "$d" -am work; git -C "$d" update-ref ORIG_HEAD HEAD
+  out=$(CC_GATE_CMD="true" run "$d")
+  check "base: $b does not read as nothing to review" "" "$out" "review stages"
+  rm -rf "$d"
+done
+# The accidental form: a loop run on main itself, with the default base.
+d=$(mktemp -d); gsetup "$d"; touch "$d/.cc-loop-dev-active"
+printf 'base: main\n' > "$d/.cc-dev.yaml"
+echo change >> "$d/f.txt"; gcommit "$d" -am work
+out=$(CC_GATE_CMD="true" run "$d")
+check "loop on main with base main: committed work still demands reviews" "" "$out" "review stages"
+rm -rf "$d"
+for b in MAIN origin/main upstream/main; do
+  d=$(mktemp -d); gsetup "$d"; touch "$d/.cc-loop-dev-active"
+  printf 'base: %s\n' "$b" > "$d/.cc-dev.yaml"
+  echo change >> "$d/f.txt"; gcommit "$d" -am work
+  git -C "$d" update-ref refs/remotes/origin/main HEAD; git -C "$d" update-ref refs/remotes/upstream/main HEAD   # pushed, no tracking config
+  out=$(CC_GATE_CMD="true" run "$d")
+  check "loop on main with base $b (pushed): committed work still demands reviews" "" "$out" "review stages"
+  rm -rf "$d"
+done
+# A feature branch tracking origin/main may use it as base: an empty run exits.
+d=$(mktemp -d); gsetup "$d"; git -C "$d" remote add origin "$d"; git -C "$d" update-ref refs/remotes/origin/main main
+git -C "$d" checkout -q -b feature --track origin/main 2>/dev/null; touch "$d/.cc-loop-dev-active"
+printf 'base: origin/main\n' > "$d/.cc-dev.yaml"
+out=$(CC_GATE_CMD="true" run "$d")
+check "feature tracking origin/main, no work: nothing to review" "" "$out" "nothing to review"
+rm -rf "$d"
+# Tags and SHAs do not follow HEAD: a genuinely empty run still exits.
+for kind in tag sha; do
+  d=$(mktemp -d); gsetup "$d"; git -C "$d" tag v1; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
+  if [ $kind = tag ]; then b=v1; else b=$(git -C "$d" rev-parse main); fi
+  printf 'base: %s\n' "$b" > "$d/.cc-dev.yaml"
+  out=$(CC_GATE_CMD="true" run "$d")
+  check "base is a $kind, no work: nothing to review" "" "$out" "nothing to review"
+  rm -rf "$d"
+done
+# A remote-tracking base is a real ref and still allows a genuinely empty exit.
+d=$(mktemp -d); gsetup "$d"; git -C "$d" update-ref refs/remotes/origin/main main
+git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
+printf 'base: origin/main\n' > "$d/.cc-dev.yaml"
+out=$(CC_GATE_CMD="true" run "$d")
+check "base: origin/main, no work: nothing to review" "" "$out" "nothing to review"
+rm -rf "$d"
+
+# 16c4b. Grafts and replace refs rewrite history under the tree comparison;
+#        the exit reads the real object graph.
+for how in graft replace-base replace-head; do
+  d=$(mktemp -d); gsetup "$d"; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
+  printf 'base: main\n' > "$d/.cc-dev.yaml"
+  echo change >> "$d/f.txt"; gcommit "$d" -am work
+  m=$(git -C "$d" rev-parse main); f=$(git -C "$d" rev-parse feature)
+  case $how in
+    graft) mkdir -p "$d/.git/info"; echo "$m $f" > "$d/.git/info/grafts" ;;
+    replace-base) git -C "$d" replace main "$(git -C "$d" commit-tree -p feature -m x "main^{tree}")" ;;
+    replace-head) git -C "$d" replace feature "$(git -C "$d" commit-tree -p main -m x "main^{tree}")"; git -C "$d" reset -q --hard ;;
+  esac
+  out=$(CC_GATE_CMD="true" run "$d" 2>/dev/null)
+  check "$how: committed work still demands reviews" "" "$out" "review stages"
+  rm -rf "$d"
+done
+
+# 16c4c. Uncommitted edits inside a submodule are work.
+d=$(mktemp -d); mkdir "$d/sub" "$d/p"; gsetup "$d/sub"; gsetup "$d/p"
+git -C "$d/p" -c protocol.file.allow=always submodule -q add "$d/sub" sub 2>/dev/null
+gcommit "$d/p" -m addsub; git -C "$d/p" checkout -qb feature; touch "$d/p/.cc-loop-dev-active"
+printf 'base: main\n' > "$d/p/.cc-dev.yaml"
+echo edit >> "$d/p/sub/f.txt"
+out=$(CC_GATE_CMD="true" run "$d/p")
+check "dirty submodule: demands reviews" "" "$out" "review stages"
+rm -rf "$d"
+
+# 16c5. Every nothing-to-review exit is audited, so one can't pass silently.
+d=$(mktemp -d); gsetup "$d"; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
+printf 'base: main\n' > "$d/.cc-dev.yaml"
+out=$(CC_GATE_CMD="true" run "$d")
+check "empty exit still allowed" "" "$out" "nothing to review"
+check "empty exit is logged with base and branch" "" "$(cat "$d/.cc-loop-standdowns.log" 2>/dev/null)" "nothing-to-review base=main branch=feature"
 rm -rf "$d"
 
 # 16d. An UNTRACKED new file is work too — the diff is empty but the run
@@ -277,7 +412,7 @@ check "untracked file still demands reviews" "" "$out" "review stages"
 rm -rf "$d"
 
 # 16e. Loop state files are not work — they exist in every armed run.
-d=$(mktemp -d); gsetup "$d"; touch "$d/.cc-loop-dev-active" "$d/.cc-loop-dev-rounds"
+d=$(mktemp -d); gsetup "$d"; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active" "$d/.cc-loop-dev-rounds"
 out=$(CC_GATE_CMD="true" run "$d")
 check "loop state alone is not work" "" "$out" "nothing to review"
 rm -rf "$d"

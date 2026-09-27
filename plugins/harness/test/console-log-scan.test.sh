@@ -45,4 +45,12 @@ git -C "$R" -c user.email=t@t -c user.name=t commit -q -m readme
 printf 'more console.log prose\n' > "$R/README.md"
 git -C "$R" checkout -q app.ts
 check "md changes are ignored" "$R" "EMPTY"
+
+# A non-ASCII file name: git quotes it in plain --name-only output ("caf\303\251.ts"),
+# which named no file on disk, so the scan skipped it.
+printf 'export const y = 1\n' > "$R/café.ts"
+git -C "$R" add café.ts
+git -C "$R" -c user.email=t@t -c user.name=t commit -q -m cafe
+printf 'export const y = 1\nconsole.log(y)\n' > "$R/café.ts"
+check "console.log in a non-ASCII file name warns" "$R" "café.ts (1)"
 exit $fail

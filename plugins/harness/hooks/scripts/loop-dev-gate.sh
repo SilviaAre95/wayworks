@@ -183,13 +183,60 @@ if [ ! -f "$MARKER" ]; then
   #
   # Conservative on purpose: untracked files count as work, so a run that only
   # added new files still gets graded.
-  if git -C "$DIR" rev-parse --git-dir >/dev/null 2>&1; then
-    mb=$(git -C "$DIR" merge-base "$BASE" HEAD 2>/dev/null)
-    if [ -n "$mb" ] \
-       && [ -z "$(git -C "$DIR" diff "$mb" 2>/dev/null)" ] \
-       && [ -z "$(git -C "$DIR" ls-files --others --exclude-standard 2>/dev/null | grep -v '^\.cc-' | head -1)" ]; then
+  #
+  # What this exit guarantees: user or global git config and git errors never
+  # make committed work read as none — it is compared as tree objects of the
+  # real object graph (replace refs, grafts and the
+  # commit-graph file off), which no diff driver, filter, index flag, ignore
+  # rule or submodule setting can change. (Uncommitted and untracked work is
+  # checked best-effort: global excludes, fileMode and autocrlf still apply.)
+  # It does not stop a deliberate hide
+  # of uncommitted or untracked work through state the agent can write
+  # (.git/config, the index, .git/info/exclude) — the same trust class as
+  # deleting the sentinel — so every exit is logged to
+  # .cc-loop-standdowns.log with base, branch and tree.
+  #   - The base must be a branch, remote-tracking branch or tag that exists
+  #     under exactly that name (loose refs on a case-insensitive filesystem
+  #     open `refs/heads/Feature` as `feature`), or a commit SHA, and must be
+  #     neither the checked-out branch nor a remote copy of it (any remote,
+  #     by name, not tracking config: a feature branch tracking origin/main
+  #     may still use it as base). Anything else — a
+  #     HEAD alias (HEAD, ORIG_HEAD, main-worktree/HEAD, `head`), the
+  #     branch's own name in any case, a loop on main with base main or
+  #     origin/main — makes the merge-base HEAD and hides every commit, so it
+  #     goes to review. The marker path freezes its anchor instead. Known
+  #     limit: a detached HEAD with base naming the branch that holds it.
+  #   - Uncommitted work: git diff --quiet with the drivers off and every
+  #     submodule change counted; only exit 0 is "no change", so an error goes
+  #     to review. Untracked: ls-files, whose failure also goes to review.
+  gx() { GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null git -c core.commitGraph=false -C "$DIR" "$@"; }
+  if gx rev-parse --git-dir >/dev/null 2>&1; then
+    mb=""; mb_tree=""; head_tree=""; untracked=""
+    base_ref=$(gx rev-parse --symbolic-full-name "$BASE" 2>/dev/null)
+    head_ref=$(gx rev-parse --symbolic-full-name HEAD 2>/dev/null)
+    head_branch=${head_ref#refs/heads/}
+    case "$base_ref" in
+      refs/heads/*|refs/remotes/*|refs/tags/*)
+        if [ "$(gx for-each-ref --format='%(refname)' "$base_ref" 2>/dev/null)" = "$base_ref" ] \
+           && [ "$base_ref" != "$head_ref" ] \
+           && { [ "$head_ref" = HEAD ] || [[ "$base_ref" != refs/remotes/*/"$head_branch" ]]; }; then
+          mb=$(gx merge-base "$BASE" HEAD 2>/dev/null)
+        fi ;;
+      "") [[ "$BASE" =~ ^[0-9a-f]{7,40}$ ]] && gx rev-parse -q --verify "$BASE^{commit}" >/dev/null 2>&1 \
+            && mb=$(gx merge-base "$BASE" HEAD 2>/dev/null) ;;
+    esac
+    if [ -n "$mb" ]; then
+      mb_tree=$(gx rev-parse -q --verify "$mb^{tree}" 2>/dev/null)
+      head_tree=$(gx rev-parse -q --verify 'HEAD^{tree}' 2>/dev/null)
+    fi
+    if [ -n "$mb_tree" ] && [ "$mb_tree" = "$head_tree" ] \
+       && gx diff --quiet --no-ext-diff --no-textconv --ignore-submodules=none "$mb" 2>/dev/null \
+       && untracked=$(gx ls-files --others --exclude-standard 2>/dev/null) \
+       && [ -z "$(printf '%s' "$untracked" | grep -v '^\.cc-' | head -1)" ]; then
+      branch=$(gx symbolic-ref -q --short HEAD 2>/dev/null || echo detached)
+      gate_standdown "$DIR" loop-dev nothing-to-review "base=$BASE branch=$branch tree=${head_tree:0:12}"
       jq -n --arg b "$BASE" \
-        '{systemMessage:("Loop-dev: nothing to review — the working tree is identical to " + $b + " (no diff, no new files). Stopping without a marker; no reviews were run and none were needed.")}'
+        '{systemMessage:("Loop-dev: nothing to review — the working tree is identical to " + $b + " (no diff, no new files). Stopping without a marker; no reviews were run and none were needed. Logged to .cc-loop-standdowns.log.")}'
       exit 0
     fi
   fi
