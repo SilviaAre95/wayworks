@@ -198,7 +198,9 @@ if [ ! -f "$MARKER" ]; then
   #   - The base must be a branch, remote-tracking branch or tag that exists
   #     under exactly that name (loose refs on a case-insensitive filesystem
   #     open `refs/heads/Feature` as `feature`), or a commit SHA, and must be
-  #     neither the checked-out branch nor its upstream. Anything else — a
+  #     neither the checked-out branch nor a remote copy of it (any remote,
+  #     by name, not tracking config: a feature branch tracking origin/main
+  #     may still use it as base). Anything else — a
   #     HEAD alias (HEAD, ORIG_HEAD, main-worktree/HEAD, `head`), the
   #     branch's own name in any case, a loop on main with base main or
   #     origin/main — makes the merge-base HEAD and hides every commit, so it
@@ -212,11 +214,12 @@ if [ ! -f "$MARKER" ]; then
     mb=""; mb_tree=""; head_tree=""; untracked=""
     base_ref=$(gx rev-parse --symbolic-full-name "$BASE" 2>/dev/null)
     head_ref=$(gx rev-parse --symbolic-full-name HEAD 2>/dev/null)
-    up_ref=$(gx rev-parse --symbolic-full-name '@{upstream}' 2>/dev/null)
+    head_branch=${head_ref#refs/heads/}
     case "$base_ref" in
       refs/heads/*|refs/remotes/*|refs/tags/*)
         if [ "$(gx for-each-ref --format='%(refname)' "$base_ref" 2>/dev/null)" = "$base_ref" ] \
-           && [ "$base_ref" != "$head_ref" ] && [ "$base_ref" != "$up_ref" ]; then
+           && [ "$base_ref" != "$head_ref" ] \
+           && { [ "$head_ref" = HEAD ] || [[ "$base_ref" != refs/remotes/*/"$head_branch" ]]; }; then
           mb=$(gx merge-base "$BASE" HEAD 2>/dev/null)
         fi ;;
       "") [[ "$BASE" =~ ^[0-9a-f]{7,40}$ ]] && gx rev-parse -q --verify "$BASE^{commit}" >/dev/null 2>&1 \

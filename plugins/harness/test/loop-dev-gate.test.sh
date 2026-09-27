@@ -335,16 +335,22 @@ echo change >> "$d/f.txt"; gcommit "$d" -am work
 out=$(CC_GATE_CMD="true" run "$d")
 check "loop on main with base main: committed work still demands reviews" "" "$out" "review stages"
 rm -rf "$d"
-for b in MAIN origin/main; do
+for b in MAIN origin/main upstream/main; do
   d=$(mktemp -d); gsetup "$d"; touch "$d/.cc-loop-dev-active"
   printf 'base: %s\n' "$b" > "$d/.cc-dev.yaml"
   echo change >> "$d/f.txt"; gcommit "$d" -am work
-  git -C "$d" remote add origin "$d"; git -C "$d" update-ref refs/remotes/origin/main HEAD
-  git -C "$d" config branch.main.remote origin; git -C "$d" config branch.main.merge refs/heads/main
+  git -C "$d" update-ref refs/remotes/origin/main HEAD; git -C "$d" update-ref refs/remotes/upstream/main HEAD   # pushed, no tracking config
   out=$(CC_GATE_CMD="true" run "$d")
   check "loop on main with base $b (pushed): committed work still demands reviews" "" "$out" "review stages"
   rm -rf "$d"
 done
+# A feature branch tracking origin/main may use it as base: an empty run exits.
+d=$(mktemp -d); gsetup "$d"; git -C "$d" remote add origin "$d"; git -C "$d" update-ref refs/remotes/origin/main main
+git -C "$d" checkout -q -b feature --track origin/main 2>/dev/null; touch "$d/.cc-loop-dev-active"
+printf 'base: origin/main\n' > "$d/.cc-dev.yaml"
+out=$(CC_GATE_CMD="true" run "$d")
+check "feature tracking origin/main, no work: nothing to review" "" "$out" "nothing to review"
+rm -rf "$d"
 # Tags and SHAs do not follow HEAD: a genuinely empty run still exits.
 for kind in tag sha; do
   d=$(mktemp -d); gsetup "$d"; git -C "$d" tag v1; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
