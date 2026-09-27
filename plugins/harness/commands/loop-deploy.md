@@ -1,7 +1,7 @@
 ---
 description: Deploy, watch, verify prod, and fix→redeploy until healthy (or roll back + escalate)
 argument-hint: [--env prod|staging]
-allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/hooks/scripts/loop-arm.sh:*), Bash(cat:*), Bash(rm:*)
+allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/hooks/scripts/loop-arm.sh:*), Bash(rm -f .cc-deploy-active .cc-deploy-state)
 ---
 
 Read `.cc-deploy.yaml` (deploy, watch, verify, rollback, max_redeploys, migrations_gate). If it is missing, stop and ask the user to create it — do not guess deploy commands.

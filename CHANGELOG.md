@@ -12,6 +12,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 6.3.7] — 2026-09-27
+
+### Fixed
+- **`harness` `2.3.7`** — `/harness:loop-deploy` still pre-granted `Bash(cat:*)` and `Bash(rm:*)`, so the deploy loop could read or delete any file without a prompt. Its body runs one `rm`, the disarm, and reads `.cc-deploy.yaml` with Read, so the grants are now `loop-arm.sh` and the exact disarm, `Bash(rm -f .cc-deploy-active .cc-deploy-state)`; the deploy, watch, verify and rollback commands were never pre-granted and still prompt. The rm-grant check in `scripts/check-design-contract.sh` covered only `loop-dev` and matched rm grants by spelling, so `Bash(rm)`, `Bash(rm*)` and `Bash(*)` read as "no rm grant". It is now an **allowlist** over the `allowed-tools` of `loop-dev`, `loop-deploy` and `loop-build`: every entry must be a `${CLAUDE_PLUGIN_ROOT}/hooks/scripts/<name>.sh:*` grant for a script that ships, or the command's disarm (`rm -f` followed only by `.cc-*` names), which must equal the one rm command in its body verbatim (`loop-build` has none and may grant none). Anything else fails `make check` — any other Bash pattern, bare `Bash`, a non-Bash tool. The frontmatter may hold only `description`, `argument-hint` and `allowed-tools`, each on one line, so an indented continuation or a misspelled key cannot carry grants past the check. Each rule has a self-test that also switches the rule off and asserts the case then passes. Not checked: what a granted script itself runs. (XARI-152, XARI-153)
+
 ## [marketplace 6.3.6] — 2026-09-26
 
 ### Fixed
