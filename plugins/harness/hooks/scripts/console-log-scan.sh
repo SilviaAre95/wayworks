@@ -7,11 +7,13 @@ INPUT=$(cat)
 DIR="${CLAUDE_PROJECT_DIR:-$(printf '%s' "$INPUT" | jq -r '.cwd // "."')}"
 git -C "$DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
 HITS=""
-while IFS= read -r f; do
+# -z: without it git quotes a non-ASCII path ("caf\303\251.ts"), which names
+# no file on disk, so the scan skipped it.
+while IFS= read -r -d '' f; do
   [ -f "$DIR/$f" ] || continue
   n=$(grep -c 'console\.log' -- "$DIR/$f" 2>/dev/null || true)
   if [ "${n:-0}" -gt 0 ] 2>/dev/null; then HITS="$HITS$f ($n) · "; fi
-done < <(git -C "$DIR" diff --name-only HEAD -- '*.ts' '*.tsx' '*.js' '*.jsx' 2>/dev/null)
+done < <(git -C "$DIR" diff --name-only -z HEAD -- '*.ts' '*.tsx' '*.js' '*.jsx' 2>/dev/null)
 [ -n "$HITS" ] || exit 0
 jq -n --arg h "${HITS% · }" '{systemMessage:("harness: console.log left in modified files — " + $h)}'
 exit 0
