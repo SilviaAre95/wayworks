@@ -268,6 +268,27 @@ out=$(CC_GATE_CMD="true" run "$d")
 check "tracked diff still demands reviews" "" "$out" "review stages"
 rm -rf "$d"
 
+# 16c2. Repo diff config must not hide work. `git diff` runs diff.external and
+#       textconv, so an external tool that prints nothing (or a textconv to
+#       empty) made a real change read as "no diff", and the loop stopped
+#       with no reviews. The config lives in .git/, which the agent can write.
+for how in external textconv; do
+  for state in committed uncommitted; do
+    d=$(mktemp -d); gsetup "$d"; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
+    printf 'base: main\n' > "$d/.cc-dev.yaml"
+    if [ "$how" = external ]; then
+      git -C "$d" config diff.external true
+    else
+      git -C "$d" config diff.nul.textconv 'cat /dev/null #'; echo '* diff=nul' > "$d/.git/info/attributes"
+    fi
+    echo change >> "$d/f.txt"
+    [ "$state" = committed ] && gcommit "$d" -am work
+    out=$(CC_GATE_CMD="true" run "$d")
+    check "diff.$how, $state change: still demands reviews" "" "$out" "review stages"
+    rm -rf "$d"
+  done
+done
+
 # 16d. An UNTRACKED new file is work too — the diff is empty but the run
 #      produced something, and it must not slip past ungraded.
 d=$(mktemp -d); gsetup "$d"; touch "$d/.cc-loop-dev-active"

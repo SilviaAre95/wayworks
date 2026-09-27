@@ -182,11 +182,14 @@ if [ ! -f "$MARKER" ]; then
   # failure reached from the other side.
   #
   # Conservative on purpose: untracked files count as work, so a run that only
-  # added new files still gets graded.
+  # added new files still gets graded. "No diff" is git's exit status with the
+  # repo's diff drivers off, not empty output: diff.external or a textconv
+  # (config the agent can write in .git/) printed nothing for a real change,
+  # and a git error read as empty — both skipped review.
   if git -C "$DIR" rev-parse --git-dir >/dev/null 2>&1; then
     mb=$(git -C "$DIR" merge-base "$BASE" HEAD 2>/dev/null)
     if [ -n "$mb" ] \
-       && [ -z "$(git -C "$DIR" diff "$mb" 2>/dev/null)" ] \
+       && git -C "$DIR" diff --quiet --no-ext-diff --no-textconv "$mb" 2>/dev/null \
        && [ -z "$(git -C "$DIR" ls-files --others --exclude-standard 2>/dev/null | grep -v '^\.cc-' | head -1)" ]; then
       jq -n --arg b "$BASE" \
         '{systemMessage:("Loop-dev: nothing to review — the working tree is identical to " + $b + " (no diff, no new files). Stopping without a marker; no reviews were run and none were needed.")}'
