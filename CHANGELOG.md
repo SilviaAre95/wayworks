@@ -12,6 +12,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 6.3.9] — 2026-09-27
+
+### Fixed
+- **`harness` `2.3.9`** — `loop-dev-gate.sh`'s "nothing to review" check could skip review. It decided the tree matched the base by reading `git diff`'s output, and `git diff` runs `diff.external` and textconv from the repo's `.git/config`, which the looping agent can write: a tool that printed nothing made a real change look empty, and the loop stopped with "nothing to review" and no marker. A git error also read as empty. The check now uses `git diff --quiet --no-ext-diff --no-textconv` (as the marker's fingerprint already did) and treats only exit 0 as no change, so an error fails closed into review. `console-log-scan.sh` read changed paths without `-z`, so git quoted a non-ASCII name and the scan skipped that file; it now reads them raw.
+
 ## [marketplace 6.3.8] — 2026-09-27
 
 ### Fixed
