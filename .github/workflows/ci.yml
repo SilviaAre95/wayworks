@@ -27,16 +27,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Enforce CLAUDE.md release rule
-        run: |
-          base="origin/${{ github.base_ref }}"
-          changed=$(git diff --name-only "$base"...HEAD)
-          echo "$changed"
-          if echo "$changed" | grep -qE '^(plugins/|\.claude-plugin/)'; then
-            echo "$changed" | grep -qx 'CHANGELOG.md' \
-              || { echo "::error::plugins/ changed but CHANGELOG.md was not updated (see CLAUDE.md release rule)"; exit 1; }
-            git diff "$base"...HEAD -- 'plugins/*/.claude-plugin/plugin.json' '.claude-plugin/marketplace.json' | grep -q '"version"' \
-              || { echo "::error::plugins/ changed but no version was bumped in plugin.json/marketplace.json"; exit 1; }
-          else
-            echo "No plugin changes — release rule not applicable."
-          fi
+      - name: Enforce the release rule per plugin
+        # Passed through env, never interpolated into the script.
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: bash scripts/check-release-rule.sh "origin/$BASE_REF"

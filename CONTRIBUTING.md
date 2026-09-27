@@ -29,7 +29,7 @@ Any PR touching `plugins/` or `.claude-plugin/` must include, in the same PR:
 3. A **CHANGELOG entry** (Keep-a-Changelog format, newest first).
 4. Updated **README counts/tables** if the number of plugins/skills/commands changed.
 
-CI validates manifests (JSON, name+version sync both ways, hook script paths), lints skill and command frontmatter, runs the harness shell tests, and fails PRs that change `plugins/` without a CHANGELOG + version bump. All of it except the PR-only release rule is `make check` — run that locally.
+CI validates manifests (JSON, name/version/description sync both ways, hook script paths), lints skill and command frontmatter, runs the harness shell tests, and fails PRs that change `plugins/` or `.claude-plugin/` without a CHANGELOG entry, or change a plugin without bumping that plugin's own version in both manifests. All of it except the PR-only release rule is `make check` — run that locally; the release rule is `bash scripts/check-release-rule.sh main`.
 
 The frontmatter linter (`scripts/lint-skills.sh`) enforces `name` (matching the directory), a quoted `description`, an explicit `user-invocable`, and `argument-hint` on any skill that reads `$ARGUMENTS`; positional `$0`/`$1` are rejected outright. Over-long descriptions and argument hints the skill never reads are reported as warnings, not failures — see AGENTS.md for why each rule is shaped the way it is.
 

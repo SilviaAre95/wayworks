@@ -3,6 +3,12 @@
 # and each legitimate setup must actually pass — a preflight that always exits 0
 # is worse than none, because it reads as confirmation.
 set -uo pipefail
+# Fixture repos must not see the contributor's git config: commit.gpgsign
+# fails every commit, merge.ff=false opens an editor, and each fix for one
+# setting leaves the next. Only an identity is supplied. Applies to every git
+# call below, including the scripts under test.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=user.name GIT_CONFIG_VALUE_0=t GIT_CONFIG_KEY_1=user.email GIT_CONFIG_VALUE_1=t@t
 SCRIPT=$(cd "$(dirname "$0")/../hooks/scripts" && pwd)/loop-dev-preflight.sh
 fail=0
 ok()  { echo "ok   - $*"; }
@@ -104,6 +110,18 @@ git -C "$d" -c user.email=t@t -c user.name=t commit -q -m "oops"
 run "$d"
 { [ "$RC" = "1" ] && echo "$OUT" | grep -q "TRACKED by git"; } \
   && ok "tracked loop-state file blocks" || bad "tracked loop-state file blocks (rc=$RC)"
+
+# The rounds counter is rewritten by the gate on every ungraded stop, so a
+# tracked one moves the fingerprinted diff after the stamp — same livelock.
+d=$(newrepo tracked-rounds)
+echo "make check" > "$d/.cc-verify"
+printf 'graders: [code-review]\nbase: main\n' > "$d/.cc-dev.yaml"
+echo 1 > "$d/.cc-loop-dev-rounds"
+git -C "$d" add -f .cc-loop-dev-rounds
+git -C "$d" -c user.email=t@t -c user.name=t commit -q -m "oops"
+run "$d"
+{ [ "$RC" = "1" ] && echo "$OUT" | grep -q ".cc-loop-dev-rounds is TRACKED"; } \
+  && ok "tracked rounds counter blocks" || bad "tracked rounds counter blocks (rc=$RC)"
 
 # --- missing config falls back to documented defaults -----------------------
 d=$(newrepo nocfg)

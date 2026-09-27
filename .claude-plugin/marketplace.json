@@ -6,15 +6,15 @@
   },
   "metadata": {
     "description": "An open-source way of work for AI-assisted building — plugins, second-brain support, and tracker integration",
-    "version": "6.3.7",
+    "version": "6.3.8",
     "pluginRoot": "./plugins"
   },
   "plugins": [
     {
       "name": "shared",
       "source": "./plugins/shared",
-      "description": "Shared conventions, coding style, and meta-skills",
-      "version": "2.4.0",
+      "description": "Shared conventions, meta-skills, stack profiles, and the wayworks-init/wayworks-onboard bootstrap commands",
+      "version": "2.4.1",
       "category": "conventions",
       "tags": [
         "conventions",
@@ -101,8 +101,8 @@
     {
       "name": "design",
       "source": "./plugins/design",
-      "description": "Design review — layout + responsive behavior, design systems, usability heuristics, and user flows",
-      "version": "1.0.3",
+      "description": "Design review — layout + responsive behavior, design systems, usability heuristics, and user flows (merger of ui-designer + ux-researcher)",
+      "version": "1.0.4",
       "category": "design",
       "tags": [
         "design",
@@ -169,7 +169,7 @@
       "name": "harness",
       "source": "./plugins/harness",
       "description": "Tiered autonomy + build-test-fix, staged dev, and prod deploy loops for hands-off AI workflows",
-      "version": "2.3.7",
+      "version": "2.3.8",
       "category": "workflow",
       "tags": [
         "workflow",

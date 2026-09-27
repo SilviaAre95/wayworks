@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Compare the LIVE branch ruleset's required status checks against
+# Compare the required status checks LIVE on the default branch against
 # .github/required-checks.txt.
 #
-# Deliberately NOT part of `make check`. Reading a ruleset needs admin
-# permission that CI's default token does not have, and `make check` is
-# documented as the exact script CI runs — a step that silently skips in CI
-# would make that claim false. Run this by hand after touching branch
+# Deliberately NOT part of `make check`. It needs network access to GitHub,
+# and `make check` must run offline: the harness loop gates run it as their
+# verify command, and a step that skipped without a network would make "make
+# check is what CI runs" false. (The branch-rules endpoint it reads needs no
+# admin permission, only read access.) Run this by hand after touching branch
 # protection, or when a PR shows a required check that never reports.
 #
 # Usage:  bash scripts/check-ruleset.sh [owner/repo]
@@ -22,39 +23,41 @@ command -v jq >/dev/null || die "jq is not installed"
 [ -n "$REPO" ] || die "could not determine the repo — pass it: $0 owner/repo"
 [ -f "$CONTRACT" ] || die "$CONTRACT is missing"
 
-# This script exists to be run deliberately, so a failure to read the ruleset
+# This script exists to be run deliberately, so a failure to read the rules
 # is a hard error, not a skip. A silent skip here would look identical to
 # "everything is in sync", which is the exact failure this guards against.
-rulesets=$(gh api "repos/$REPO/rulesets" 2>&1) \
-  || die "could not list rulesets for $REPO. Needs admin read on the repo — check \`gh auth status\`.
-Response: $rulesets"
+#
+# It reads the rules GitHub applies to the default branch, not every ruleset
+# in the repo: a ruleset can target other branches (`release/*`), and pooling
+# them let one aimed elsewhere make main look protected. The endpoint returns
+# only active rulesets' rules, each tagged with the ruleset it came from.
+#
+# IN SYNC does not mean every merge is gated: the admin bypass (pull_request
+# mode, by design on a solo repo) can still merge a PR past these checks, and
+# this endpoint does not report bypass actors.
+branch=$(gh api "repos/$REPO" --jq .default_branch 2>&1) \
+  || die "could not read $REPO's default branch. Response: $branch"
+rules=$(gh api --paginate --slurp "repos/$REPO/rules/branches/$branch" 2>&1) \
+  || die "could not read the rules on $branch for $REPO. Needs read access to the repo — check \`gh auth status\`.
+Response: $rules"
 
-ids=$(printf '%s' "$rulesets" | jq -r '.[] | select(.target=="branch") | .id' 2>/dev/null)
-[ -n "$ids" ] || die "no branch rulesets found on $REPO — if branch protection is configured the classic way instead, this script does not cover it"
-
-required=""
-for id in $ids; do
-  detail=$(gh api "repos/$REPO/rulesets/$id" 2>&1) \
-    || die "could not read ruleset $id.
-Response: $detail"
-  name=$(printf '%s' "$detail" | jq -r '.name')
-  enforcement=$(printf '%s' "$detail" | jq -r '.enforcement')
-  contexts=$(printf '%s' "$detail" | jq -r '
-    .rules[]? | select(.type=="required_status_checks")
-    | .parameters.required_status_checks[]?.context')
-
-  echo "ruleset: $name (id $id, enforcement: $enforcement)"
-  if [ "$enforcement" != "active" ]; then
-    echo "  not active — its required checks are not enforced, and are ignored here"
-    continue
-  fi
-  if [ -z "$contexts" ]; then
-    echo "  declares no required status checks"
-    continue
-  fi
-  printf '%s\n' "$contexts" | sed 's/^/  requires: /'
-  required=$(printf '%s\n%s' "$required" "$contexts")
-done
+rules=$(printf '%s' "$rules" | jq -c 'add // []') || die "unexpected response for the rules on $branch: $rules"
+checks=$(printf '%s' "$rules" | jq -c '[.[] | select(.type=="required_status_checks")]') \
+  || die "unexpected response for the rules on $branch: $rules"
+echo "rules on $branch: $(printf '%s' "$rules" | jq -r '[.[].type] | unique | join(", ")')"
+required=$(printf '%s' "$checks" | jq -r '.[].parameters.required_status_checks[]?.context')
+printf '%s\n' "$required" | sed '/^$/d; s/^/  requires: /'
+# Every required context must be pinned to GitHub Actions: an unpinned one is
+# satisfied by any actor that can post a commit status with that name.
+ACTIONS_APP_ID=15368
+unpinned=$(printf '%s' "$checks" | jq -r --argjson app "$ACTIONS_APP_ID" \
+  '.[].parameters.required_status_checks[]? | select(.integration_id != $app) | .context')
+# Strict must hold on every rule that requires checks, not just one of them.
+if printf '%s' "$checks" | jq -e 'length > 0 and all(.[]; .parameters.strict_required_status_checks_policy == true)' >/dev/null; then
+  strict=true
+else
+  strict=false
+fi
 
 live=$(printf '%s\n' "$required" | sed '/^$/d' | sort -u)
 want=$(grep -vE '^\s*(#|$)' "$CONTRACT" | sort -u)
@@ -69,7 +72,22 @@ if [ -z "$live" ]; then
 fi
 
 if [ "$live" = "$want" ]; then
-  echo "IN SYNC — live ruleset matches $CONTRACT."
+  # check-release-rule.sh compares versions against base; without "require
+  # branches to be up to date" two PRs green against the same old main can
+  # merge under one version.
+  if [ -n "$unpinned" ]; then
+    echo "MISMATCH — not pinned to GitHub Actions (app $ACTIONS_APP_ID), so any actor that"
+    echo "can post a commit status with the name satisfies it:"
+    printf '%s\n' "$unpinned" | sed 's/^/  /'
+    exit 1
+  fi
+  if [ "$strict" != true ]; then
+    echo "MISMATCH — the checks are required but not strict. Turn on \"Require branches"
+    echo "to be up to date before merging\"; the release check's guarantee depends on it."
+    exit 1
+  fi
+  echo "IN SYNC — live ruleset matches $CONTRACT, strict, pinned to GitHub Actions."
+  echo "(Not covered: the admin bypass, which can still merge a PR past these checks.)"
   exit 0
 fi
 

@@ -83,7 +83,7 @@ for f in .cc-dev-reviews-passed .cc-loop-dev-rounds; do
   [ -f "$DIR/$f" ] && warn "stale $f present from an earlier run — it will be rejected on stamp"
 done
 if git -C "$DIR" rev-parse --git-dir >/dev/null 2>&1; then
-  for f in .cc-loop-dev-active .cc-dev-reviews-passed .cc-loop-dev-state; do
+  for f in .cc-loop-dev-active .cc-dev-reviews-passed .cc-loop-dev-state .cc-loop-dev-rounds; do
     git -C "$DIR" ls-files --error-unmatch "$f" >/dev/null 2>&1 \
       && err "$f is TRACKED by git. A tracked marker invalidates its own fingerprint and livelocks the gate — untrack it and add it to .gitignore."
   done
