@@ -63,10 +63,38 @@ echo x >> "$R/plugins/a/README.md"; setver a 1.10.0; log a
 g add -A; g commit -q -m change; OUT=$(cd "$R" && bash "$CHECK" main 2>&1); RC=$?
 expect_pass "1.9.0 -> 1.10.0 compares as semver, not text"
 
-fresh newp; mkdir -p "$R/plugins/c/.claude-plugin"
-echo '{"name":"c","version":"1.0.0","description":"c"}' > "$R/plugins/c/.claude-plugin/plugin.json"
-mktjq '.plugins += [{"name":"c","version":"1.0.0","description":"c"}]'; log c; commit_run
-expect_pass "a plugin new since base needs no bump"
+addc() {  # addc <version> — add plugin c
+  mkdir -p "$R/plugins/c/.claude-plugin"
+  echo "{\"name\":\"c\",\"version\":\"$1\",\"description\":\"c\"}" > "$R/plugins/c/.claude-plugin/plugin.json"
+  mktjq ".plugins += [{\"name\":\"c\",\"version\":\"$1\",\"description\":\"c\"}]"; log c
+}
+fresh newp; addc 1.0.0; mktjq '.metadata.version="1.1.0"'; commit_run
+expect_pass "a new plugin at 1.0.0 with a marketplace bump passes"
+fresh newnometa; addc 1.0.0; commit_run
+expect_fail "a new plugin without a marketplace bump fails" "plugin set changed"
+fresh newver; addc 2.0.0; mktjq '.metadata.version="1.1.0"'; commit_run
+expect_fail "a new plugin not at 1.0.0 fails" "must enter at 1.0.0"
+fresh removed; rm -rf "$R/plugins/b"; mktjq 'del(.plugins[] | select(.name=="b"))'; log b; commit_run
+expect_fail "removing a plugin without a marketplace bump fails" "plugin set changed"
+
+# A rename is a removal plus an addition: it cannot slip through as neither.
+fresh rename; setver a 1.2.0; log a; g add -A; g commit -q -m m; g checkout -q main; g merge -q pr; g checkout -q -b pr2
+g mv plugins/a plugins/z; echo x >> "$R/plugins/z/README.md"
+jq '.name="z"' "$R/plugins/z/.claude-plugin/plugin.json" > "$R/t" && mv "$R/t" "$R/plugins/z/.claude-plugin/plugin.json"
+mktjq '(.plugins[] | select(.name=="a") | .name) = "z"'; log z; commit_run
+expect_fail "renaming a plugin without a marketplace bump fails" "plugin set changed"
+expect_fail "a renamed plugin enters at 1.0.0" "z is new since base"
+
+# The path list must see every changed path.
+fresh quoted; echo x > "$R/plugins/a/café.md"; commit_run
+expect_fail "a non-ASCII path (git quotes it) is still a plugin change" "CHANGELOG.md was not updated"
+fresh moved; g mv plugins/a/README.md docs-README.md; commit_run
+expect_fail "moving a file out of a plugin is a change to that plugin" "a changed but"
+
+fresh pre; echo x >> "$R/plugins/a/README.md"; setver a 1.0.0-rc1; log a; commit_run
+expect_fail "a prerelease suffix is not a bump" "1.0.0 -> 1.0.0-rc1"
+fresh badmkt; echo x >> "$R/plugins/a/README.md"; echo '{}' > "$R/.claude-plugin/marketplace.json"; log a; commit_run
+expect_fail "a marketplace.json with no plugins array fails closed" "no plugins array"
 
 fresh badname; mkdir -p "$R/plugins/Bad.Name"; echo x > "$R/plugins/Bad.Name/f"; log x; commit_run
 expect_fail "a plugin dir outside [a-z0-9-] fails" "is not \[a-z0-9-\]"
