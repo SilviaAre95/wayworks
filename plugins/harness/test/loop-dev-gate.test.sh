@@ -289,6 +289,42 @@ for how in external textconv; do
   done
 done
 
+# 16c3. Committed work is compared as tree objects, which no diff driver,
+#       filter, index flag or submodule setting can change. Each vector is set
+#       up AFTER the commit (before it, the commit itself would store the
+#       base's bytes: only an uncommitted change exists, and that is
+#       agent-writable state outside this exit's guarantee).
+for vec in filter; do  # a submodule pointer bump changes the tree too, by construction
+  d=$(mktemp -d); gsetup "$d"; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
+  printf 'base: main\n' > "$d/.cc-dev.yaml"
+  echo change >> "$d/f.txt"; gcommit "$d" -am work
+  case $vec in
+    filter) git -C "$d" config filter.hide.clean 'git show main:%f'; echo '* filter=hide' > "$d/.git/info/attributes"; touch "$d/f.txt" ;;
+  esac
+  out=$(CC_GATE_CMD="true" run "$d")
+  check "$vec, committed change: still demands reviews" "" "$out" "review stages"
+  rm -rf "$d"
+done
+
+# 16c4. A base naming HEAD itself makes the merge-base HEAD and every change
+#       vanish. The marker path freezes its anchor; the empty exit refuses.
+for b in HEAD @ ORIG_HEAD; do
+  d=$(mktemp -d); gsetup "$d"; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
+  printf 'base: %s\n' "$b" > "$d/.cc-dev.yaml"
+  echo change >> "$d/f.txt"; gcommit "$d" -am work; git -C "$d" update-ref ORIG_HEAD HEAD
+  out=$(CC_GATE_CMD="true" run "$d")
+  check "base: $b does not read as nothing to review" "" "$out" "review stages"
+  rm -rf "$d"
+done
+
+# 16c5. Every nothing-to-review exit is audited, so one can't pass silently.
+d=$(mktemp -d); gsetup "$d"; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
+printf 'base: main\n' > "$d/.cc-dev.yaml"
+out=$(CC_GATE_CMD="true" run "$d")
+check "empty exit still allowed" "" "$out" "nothing to review"
+check "empty exit is logged with base and branch" "" "$(cat "$d/.cc-loop-standdowns.log" 2>/dev/null)" "nothing-to-review base=main branch=feature"
+rm -rf "$d"
+
 # 16d. An UNTRACKED new file is work too — the diff is empty but the run
 #      produced something, and it must not slip past ungraded.
 d=$(mktemp -d); gsetup "$d"; touch "$d/.cc-loop-dev-active"

@@ -182,17 +182,36 @@ if [ ! -f "$MARKER" ]; then
   # failure reached from the other side.
   #
   # Conservative on purpose: untracked files count as work, so a run that only
-  # added new files still gets graded. "No diff" is git's exit status with the
-  # repo's diff drivers off, not empty output: diff.external or a textconv
-  # (config the agent can write in .git/) printed nothing for a real change,
-  # and a git error read as empty — both skipped review.
+  # added new files still gets graded.
+  #
+  # What this exit guarantees: user or global git config and git errors never
+  # make real work read as none, and committed work is compared as tree
+  # objects, which no diff driver, filter, index flag, ignore rule or
+  # submodule setting can change. It does not stop a deliberate hide through
+  # state the agent can write (.git/config, the index, .git/info/exclude,
+  # .cc-dev.yaml) — the same trust class as deleting the sentinel — so every
+  # exit is logged to .cc-loop-standdowns.log with base, branch and trees.
+  #   - A base naming HEAD itself (HEAD, ORIG_HEAD, ...) makes the merge-base
+  #     HEAD and every change vanish; the marker path freezes its anchor, this
+  #     exit refuses.
+  #   - Uncommitted work: git diff --quiet with the drivers off; only exit 0
+  #     is "no change", so an error goes to review. Untracked: ls-files, whose
+  #     failure also goes to review.
   if git -C "$DIR" rev-parse --git-dir >/dev/null 2>&1; then
-    mb=$(git -C "$DIR" merge-base "$BASE" HEAD 2>/dev/null)
-    if [ -n "$mb" ] \
-       && git -C "$DIR" diff --quiet --no-ext-diff --no-textconv "$mb" 2>/dev/null \
-       && [ -z "$(git -C "$DIR" ls-files --others --exclude-standard 2>/dev/null | grep -v '^\.cc-' | head -1)" ]; then
+    case "$BASE" in HEAD|*_HEAD) mb="" ;; *) mb=$(git -C "$DIR" merge-base "$BASE" HEAD 2>/dev/null) ;; esac
+    mb_tree=""; head_tree=""; untracked=""
+    if [ -n "$mb" ]; then
+      mb_tree=$(git -C "$DIR" rev-parse -q --verify "$mb^{tree}" 2>/dev/null)
+      head_tree=$(git -C "$DIR" rev-parse -q --verify 'HEAD^{tree}' 2>/dev/null)
+    fi
+    if [ -n "$mb_tree" ] && [ "$mb_tree" = "$head_tree" ] \
+       && git -C "$DIR" diff --quiet --no-ext-diff --no-textconv --ignore-submodules=dirty "$mb" 2>/dev/null \
+       && untracked=$(git -C "$DIR" ls-files --others --exclude-standard 2>/dev/null) \
+       && [ -z "$(printf '%s' "$untracked" | grep -v '^\.cc-' | head -1)" ]; then
+      branch=$(git -C "$DIR" symbolic-ref -q --short HEAD 2>/dev/null || echo detached)
+      gate_standdown "$DIR" loop-dev nothing-to-review "base=$BASE branch=$branch tree=${head_tree:0:12}"
       jq -n --arg b "$BASE" \
-        '{systemMessage:("Loop-dev: nothing to review — the working tree is identical to " + $b + " (no diff, no new files). Stopping without a marker; no reviews were run and none were needed.")}'
+        '{systemMessage:("Loop-dev: nothing to review — the working tree is identical to " + $b + " (no diff, no new files). Stopping without a marker; no reviews were run and none were needed. Logged to .cc-loop-standdowns.log.")}'
       exit 0
     fi
   fi
