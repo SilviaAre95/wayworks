@@ -68,6 +68,14 @@ reset; jqedit "$MP" '(.plugins[] | select(.name=="harness") | .version) = "2.3.8
 expect_fail "a marketplace version outside X.Y.Z fails" "is not X.Y.Z"
 reset; jqedit plugins/harness/.claude-plugin/plugin.json 'del(.version)'; jqedit "$MP" '(.plugins[] | select(.name=="harness")) |= del(.version)'; run
 expect_fail "a version missing from both manifests fails" "is not X.Y.Z"
+reset; printf ' 5' >> "$TMP/plugins/harness/.claude-plugin/plugin.json"; run
+expect_fail "a plugin.json with a second document fails" "plugin.json is not exactly one JSON object"
+reset; printf '{"plugins":[]}' >> "$TMP/.claude-plugin/marketplace.json"; run
+expect_fail "a marketplace.json with a second document fails" "marketplace.json is not exactly one JSON object"
+reset; jqedit "$MP" '.' ; perl -0pi -e 's/\{/{"zz": NaN, /' "$TMP/.claude-plugin/marketplace.json"; run
+expect_fail "a marketplace.json holding NaN fails" "not exactly one JSON object"
+reset; jqedit plugins/harness/.claude-plugin/plugin.json '.description += "\n"'; run
+expect_fail "a description differing only by a trailing newline fails" "description differs"
 OUT=$(cd "$REPO/scripts" && bash check-manifests.sh 2>&1); RC=$?
 [ "$RC" -eq 0 ] && ok "runs from another directory by a relative path" || bad "relative-path run (rc=$RC: $OUT)"
 OUT=$(MANIFEST_ROOT="$TMP/nope" bash "$CHECK" 2>&1); RC=$?

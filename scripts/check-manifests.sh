@@ -10,7 +10,9 @@
 #
 # Root override (for the self-test): MANIFEST_ROOT=<dir>.
 set -uo pipefail
-SHAPE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/manifest-shape.jq  # before the cd below
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)  # before the cd below
+SHAPE=$HERE/manifest-shape.jq
+strict() { python3 "$HERE/strict-json.py" "$1"; }  # exactly one JSON object
 cd "${MANIFEST_ROOT:-$(dirname "$0")/..}" || { echo "ERROR: cannot cd to manifest root" >&2; exit 2; }
 
 fail=0
@@ -19,6 +21,7 @@ err() { echo "ERROR: $*" >&2; fail=1; }
 MKT=.claude-plugin/marketplace.json
 # Shape first, on the JSON: every later step splits names into lines and would
 # be fooled by one that is not a unique [a-z0-9-] string.
+strict "$MKT" || { err "$MKT is not exactly one JSON object"; exit 1; }
 shape=$(jq -r -f "$SHAPE" "$MKT") || { err "$MKT is not valid JSON"; exit 1; }
 if [ -n "$shape" ]; then
   while IFS= read -r v; do err "$MKT: $v"; done <<<"$shape"
@@ -29,6 +32,7 @@ while IFS= read -r name; do
   if [ ! -f "$manifest" ]; then
     err "marketplace lists '$name' but $manifest does not exist"; continue
   fi
+  strict "$manifest" || { err "$manifest is not exactly one JSON object"; continue; }
   entry=$(jq -c --arg n "$name" '.plugins[] | select(.name==$n)' "$MKT")
   # Compared as JSON, inside jq: $(…) strips a trailing newline, so a bash
   # comparison would take "2.3.8\n" for "2.3.8". The entry already passed the
@@ -37,9 +41,9 @@ while IFS= read -r name; do
   [ "$pn" = "$mn" ] || err "$manifest: name $pn != marketplace entry $mn"
   pv=$(jq -c .version "$manifest"); mv=$(jq -c .version <<<"$entry")
   [ "$pv" = "$mv" ] || err "$manifest: version $pv != marketplace version $mv"
-  pd=$(jq -r '.description // empty' "$manifest")
-  md=$(jq -r '.description // empty' <<<"$entry")
-  if [ -z "$pd" ]; then
+  pd=$(jq -c '.description // empty' "$manifest")
+  md=$(jq -c '.description // empty' <<<"$entry")
+  if [ -z "$pd" ] || [ "$pd" = '""' ]; then
     err "$manifest: no description (it is the source of truth for the marketplace entry)"
   elif [ "$md" != "$pd" ]; then
     err "$manifest: description differs from its marketplace entry — copy plugin.json's into marketplace.json"

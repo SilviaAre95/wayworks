@@ -33,7 +33,7 @@ ids=$(printf '%s' "$rulesets" | jq -r '.[] | select(.target=="branch") | .id' 2>
 [ -n "$ids" ] || die "no branch rulesets found on $REPO — if branch protection is configured the classic way instead, this script does not cover it"
 
 required=""
-strict=false
+strict=true
 for id in $ids; do
   detail=$(gh api "repos/$REPO/rulesets/$id" 2>&1) \
     || die "could not read ruleset $id.
@@ -54,8 +54,9 @@ Response: $detail"
     continue
   fi
   printf '%s\n' "$contexts" | sed 's/^/  requires: /'
-  printf '%s' "$detail" | jq -e '.rules[] | select(.type=="required_status_checks")
-    | .parameters.strict_required_status_checks_policy == true' >/dev/null && strict=true
+  # Strict must hold on every ruleset that requires checks, not just one.
+  printf '%s' "$detail" | jq -e '[.rules[] | select(.type=="required_status_checks")
+    | .parameters.strict_required_status_checks_policy == true] | all' >/dev/null || strict=false
   required=$(printf '%s\n%s' "$required" "$contexts")
 done
 

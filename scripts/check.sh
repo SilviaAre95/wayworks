@@ -15,10 +15,11 @@ declare -a ERRORS=()
 err() { echo "ERROR: $*" >&2; ERRORS+=("$*"); fail=1; }
 
 echo "== JSON parses"
-jq empty .claude-plugin/marketplace.json || err ".claude-plugin/marketplace.json: invalid JSON"
-for f in plugins/*/.claude-plugin/plugin.json plugins/*/hooks/hooks.json; do
+# Strict: exactly one JSON object each. `jq empty` passed several documents,
+# whitespace-only files and bare nan, which the plugin loader rejects.
+for f in .claude-plugin/marketplace.json plugins/*/.claude-plugin/plugin.json plugins/*/hooks/hooks.json; do
   [ -f "$f" ] || continue
-  jq empty "$f" || err "$f: invalid JSON"
+  python3 scripts/strict-json.py "$f" || err "$f: not exactly one JSON object"
 done
 
 echo "== Marketplace and plugin manifests agree (name, version, description)"

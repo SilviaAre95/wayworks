@@ -98,6 +98,10 @@ jq '.version="1.0.1\n"' "$R/plugins/a/.claude-plugin/plugin.json" > "$R/t" && mv
 expect_fail "a plugin.json version with a trailing newline is not a bump" "1.0.0 -> invalid"
 fresh nomkt; echo x >> "$R/plugins/a/README.md"; g rm -q .claude-plugin/marketplace.json; log a; commit_run
 expect_fail "a deleted marketplace.json fails as missing" "missing at HEAD"
+fresh wsmkt; echo x >> "$R/plugins/a/README.md"; setver a 1.0.1; printf '  \n\n' > "$R/.claude-plugin/marketplace.json"; log a; commit_run
+expect_fail "a whitespace-only marketplace.json fails as not JSON" "not exactly one JSON object"
+fresh pjmulti; echo x >> "$R/plugins/a/README.md"; setver a 1.0.1; printf ' 5' >> "$R/plugins/a/.claude-plugin/plugin.json"; log a; commit_run
+expect_fail "a plugin.json with a second document is not a bump" "1.0.0 -> invalid"
 fresh badmkt; echo x >> "$R/plugins/a/README.md"; echo '{}' > "$R/.claude-plugin/marketplace.json"; log a; commit_run
 expect_fail "a marketplace.json with no plugins array fails closed" "no plugins array"
 
