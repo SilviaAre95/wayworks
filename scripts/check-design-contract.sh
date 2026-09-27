@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Asserts the string contract between the design pipeline's three halves.
 #
-# Also: the loop commands' allowed-tools allowlist (see that section).
+# Also: the loop commands' pinned allowed-tools (see that section).
 #
 # Why this exists: loop-dev.md reacts to tokens the preflight prints
 # (REQUIRE_DESIGN, DESIGN_ALREADY_FOLDED), shape.md resumes from a frontmatter
@@ -32,21 +32,26 @@ for tok in REQUIRE_DESIGN DESIGN_ALREADY_FOLDED; do
   grep -qF "$tok" "$LOOP" || err "$LOOP no longer reads $tok — $PRE still prints it"
 done
 
-# --- loop commands' allowed-tools: an allowlist, not an rm blocklist ---------
-# A loop runs unattended, so what it may do without a prompt is fixed here.
-# Every allowed-tools entry must be one of:
-#   Bash(${CLAUDE_PLUGIN_ROOT}/hooks/scripts/<name>.sh:*)  for a script that ships
-#   Bash(rm -f .cc-<file> ...)  the disarm, verbatim, and only where one is expected
-# Anything else fails: Bash(*), bare Bash, Bash(rm:*), Bash(cat:*), a non-Bash
-# tool. An allowlist needs no list of rm spellings to keep up with. The disarm
-# grant must equal the one rm command in the body: a grant that drifts from the
-# body prompts (or fails) exactly when the loop must abort. The frontmatter
-# may hold only known keys on single lines — an indented continuation or a
-# misspelled key would put grants where a one-line read never looks.
-RE_SCRIPT='^Bash\(\$\{CLAUDE_PLUGIN_ROOT\}/hooks/scripts/([a-z0-9-]+\.sh):\*\)$'
-RE_DISARM='^Bash\((rm -f( \.cc-[a-z0-9-]+)+)\)$'
-check_grants() { # $1=command file  $2=required|none (is a disarm expected)
-  local f=$1 mode=$2 fm body line entry disarms="" cmds nd nc
+# --- loop commands' allowed-tools: pinned, entry for entry -----------------
+# A loop runs unattended, so what it may do without a prompt is fixed here:
+# each loop command's allowed-tools must be exactly its pinned list below — a
+# changed grant means editing this file, on purpose. A pattern allowlist was
+# not enough: every hooks/scripts entry would pass, and the gate scripts eval
+# config the loop itself can write, so granting one is Bash(*) without a
+# prompt; a pattern for the disarm let it delete another loop's files.
+# The pinned disarm must also equal the one rm command in the body: a grant
+# that drifts from the body prompts (or fails) exactly when the loop must abort.
+# A backticked rm in the prose (an example, a warning) counts as a second rm
+# command — reword it without backticks.
+# The frontmatter may hold only known keys on single lines, and no control
+# bytes: an indented continuation, a misspelled key, or a lone CR (YAML breaks
+# lines on it, awk and grep do not) would put a second allowed-tools where a
+# one-line read never looks.
+PIN_ARM='Bash(${CLAUDE_PLUGIN_ROOT}/hooks/scripts/loop-arm.sh:*)'
+check_grants() { # $1=command file  $2=pinned entries, one per line
+  local f=$1 pinned=$2 fm body line entry entries disarm cmds nc s
+  perl -ne 'exit 1 if /[\x00-\x08\x0b-\x1f\x7f]/' "$f" \
+    || err "$f: contains a control byte (CR, VT, FF, ...) that YAML may read as a line break" # rule:control-bytes
   fm=$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1' "$f")
   body=$(awk 'NR>1 && $0=="---"{b=1; next} b' "$f")
   while IFS= read -r line; do
@@ -55,39 +60,43 @@ check_grants() { # $1=command file  $2=required|none (is a disarm expected)
   done <<<"$fm"
   [ "$(printf '%s\n' "$fm" | grep -c '^allowed-tools:')" -eq 1 ] \
     || err "$f: expected exactly one allowed-tools line, found $(printf '%s\n' "$fm" | grep -c '^allowed-tools:') allowed-tools lines" # rule:one-allowed-tools
-  while IFS= read -r entry; do
-    if [[ $entry =~ $RE_SCRIPT ]]; then
-      [ -f "plugins/harness/hooks/scripts/${BASH_REMATCH[1]}" ] \
-        || err "$f: grant '$entry' names a script that does not exist" # rule:script-exists
-    elif [[ $entry =~ $RE_DISARM ]]; then
-      disarms="$disarms${BASH_REMATCH[1]}"$'\n'
-    else
-      err "$f: grant '$entry' is not on the allowlist (a hooks/scripts script, or the disarm verbatim)" # rule:allowlist
-    fi
-  done < <(printf '%s\n' "$fm" | sed -n 's/^allowed-tools:[[:space:]]*//p' | head -1 \
+  entries=$(printf '%s\n' "$fm" | sed -n 's/^allowed-tools:[[:space:]]*//p' | head -1 \
     | awk '{d=0; cur=""; for (i=1; i<=length($0); i++) { c=substr($0,i,1); if (c=="(") d++; if (c==")") d--;
             if (c=="," && d==0) { print cur; cur="" } else cur=cur c } print cur }' \
     | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
-  nd=$(printf '%s' "$disarms" | grep -c .)
-  if [ "$mode" = none ]; then
-    [ "$nd" -eq 0 ] || err "$f: expected no rm grant, found: $disarms" # rule:no-disarm
-    return
-  fi
+  while IFS= read -r entry; do
+    printf '%s\n' "$pinned" | grep -qxF -- "$entry" \
+      || err "$f: grant '$entry' is not in its pinned list in $0" # rule:pinned
+  done <<<"$entries"
+  while IFS= read -r entry; do
+    printf '%s\n' "$entries" | grep -qxF -- "$entry" \
+      || err "$f: pinned grant '$entry' is missing from allowed-tools" # rule:pinned
+    case "$entry" in 'Bash(${CLAUDE_PLUGIN_ROOT}/hooks/scripts/'*)
+      s=${entry#'Bash(${CLAUDE_PLUGIN_ROOT}/'}; s=${s%:\*)}
+      [ -f "plugins/harness/$s" ] || err "$f: pinned grant '$entry' names a script that does not exist" # rule:script-exists
+    esac
+  done <<<"$pinned"
+  # The body is checked against the file's own disarm grant (the pinned rule
+  # above holds that grant to its list), so each rule catches one thing.
+  printf '%s\n' "$pinned" | grep -q '^Bash(rm ' || return 0
+  disarm=$(printf '%s\n' "$entries" | sed -n 's/^Bash(\(rm .*\))$/\1/p' | head -1)
+  [ -n "$disarm" ] || return 0   # a missing grant is the pinned rule's to report
   # The body's rm commands: inline `rm ...` spans and whole-line rm commands.
   cmds=$( { printf '%s\n' "$body" | grep -oE '`rm [^`]*`' | tr -d '`'
             printf '%s\n' "$body" | sed -nE 's/^[[:space:]]*(rm [^`]*[^[:space:]`])[[:space:]]*$/\1/p'; } | sort -u)
   nc=$(printf '%s\n' "$cmds" | grep -c .)
-  if [ "$nd" -ne 1 ]; then
-    err "$f: expected exactly one disarm grant 'Bash(rm -f .cc-…)', found $nd" # rule:disarm-grant
-  elif [ "$nc" -ne 1 ]; then
+  if [ "$nc" -ne 1 ]; then
     err "$f: expected exactly one rm command in the body (the disarm), found $nc: ${cmds:-none}" # rule:disarm-body
-  elif [ "$cmds" != "${disarms%$'\n'}" ]; then
-    err "$f: rm grant 'Bash(${disarms%$'\n'})' does not match the disarm command '$cmds' verbatim" # rule:disarm-verbatim
+  elif [ "$cmds" != "$disarm" ]; then
+    err "$f: the body's disarm '$cmds' does not match its grant 'Bash($disarm)' verbatim" # rule:disarm-verbatim
   fi
 }
-check_grants "$LOOP" required
-check_grants plugins/harness/commands/loop-deploy.md required
-check_grants plugins/harness/commands/loop-build.md none
+check_grants "$LOOP" "$PIN_ARM
+Bash(rm -f .cc-loop-dev-active .cc-loop-dev-state .cc-loop-dev-rounds)
+Bash(\${CLAUDE_PLUGIN_ROOT}/hooks/scripts/loop-dev-preflight.sh:*)"
+check_grants plugins/harness/commands/loop-deploy.md "$PIN_ARM
+Bash(rm -f .cc-deploy-active .cc-deploy-state)"
+check_grants plugins/harness/commands/loop-build.md "$PIN_ARM"
 
 # --- shape stage names vs. its stage table -----------------------------------
 # The `stage:` list and the table must name the same stages in the same order.
