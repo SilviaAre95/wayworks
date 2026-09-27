@@ -18,6 +18,7 @@ Set up the harness in the current project. Make each change visible and ask befo
    .cc-loop.log
    .cc-loop-dev-active
    .cc-loop-dev-state
+   .cc-loop-dev-rounds
    .cc-dev-reviews-passed
    .cc-loop-dev.log
    .cc-deploy-active
