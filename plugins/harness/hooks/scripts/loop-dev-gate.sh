@@ -185,20 +185,25 @@ if [ ! -f "$MARKER" ]; then
   # added new files still gets graded.
   #
   # What this exit guarantees: user or global git config and git errors never
-  # make real work read as none, and committed work is compared as tree
-  # objects of the real object graph (replace refs, grafts and the
+  # make committed work read as none — it is compared as tree objects of the
+  # real object graph (replace refs, grafts and the
   # commit-graph file off), which no diff driver, filter, index flag, ignore
-  # rule or submodule setting can change. It does not stop a deliberate hide
+  # rule or submodule setting can change. (Uncommitted and untracked work is
+  # checked best-effort: global excludes, fileMode and autocrlf still apply.)
+  # It does not stop a deliberate hide
   # of uncommitted or untracked work through state the agent can write
   # (.git/config, the index, .git/info/exclude) — the same trust class as
   # deleting the sentinel — so every exit is logged to
   # .cc-loop-standdowns.log with base, branch and tree.
-  #   - The base must resolve to a real branch ref (refs/heads, refs/remotes)
-  #     other than the checked-out branch. Anything else — a HEAD alias
-  #     (HEAD, ORIG_HEAD, main-worktree/HEAD, `head` on a case-insensitive
-  #     filesystem), the branch's own name, a loop run on main with base main
-  #     — makes the merge-base HEAD and hides every commit, so it goes to
-  #     review. The marker path freezes its anchor instead.
+  #   - The base must be a branch, remote-tracking branch or tag that exists
+  #     under exactly that name (loose refs on a case-insensitive filesystem
+  #     open `refs/heads/Feature` as `feature`), or a commit SHA, and must be
+  #     neither the checked-out branch nor its upstream. Anything else — a
+  #     HEAD alias (HEAD, ORIG_HEAD, main-worktree/HEAD, `head`), the
+  #     branch's own name in any case, a loop on main with base main or
+  #     origin/main — makes the merge-base HEAD and hides every commit, so it
+  #     goes to review. The marker path freezes its anchor instead. Known
+  #     limit: a detached HEAD with base naming the branch that holds it.
   #   - Uncommitted work: git diff --quiet with the drivers off and every
   #     submodule change counted; only exit 0 is "no change", so an error goes
   #     to review. Untracked: ls-files, whose failure also goes to review.
@@ -207,8 +212,15 @@ if [ ! -f "$MARKER" ]; then
     mb=""; mb_tree=""; head_tree=""; untracked=""
     base_ref=$(gx rev-parse --symbolic-full-name "$BASE" 2>/dev/null)
     head_ref=$(gx rev-parse --symbolic-full-name HEAD 2>/dev/null)
+    up_ref=$(gx rev-parse --symbolic-full-name '@{upstream}' 2>/dev/null)
     case "$base_ref" in
-      refs/heads/*|refs/remotes/*) [ "$base_ref" != "$head_ref" ] && mb=$(gx merge-base "$BASE" HEAD 2>/dev/null) ;;
+      refs/heads/*|refs/remotes/*|refs/tags/*)
+        if [ "$(gx for-each-ref --format='%(refname)' "$base_ref" 2>/dev/null)" = "$base_ref" ] \
+           && [ "$base_ref" != "$head_ref" ] && [ "$base_ref" != "$up_ref" ]; then
+          mb=$(gx merge-base "$BASE" HEAD 2>/dev/null)
+        fi ;;
+      "") [[ "$BASE" =~ ^[0-9a-f]{7,40}$ ]] && gx rev-parse -q --verify "$BASE^{commit}" >/dev/null 2>&1 \
+            && mb=$(gx merge-base "$BASE" HEAD 2>/dev/null) ;;
     esac
     if [ -n "$mb" ]; then
       mb_tree=$(gx rev-parse -q --verify "$mb^{tree}" 2>/dev/null)

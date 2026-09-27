@@ -320,7 +320,7 @@ done
 #       main-worktree/HEAD, and `head` on a case-insensitive filesystem) and
 #       the branch's own name. Only a real branch ref other than the
 #       checked-out one may anchor the exit.
-for b in HEAD ORIG_HEAD head main-worktree/HEAD feature refs/heads/feature; do
+for b in HEAD ORIG_HEAD head main-worktree/HEAD feature refs/heads/feature Feature FEATURE heads/Feature; do
   d=$(mktemp -d); gsetup "$d"; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
   printf 'base: %s\n' "$b" > "$d/.cc-dev.yaml"
   echo change >> "$d/f.txt"; gcommit "$d" -am work; git -C "$d" update-ref ORIG_HEAD HEAD
@@ -335,6 +335,25 @@ echo change >> "$d/f.txt"; gcommit "$d" -am work
 out=$(CC_GATE_CMD="true" run "$d")
 check "loop on main with base main: committed work still demands reviews" "" "$out" "review stages"
 rm -rf "$d"
+for b in MAIN origin/main; do
+  d=$(mktemp -d); gsetup "$d"; touch "$d/.cc-loop-dev-active"
+  printf 'base: %s\n' "$b" > "$d/.cc-dev.yaml"
+  echo change >> "$d/f.txt"; gcommit "$d" -am work
+  git -C "$d" remote add origin "$d"; git -C "$d" update-ref refs/remotes/origin/main HEAD
+  git -C "$d" config branch.main.remote origin; git -C "$d" config branch.main.merge refs/heads/main
+  out=$(CC_GATE_CMD="true" run "$d")
+  check "loop on main with base $b (pushed): committed work still demands reviews" "" "$out" "review stages"
+  rm -rf "$d"
+done
+# Tags and SHAs do not follow HEAD: a genuinely empty run still exits.
+for kind in tag sha; do
+  d=$(mktemp -d); gsetup "$d"; git -C "$d" tag v1; git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
+  if [ $kind = tag ]; then b=v1; else b=$(git -C "$d" rev-parse main); fi
+  printf 'base: %s\n' "$b" > "$d/.cc-dev.yaml"
+  out=$(CC_GATE_CMD="true" run "$d")
+  check "base is a $kind, no work: nothing to review" "" "$out" "nothing to review"
+  rm -rf "$d"
+done
 # A remote-tracking base is a real ref and still allows a genuinely empty exit.
 d=$(mktemp -d); gsetup "$d"; git -C "$d" update-ref refs/remotes/origin/main main
 git -C "$d" checkout -qb feature; touch "$d/.cc-loop-dev-active"
