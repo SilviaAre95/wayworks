@@ -14,7 +14,7 @@
       "name": "shared",
       "source": "./plugins/shared",
       "description": "Shared conventions, meta-skills, stack profiles, and the wayworks-init/wayworks-onboard bootstrap commands",
-      "version": "2.4.0",
+      "version": "2.4.1",
       "category": "conventions",
       "tags": [
         "conventions",
@@ -102,7 +102,7 @@
       "name": "design",
       "source": "./plugins/design",
       "description": "Design review — layout + responsive behavior, design systems, usability heuristics, and user flows (merger of ui-designer + ux-researcher)",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "category": "design",
       "tags": [
         "design",
