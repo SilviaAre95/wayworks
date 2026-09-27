@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Compare the LIVE branch ruleset's required status checks against
+# Compare the required status checks LIVE on the default branch against
 # .github/required-checks.txt.
 #
 # Deliberately NOT part of `make check`. Reading a ruleset needs admin
@@ -22,43 +22,31 @@ command -v jq >/dev/null || die "jq is not installed"
 [ -n "$REPO" ] || die "could not determine the repo — pass it: $0 owner/repo"
 [ -f "$CONTRACT" ] || die "$CONTRACT is missing"
 
-# This script exists to be run deliberately, so a failure to read the ruleset
+# This script exists to be run deliberately, so a failure to read the rules
 # is a hard error, not a skip. A silent skip here would look identical to
 # "everything is in sync", which is the exact failure this guards against.
-rulesets=$(gh api "repos/$REPO/rulesets" 2>&1) \
-  || die "could not list rulesets for $REPO. Needs admin read on the repo — check \`gh auth status\`.
-Response: $rulesets"
+#
+# It reads the rules GitHub applies to the default branch, not every ruleset
+# in the repo: a ruleset can target other branches (`release/*`), and pooling
+# them let one aimed elsewhere make main look protected. The endpoint returns
+# only active rulesets' rules, each tagged with the ruleset it came from.
+branch=$(gh api "repos/$REPO" --jq .default_branch 2>&1) \
+  || die "could not read $REPO's default branch. Response: $branch"
+rules=$(gh api "repos/$REPO/rules/branches/$branch" 2>&1) \
+  || die "could not read the rules on $branch for $REPO. Needs read access on the repo — check \`gh auth status\`.
+Response: $rules"
 
-ids=$(printf '%s' "$rulesets" | jq -r '.[] | select(.target=="branch") | .id' 2>/dev/null)
-[ -n "$ids" ] || die "no branch rulesets found on $REPO — if branch protection is configured the classic way instead, this script does not cover it"
-
-required=""
-strict=true
-for id in $ids; do
-  detail=$(gh api "repos/$REPO/rulesets/$id" 2>&1) \
-    || die "could not read ruleset $id.
-Response: $detail"
-  name=$(printf '%s' "$detail" | jq -r '.name')
-  enforcement=$(printf '%s' "$detail" | jq -r '.enforcement')
-  contexts=$(printf '%s' "$detail" | jq -r '
-    .rules[]? | select(.type=="required_status_checks")
-    | .parameters.required_status_checks[]?.context')
-
-  echo "ruleset: $name (id $id, enforcement: $enforcement)"
-  if [ "$enforcement" != "active" ]; then
-    echo "  not active — its required checks are not enforced, and are ignored here"
-    continue
-  fi
-  if [ -z "$contexts" ]; then
-    echo "  declares no required status checks"
-    continue
-  fi
-  printf '%s\n' "$contexts" | sed 's/^/  requires: /'
-  # Strict must hold on every ruleset that requires checks, not just one.
-  printf '%s' "$detail" | jq -e '[.rules[] | select(.type=="required_status_checks")
-    | .parameters.strict_required_status_checks_policy == true] | all' >/dev/null || strict=false
-  required=$(printf '%s\n%s' "$required" "$contexts")
-done
+checks=$(printf '%s' "$rules" | jq -c '[.[] | select(.type=="required_status_checks")]') \
+  || die "unexpected response for the rules on $branch: $rules"
+echo "rules on $branch: $(printf '%s' "$rules" | jq -r '[.[].type] | unique | join(", ")')"
+required=$(printf '%s' "$checks" | jq -r '.[].parameters.required_status_checks[]?.context')
+printf '%s\n' "$required" | sed '/^$/d; s/^/  requires: /'
+# Strict must hold on every rule that requires checks, not just one of them.
+if printf '%s' "$checks" | jq -e 'length > 0 and all(.[]; .parameters.strict_required_status_checks_policy == true)' >/dev/null; then
+  strict=true
+else
+  strict=false
+fi
 
 live=$(printf '%s\n' "$required" | sed '/^$/d' | sort -u)
 want=$(grep -vE '^\s*(#|$)' "$CONTRACT" | sort -u)
