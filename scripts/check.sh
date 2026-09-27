@@ -21,23 +21,11 @@ for f in plugins/*/.claude-plugin/plugin.json plugins/*/hooks/hooks.json; do
   jq empty "$f" || err "$f: invalid JSON"
 done
 
-echo "== Marketplace entries resolve and versions are in sync"
-for name in $(jq -r '.plugins[].name' .claude-plugin/marketplace.json); do
-  manifest="plugins/$name/.claude-plugin/plugin.json"
-  if [ ! -f "$manifest" ]; then
-    err "marketplace lists '$name' but $manifest does not exist"; continue
-  fi
-  mv=$(jq -r --arg n "$name" '.plugins[] | select(.name==$n) | .version' .claude-plugin/marketplace.json)
-  pv=$(jq -r .version "$manifest")
-  pn=$(jq -r .name "$manifest")
-  [ "$pn" = "$name" ] || err "$manifest: name '$pn' != marketplace entry '$name'"
-  [ "$mv" = "$pv" ] || err "$manifest: version $pv != marketplace version $mv"
-done
-for dir in plugins/*/; do
-  name=$(basename "$dir")
-  jq -e --arg n "$name" '.plugins[] | select(.name==$n)' .claude-plugin/marketplace.json >/dev/null \
-    || err "plugins/$name exists but is not listed in marketplace.json"
-done
+echo "== Marketplace and plugin manifests agree (name, version, description)"
+bash scripts/check-manifests.sh || err "marketplace.json and a plugin.json disagree"
+
+echo "== Manifest sync checker self-test"
+bash scripts/check-manifests.test.sh || err "check-manifests.test.sh failed"
 
 echo "== No redundant conventional paths in plugin manifests"
 # Claude Code auto-discovers commands/, skills/, agents/, and hooks/hooks.json.

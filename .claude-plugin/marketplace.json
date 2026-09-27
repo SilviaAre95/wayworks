@@ -13,7 +13,7 @@
     {
       "name": "shared",
       "source": "./plugins/shared",
-      "description": "Shared conventions, coding style, and meta-skills",
+      "description": "Shared conventions, meta-skills, stack profiles, and the wayworks-init/wayworks-onboard bootstrap commands",
       "version": "2.4.0",
       "category": "conventions",
       "tags": [
@@ -101,7 +101,7 @@
     {
       "name": "design",
       "source": "./plugins/design",
-      "description": "Design review — layout + responsive behavior, design systems, usability heuristics, and user flows",
+      "description": "Design review — layout + responsive behavior, design systems, usability heuristics, and user flows (merger of ui-designer + ux-researcher)",
       "version": "1.0.3",
       "category": "design",
       "tags": [
