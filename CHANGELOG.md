@@ -12,6 +12,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 6.3.8] — 2026-09-27
+
+### Fixed
+- **`harness` `2.3.8`** — `/harness:harness-init`'s gitignore list was missing `.cc-loop-dev-rounds`, the review-round counter the dev gate rewrites on every ungraded stop; it is now listed. `loop-dev-preflight.sh` blocks when that counter is tracked by git, as it already did for the sentinel, state and reviews marker: the marker fingerprints the tracked diff, so a tracked counter moves under its own stamp and livelocks the gate. `/harness:harness-init` no longer pre-grants `Bash(cat:*)` and `Bash(ls:*)`, which let it read any path without a prompt; nothing in it runs a shell command, so the grants are now `Read, Edit, Write, Glob`.
+- **marketplace** — the `shared` and `design` entries carried stale descriptions; they now match each plugin's `plugin.json`, the source of truth. `make check` compared only name and version between the two manifests. The comparison moves to `scripts/check-manifests.sh`, which also compares descriptions and fails when a plugin has none, with a self-test that breaks each field in a copy and asserts the check fails.
+
 ## [marketplace 6.3.7] — 2026-09-27
 
 ### Fixed
