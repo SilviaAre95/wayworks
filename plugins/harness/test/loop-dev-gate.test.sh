@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Tests for loop-dev-gate.sh — the staged Stop gate.
 set -uo pipefail
+# Fixture commits must not sign: a contributor's commit.gpgsign=true would
+# prompt for a key or fail every one. Applies to every git call below.
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=commit.gpgsign GIT_CONFIG_VALUE_0=false
 GATE="$(cd "$(dirname "$0")/.." && pwd)/hooks/scripts/loop-dev-gate.sh"
 pass=0; fail=0
 run() { # run <cwd> ; feeds stdin JSON, prints hook stdout

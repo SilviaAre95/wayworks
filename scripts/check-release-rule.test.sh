@@ -3,6 +3,9 @@
 # passed whenever any "version" line changed, so the case that matters most is
 # one plugin's bump covering another plugin's unbumped change.
 set -uo pipefail
+# Fixture commits must not sign: a contributor's commit.gpgsign=true would
+# prompt for a key or fail every one. Applies to every git call below.
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=commit.gpgsign GIT_CONFIG_VALUE_0=false
 CHECK=$(cd "$(dirname "$0")" && pwd)/check-release-rule.sh
 fail=0
 ok()  { echo "ok   - $*"; }

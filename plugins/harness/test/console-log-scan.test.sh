@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Dependency-free assertions for the console-log-scan Stop hook.
 set -uo pipefail
+# Fixture commits must not sign: a contributor's commit.gpgsign=true would
+# prompt for a key or fail every one. Applies to every git call below.
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=commit.gpgsign GIT_CONFIG_VALUE_0=false
 HOOK="$(dirname "$0")/../hooks/scripts/console-log-scan.sh"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT

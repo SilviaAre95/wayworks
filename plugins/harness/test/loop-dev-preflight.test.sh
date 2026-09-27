@@ -3,6 +3,9 @@
 # and each legitimate setup must actually pass — a preflight that always exits 0
 # is worse than none, because it reads as confirmation.
 set -uo pipefail
+# Fixture commits must not sign: a contributor's commit.gpgsign=true would
+# prompt for a key or fail every one. Applies to every git call below.
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=commit.gpgsign GIT_CONFIG_VALUE_0=false
 SCRIPT=$(cd "$(dirname "$0")/../hooks/scripts" && pwd)/loop-dev-preflight.sh
 fail=0
 ok()  { echo "ok   - $*"; }
