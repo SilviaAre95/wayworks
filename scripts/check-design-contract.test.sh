@@ -104,6 +104,8 @@ grant_case "loop-deploy-gate: a disarm hint that drifts from the grant fails" ho
   pedit plugins/harness/hooks/scripts/loop-deploy-gate.sh 's/^(set -uo pipefail)$/$1\n# disarm with: rm .cc-deploy-active/'
 grant_case "loop-dev-gate: a disarm hint that drifts from the grant fails" hook-disarm "tells the loop to disarm" \
   pedit plugins/harness/hooks/scripts/loop-dev-gate.sh 's/^(set -uo pipefail)$/$1\n# disarm with: rm -f .cc-loop-dev-active/'
+grant_case "a loop gate that goes missing fails instead of going unchecked" gate-exists "is missing" \
+  rm "$TMP/plugins/harness/hooks/scripts/loop-deploy-gate.sh"
 grant_case "a pinned script that no longer ships fails" script-exists "does not exist" \
   rm "$TMP/plugins/harness/hooks/scripts/loop-arm.sh"
 grant_case "loop-build: an added Bash(*) grant fails" pinned "not in its pinned list" add "$BLD" 'Bash(*)'

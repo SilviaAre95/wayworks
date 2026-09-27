@@ -111,6 +111,7 @@ check_grants plugins/harness/commands/loop-build.md "$PIN_ARM"
 # granted disarm too, or the abort prompts exactly when the loop is stuck.
 for pair in "loop-dev-gate.sh:$DISARM_DEV" "loop-deploy-gate.sh:$DISARM_DEPLOY"; do
   gate=plugins/harness/hooks/scripts/${pair%%:*}; disarm=${pair#*:}
+  [ -f "$gate" ] || { err "$gate is missing — its disarm hints go unchecked"; continue; } # rule:gate-exists
   while IFS= read -r said; do
     [ -z "$said" ] || [ "$said" = "$disarm" ] \
       || err "$gate tells the loop to disarm with '$said', but the granted disarm is '$disarm'" # rule:hook-disarm
