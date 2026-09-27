@@ -54,6 +54,13 @@ check_grants() { # $1=command file  $2=pinned entries, one per line
     || err "$f: contains a control byte (CR, VT, FF, ...) that YAML may read as a line break" # rule:control-bytes
   fm=$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1' "$f")
   body=$(awk 'NR>1 && $0=="---"{b=1; next} b' "$f")
+  # Fail safe the other way too: Claude Code ends the frontmatter at the first
+  # "---" even mid-line, and a Unicode line separator makes it unparseable —
+  # either way the loop silently loses its grants. So: ASCII only (control bytes are the rule above).
+  printf '%s\n' "$fm" | perl -ne 'exit 1 if /[\x80-\xff]/' \
+    || err "$f: frontmatter has a non-ASCII byte — Claude Code may not parse it" # rule:fm-ascii
+  printf '%s\n' "$fm" | grep -qF -- '---' \
+    && err "$f: frontmatter has '---' inside a line — Claude Code ends the frontmatter there" # rule:fm-dashes
   while IFS= read -r line; do
     printf '%s\n' "$line" | grep -qE '^(description|argument-hint|allowed-tools):( |$)' \
       || err "$f: frontmatter line '$line' is not a known single-line key" # rule:frontmatter-keys
@@ -91,12 +98,24 @@ check_grants() { # $1=command file  $2=pinned entries, one per line
     err "$f: the body's disarm '$cmds' does not match its grant 'Bash($disarm)' verbatim" # rule:disarm-verbatim
   fi
 }
+DISARM_DEV='rm -f .cc-loop-dev-active .cc-loop-dev-state .cc-loop-dev-rounds'
+DISARM_DEPLOY='rm -f .cc-deploy-active .cc-deploy-state'
 check_grants "$LOOP" "$PIN_ARM
-Bash(rm -f .cc-loop-dev-active .cc-loop-dev-state .cc-loop-dev-rounds)
+Bash($DISARM_DEV)
 Bash(\${CLAUDE_PLUGIN_ROOT}/hooks/scripts/loop-dev-preflight.sh:*)"
 check_grants plugins/harness/commands/loop-deploy.md "$PIN_ARM
-Bash(rm -f .cc-deploy-active .cc-deploy-state)"
+Bash($DISARM_DEPLOY)"
 check_grants plugins/harness/commands/loop-build.md "$PIN_ARM"
+
+# A gate that blocks tells the stuck loop how to disarm. That text must be the
+# granted disarm too, or the abort prompts exactly when the loop is stuck.
+for pair in "loop-dev-gate.sh:$DISARM_DEV" "loop-deploy-gate.sh:$DISARM_DEPLOY"; do
+  gate=plugins/harness/hooks/scripts/${pair%%:*}; disarm=${pair#*:}
+  while IFS= read -r said; do
+    [ -z "$said" ] || [ "$said" = "$disarm" ] \
+      || err "$gate tells the loop to disarm with '$said', but the granted disarm is '$disarm'" # rule:hook-disarm
+  done < <(grep -oE 'rm( -[a-z]+)?( \.cc-[a-z0-9-]+)+' "$gate" | sort -u)
+done
 
 # --- shape stage names vs. its stage table -----------------------------------
 # The `stage:` list and the table must name the same stages in the same order.

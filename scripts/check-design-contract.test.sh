@@ -12,7 +12,7 @@ bad() { echo "FAIL - $*"; fail=1; }
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-FILES="plugins/harness/commands/loop-dev.md plugins/harness/commands/loop-deploy.md plugins/harness/commands/loop-build.md plugins/harness/hooks/scripts/loop-dev-preflight.sh plugins/harness/hooks/scripts/loop-arm.sh plugins/harness/commands/shape.md plugins/harness/templates/design.md"
+FILES="plugins/harness/commands/loop-dev.md plugins/harness/commands/loop-deploy.md plugins/harness/commands/loop-build.md plugins/harness/hooks/scripts/loop-dev-preflight.sh plugins/harness/hooks/scripts/loop-arm.sh plugins/harness/hooks/scripts/loop-dev-gate.sh plugins/harness/hooks/scripts/loop-deploy-gate.sh plugins/harness/commands/shape.md plugins/harness/templates/design.md"
 
 reset() {
   rm -rf "$TMP/plugins"
@@ -85,6 +85,10 @@ for cmd in "$DEV" "$DEP"; do
     "frontmatter line" pedit "$cmd" 's/^(allowed-tools:.*)$/$1\nallowedTools: Bash(*)/'
   grant_case "$n: a CR-smuggled second allowed-tools key fails" control-bytes \
     "control byte" pedit "$cmd" 's/^(description:.*)$/$1\rallowed-tools: Bash(*)/'
+  grant_case "$n: a '---' inside a frontmatter line fails" fm-dashes \
+    "inside a line" pedit "$cmd" 's/^(description: .*)$/$1 --- more/'
+  grant_case "$n: a Unicode line separator in the frontmatter fails" fm-ascii \
+    "non-ASCII byte" pedit "$cmd" 's/^(description: .*)$/$1\xe2\x80\xa8x/'
   grant_case "$n: a second allowed-tools line fails" one-allowed-tools \
     "allowed-tools lines" pedit "$cmd" 's/^(allowed-tools:.*)$/$1\nallowed-tools: Bash(*)/'
 done
@@ -96,6 +100,10 @@ grant_case "loop-deploy: a disarm of another loop's files fails, grant and body 
   set_disarm "$DEP" 'rm -f .cc-deploy-active .cc-deploy-state' 'rm -f .cc-deploy-active .cc-verify'
 grant_case "loop-dev: a disarm of the reviews marker fails, grant and body alike" pinned "not in its pinned list" \
   set_disarm "$DEV" 'rm -f .cc-loop-dev-active .cc-loop-dev-state .cc-loop-dev-rounds' 'rm -f .cc-loop-dev-active .cc-dev-reviews-passed'
+grant_case "loop-deploy-gate: a disarm hint that drifts from the grant fails" hook-disarm "tells the loop to disarm" \
+  pedit plugins/harness/hooks/scripts/loop-deploy-gate.sh 's/^(set -uo pipefail)$/$1\n# disarm with: rm .cc-deploy-active/'
+grant_case "loop-dev-gate: a disarm hint that drifts from the grant fails" hook-disarm "tells the loop to disarm" \
+  pedit plugins/harness/hooks/scripts/loop-dev-gate.sh 's/^(set -uo pipefail)$/$1\n# disarm with: rm -f .cc-loop-dev-active/'
 grant_case "a pinned script that no longer ships fails" script-exists "does not exist" \
   rm "$TMP/plugins/harness/hooks/scripts/loop-arm.sh"
 grant_case "loop-build: an added Bash(*) grant fails" pinned "not in its pinned list" add "$BLD" 'Bash(*)'

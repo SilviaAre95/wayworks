@@ -55,7 +55,7 @@ else ROLLBACK=""; fi
 
 # 4. No verify command configured -> cannot gate; tell the agent and allow stop.
 if [ -z "$VERIFY" ]; then
-  jq -n '{decision:"block", reason:"loop-deploy is armed but .cc-deploy.yaml has no `verify:` command. Add one (health check + smoke + error-rate) or disarm with: rm .cc-deploy-active"}'
+  jq -n '{decision:"block", reason:"loop-deploy is armed but .cc-deploy.yaml has no `verify:` command. Add one (health check + smoke + error-rate) and re-run /loop-deploy. The deploy loop is now disarmed."}'
   gate_standdown "$DIR" loop-deploy no-verify-command
   rm -f "$SENTINEL" "$STATE"
   exit 0
