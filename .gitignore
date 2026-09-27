@@ -4,7 +4,8 @@
 # harness loop state (transient — never commit; .cc-dev.yaml/.cc-verify ARE tracked config)
 .cc-loop-*
 .cc-dev-reviews-passed
-.cc-loop-dev-state
-.cc-loop-deploy-state
+.cc-deploy-active
+.cc-deploy-state
+.cc-deploy.log
 .worktrees/
 .superpowers/
