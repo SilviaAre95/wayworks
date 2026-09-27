@@ -10,7 +10,7 @@ fail=0
 ok()  { echo "ok   - $*"; }
 bad() { echo "FAIL - $*"; fail=1; }
 
-TMP=$(mktemp -d)
+TMP=$(mktemp -d) || exit 1
 trap 'rm -rf "$TMP"' EXIT
 
 reset() {
@@ -48,5 +48,9 @@ reset; rm "$TMP/plugins/harness/.claude-plugin/plugin.json"; run
 expect_fail "listed plugin without a manifest fails" "does not exist"
 reset; mkdir -p "$TMP/plugins/orphan"; run
 expect_fail "unlisted plugin dir fails" "plugins/orphan exists"
+reset; jqedit "$MP" '.plugins += [{"name":"../../x","version":"1.0.0","description":"d"}]'; run
+expect_fail "a plugin name outside [a-z0-9-] fails" "is not \[a-z0-9-\]"
+OUT=$(MANIFEST_ROOT="$TMP/nope" bash "$CHECK" 2>&1); RC=$?
+expect_fail "a missing root fails instead of checking the wrong dir" "cannot cd"
 
 exit $fail
