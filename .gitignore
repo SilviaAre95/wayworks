@@ -7,5 +7,7 @@
 .cc-deploy-active
 .cc-deploy-state
 .cc-deploy.log
+.cc-loop.log
+.wayworks/
 .worktrees/
 .superpowers/
