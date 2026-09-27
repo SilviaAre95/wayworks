@@ -33,9 +33,9 @@ reset; run
 
 MP=.claude-plugin/marketplace.json
 reset; jqedit plugins/harness/.claude-plugin/plugin.json '.version="0.0.1"'; run
-expect_fail "version drift fails" "version 0.0.1 != marketplace"
+expect_fail "version drift fails" 'version "0.0.1" != marketplace'
 reset; jqedit plugins/harness/.claude-plugin/plugin.json '.name="harnesz"'; run
-expect_fail "name drift fails" "name 'harnesz'"
+expect_fail "name drift fails" 'name "harnesz"'
 reset; jqedit "$MP" '(.plugins[] | select(.name=="harness") | .description) = "stale"'; run
 expect_fail "marketplace description drift fails" "description differs"
 reset; jqedit plugins/harness/.claude-plugin/plugin.json '.description="new"'; run
@@ -56,6 +56,10 @@ reset; jqedit "$MP" '.plugins += [{"name":"harness\n","source":"./plugins/harnes
 expect_fail "a name with a trailing newline fails the shape check" 'plugin name "harness\\n"'
 reset; jqedit "$MP" '(.plugins[] | select(.name=="harness") | .version) += "\n"'; run
 expect_fail "a version with a trailing newline fails" 'version ".*\\n" is not X.Y.Z'
+reset; jqedit plugins/harness/.claude-plugin/plugin.json '.version += "\n"'; run
+expect_fail "a plugin.json version with a trailing newline fails" 'version "[0-9.]*\\n" != marketplace'
+reset; jqedit plugins/harness/.claude-plugin/plugin.json '.name += "\n"'; run
+expect_fail "a plugin.json name with a trailing newline fails" 'name "harness\\n" != marketplace'
 reset; jqedit "$MP" '.plugins += [(.plugins[] | select(.name=="harness"))]'; run
 expect_fail "a duplicated plugin name fails" "listed more than once"
 reset; jqedit "$MP" '(.plugins[] | select(.name=="harness") | .source) = {"source":"github","repo":"x/y"}'; run

@@ -30,12 +30,13 @@ while IFS= read -r name; do
     err "marketplace lists '$name' but $manifest does not exist"; continue
   fi
   entry=$(jq -c --arg n "$name" '.plugins[] | select(.name==$n)' "$MKT")
-  pn=$(jq -r .name "$manifest")
-  [ "$pn" = "$name" ] || err "$manifest: name '$pn' != marketplace entry '$name'"
-  pv=$(jq -r .version "$manifest")
-  mv=$(jq -r .version <<<"$entry")
-  [[ "$pv" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || err "$manifest: version $pv is not X.Y.Z"
-  [ "$mv" = "$pv" ] || err "$manifest: version $pv != marketplace version $mv"
+  # Compared as JSON, inside jq: $(…) strips a trailing newline, so a bash
+  # comparison would take "2.3.8\n" for "2.3.8". The entry already passed the
+  # shape check, so matching it exactly makes plugin.json X.Y.Z too.
+  pn=$(jq -c .name "$manifest"); mn=$(jq -c .name <<<"$entry")
+  [ "$pn" = "$mn" ] || err "$manifest: name $pn != marketplace entry $mn"
+  pv=$(jq -c .version "$manifest"); mv=$(jq -c .version <<<"$entry")
+  [ "$pv" = "$mv" ] || err "$manifest: version $pv != marketplace version $mv"
   pd=$(jq -r '.description // empty' "$manifest")
   md=$(jq -r '.description // empty' <<<"$entry")
   if [ -z "$pd" ]; then

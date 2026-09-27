@@ -58,6 +58,7 @@ higher() {  # $2 > $1, both plain X.Y.Z; anything else is not a bump
 }
 
 mkt_base=$(at "$mb" "$MKT"); mkt_head=$(at HEAD "$MKT")
+[ -n "$mkt_head" ] || { err "$MKT is missing at HEAD"; exit 1; }
 # Shape first (the same allowlist check-manifests.sh applies): everything below
 # splits names into lines, so a name outside [a-z0-9-] could hide an entry.
 shape=$(jq -r -f "$(dirname "${BASH_SOURCE[0]}")/manifest-shape.jq" <<<"$mkt_head" 2>/dev/null) \
@@ -88,8 +89,11 @@ while IFS= read -r name; do
     continue
   fi
   pj="plugins/$name/.claude-plugin/plugin.json"
-  pb=$(at "$mb" "$pj" | jq -r '.version // empty' 2>/dev/null)
-  ph=$(at HEAD "$pj" | jq -r '.version // empty' 2>/dev/null)
+  # plugin.json is not shape-checked here; the X.Y.Z test runs inside jq,
+  # since $(…) would strip a trailing newline before higher() saw it.
+  pver='.version | if type == "string" and test("\\A(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\z") then . else "invalid" end'
+  pb=$(at "$mb" "$pj" | jq -r "$pver" 2>/dev/null)
+  ph=$(at HEAD "$pj" | jq -r "$pver" 2>/dev/null)
   mb_v=$(jq -r '.version // empty' <<<"$eb"); mh_v=$(jq -r '.version // empty' <<<"$eh")
   higher "$pb" "$ph" || err "$name changed but $pj version was not bumped ($pb -> ${ph:-missing})"
   higher "$mb_v" "$mh_v" || err "$name changed but its marketplace.json version was not bumped ($mb_v -> ${mh_v:-missing})"

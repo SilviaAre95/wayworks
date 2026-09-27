@@ -93,6 +93,11 @@ expect_fail "moving a file out of a plugin is a change to that plugin" "a change
 
 fresh pre; echo x >> "$R/plugins/a/README.md"; setver a 1.0.0-rc1; log a; commit_run
 expect_fail "a prerelease suffix is not a bump" "is not X.Y.Z"
+fresh pjnl; echo x >> "$R/plugins/a/README.md"; setver a 1.0.1; log a
+jq '.version="1.0.1\n"' "$R/plugins/a/.claude-plugin/plugin.json" > "$R/t" && mv "$R/t" "$R/plugins/a/.claude-plugin/plugin.json"; commit_run
+expect_fail "a plugin.json version with a trailing newline is not a bump" "1.0.0 -> invalid"
+fresh nomkt; echo x >> "$R/plugins/a/README.md"; g rm -q .claude-plugin/marketplace.json; log a; commit_run
+expect_fail "a deleted marketplace.json fails as missing" "missing at HEAD"
 fresh badmkt; echo x >> "$R/plugins/a/README.md"; echo '{}' > "$R/.claude-plugin/marketplace.json"; log a; commit_run
 expect_fail "a marketplace.json with no plugins array fails closed" "no plugins array"
 
