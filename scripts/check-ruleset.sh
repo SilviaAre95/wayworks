@@ -30,17 +30,27 @@ command -v jq >/dev/null || die "jq is not installed"
 # in the repo: a ruleset can target other branches (`release/*`), and pooling
 # them let one aimed elsewhere make main look protected. The endpoint returns
 # only active rulesets' rules, each tagged with the ruleset it came from.
+#
+# IN SYNC does not mean every merge is gated: the admin bypass (pull_request
+# mode, by design on a solo repo) can still merge a PR past these checks, and
+# this endpoint does not report bypass actors.
 branch=$(gh api "repos/$REPO" --jq .default_branch 2>&1) \
   || die "could not read $REPO's default branch. Response: $branch"
-rules=$(gh api "repos/$REPO/rules/branches/$branch" 2>&1) \
+rules=$(gh api --paginate --slurp "repos/$REPO/rules/branches/$branch" 2>&1) \
   || die "could not read the rules on $branch for $REPO. Needs read access on the repo — check \`gh auth status\`.
 Response: $rules"
 
+rules=$(printf '%s' "$rules" | jq -c 'add // []') || die "unexpected response for the rules on $branch: $rules"
 checks=$(printf '%s' "$rules" | jq -c '[.[] | select(.type=="required_status_checks")]') \
   || die "unexpected response for the rules on $branch: $rules"
 echo "rules on $branch: $(printf '%s' "$rules" | jq -r '[.[].type] | unique | join(", ")')"
 required=$(printf '%s' "$checks" | jq -r '.[].parameters.required_status_checks[]?.context')
 printf '%s\n' "$required" | sed '/^$/d; s/^/  requires: /'
+# Every required context must be pinned to GitHub Actions: an unpinned one is
+# satisfied by any actor that can post a commit status with that name.
+ACTIONS_APP_ID=15368
+unpinned=$(printf '%s' "$checks" | jq -r --argjson app "$ACTIONS_APP_ID" \
+  '.[].parameters.required_status_checks[]? | select(.integration_id != $app) | .context')
 # Strict must hold on every rule that requires checks, not just one of them.
 if printf '%s' "$checks" | jq -e 'length > 0 and all(.[]; .parameters.strict_required_status_checks_policy == true)' >/dev/null; then
   strict=true
@@ -64,12 +74,19 @@ if [ "$live" = "$want" ]; then
   # check-release-rule.sh compares versions against base; without "require
   # branches to be up to date" two PRs green against the same old main can
   # merge under one version.
+  if [ -n "$unpinned" ]; then
+    echo "MISMATCH — not pinned to GitHub Actions (app $ACTIONS_APP_ID), so any actor that"
+    echo "can post a commit status with the name satisfies it:"
+    printf '%s\n' "$unpinned" | sed 's/^/  /'
+    exit 1
+  fi
   if [ "$strict" != true ]; then
     echo "MISMATCH — the checks are required but not strict. Turn on \"Require branches"
     echo "to be up to date before merging\"; the release check's guarantee depends on it."
     exit 1
   fi
-  echo "IN SYNC — live ruleset matches $CONTRACT, strict."
+  echo "IN SYNC — live ruleset matches $CONTRACT, strict, pinned to GitHub Actions."
+  echo "(Not covered: the admin bypass, which can still merge a PR past these checks.)"
   exit 0
 fi
 
