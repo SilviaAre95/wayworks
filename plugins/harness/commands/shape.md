@@ -36,7 +36,7 @@ Shape the feature below into a locked design at `docs/designs/<slug>/design.md` 
 
 `stage:` names, in order: `discover`, `scope`, `attack-scope`, `questions`, `plan`, `what-ifs`, `byproducts`, `map`, `lock`.
 
-1. **Discover** — `/shared:discover <topic> --preset code`. Add the brief's path to frontmatter `discovery:` and freeze a verbatim copy of the body of its `## What this changes` section — not the heading itself — under `## Discovery`, below a link line to the brief. If the brief reports `partial`, add the frontmatter key `discovery-status: partial` (absent means complete). A partial result does not stop the pipeline.
+1. **Discover** — `/shared:discover <topic> --preset code`. Add the brief's path to frontmatter `discovery:` and freeze a verbatim copy of the body of its `## What this changes` section — not the heading itself — under `## Discovery`, below a link line to the brief. The copy changes only where the lock stage's design-check requires it (stage 9). If the brief reports `partial`, add the frontmatter key `discovery-status: partial` (absent means complete). A partial result does not stop the pipeline.
 2. **Scope** — draft the In/Out table from the topic, the brief and `docs/features/` (when present). The user reviews it before you continue.
 3. **Attack scope** — `/harness:attack --target scope docs/designs/<slug>`, then `harness:triage` on its list.
 4. **Feature questions** — follow brainstorming's discipline: one topic at a time. Record each open functional question as a `Q` item, then `harness:triage`.
@@ -45,7 +45,7 @@ Shape the feature below into a locked design at `docs/designs/<slug>/design.md` 
 7. **Byproducts** — diff the plan against Scope. Everything built that nobody explicitly asked for becomes a `B` item, proposed `ack`. `harness:triage`.
 8. **Map** — write a Mermaid flow plus the what-ifs under `## Flow & what-ifs`, a Mermaid component diagram under `## Components`, and fill the `## Scope board` table.
 9. **Lock** — run `"${CLAUDE_PLUGIN_ROOT}/scripts/design-check.sh" docs/designs/<slug>`.
-   - Any `BLOCK:` → return to the stage that owns the item (`A`→3, `Q`→4, `W`→6, `B`→7) and set `stage:` to it. Missing `plan.md` → stage 5. Bad frontmatter/status or a malformed decision line → fix it in place and re-run the check.
+   - Any `BLOCK:` → return to the stage that owns the item (`A`→3, `Q`→4, `W`→6, `B`→7) and set `stage:` to it. Missing `plan.md` → stage 5. Bad frontmatter/status, a malformed decision line, or a line outside the design dialect (raw HTML, a heading not plain at column 0, `---` right under text, a blockquote, a tab) → fix it in place and re-run the check. The `## Discovery` copy is the usual source: fix it there, not in the brief, and add the line `Edited for design-check; the brief is unchanged.` under the link line so the design records the drift.
    - Green → ask *"lock?"*. A "no" leaves the design `draft` and stops. Only on an explicit yes: set `status: locked` (`stage:` stays `lock`). Then, if the user's global CLAUDE.md declares a vault, append one line to the project note's `## Log` (the note the repo's CLAUDE.md names), written per the vault's `_agent/INSTRUCTIONS.md`. No vault or no project note → skip silently.
    - Do not commit anything: loop-dev commits the locked design on its own branch before it builds.
    - Only once `status: locked`, print the handoff as the last line: `/harness:loop-dev --plan docs/designs/<slug>/plan.md`

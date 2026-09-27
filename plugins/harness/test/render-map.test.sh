@@ -138,6 +138,11 @@ t=$(tabs fake-fence '## One\n``` `x`\n## Two\nbody\n')
 [ "$t" = '["One","Two"]' ] && ok "a backtick in the info string is not a fence" || bad "fake fence: $t"
 t=$(tabs crlf '## One\r\n```\r\nx\r\n```\r\n\r\n## Two\r\nbody\r\n')
 [ "$t" = '["One","Two"]' ] && ok "a CRLF closer ends the fence, as design-check reads it" || bad "CRLF closer: $t"
+m="$TMP/docs/designs/crlf-fm"; mkdir -p "$m"
+printf -- '---\r\nslug: crlf-fm\r\nstatus: draft\r\n## Decisions\r\n- [ ] Q2 · open\r\n---\r\n## One\r\nbody\r\n' > "$m/design.md"
+bash "$SCRIPT" "$m" "$OUT_DIR" >/dev/null 2>&1
+t=$(awk '/<script id="design-data"/{f=1;next} f&&/<\/script>/{exit} f' "$OUT_DIR/crlf-fm.html" | jq -c '[.[].title]' 2>/dev/null)
+[ "$t" = '["One"]' ] && ok "CRLF frontmatter is skipped, as design-check skips it (no tab from inside it)" || bad "CRLF frontmatter: $t"
 
 # --- bad input fails ---------------------------------------------------------
 bash "$SCRIPT" >/dev/null 2>&1; [ "$?" = "2" ] && ok "no args is a usage error" || bad "no args should exit 2"
