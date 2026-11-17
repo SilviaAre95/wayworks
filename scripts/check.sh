@@ -59,14 +59,22 @@ for f in plugins/*/.claude-plugin/plugin.json; do
   esac
 done
 
-echo "== Hook script paths resolve"
+echo "== Hook script paths resolve, and are quoted"
+# An unquoted ${CLAUDE_PLUGIN_ROOT} splits into several words when the install
+# path contains a space, and the hook fails to start — fail-open for every gate.
+# `claude plugin validate` warns on it (2.1.281+); enforce it here offline.
 for hooks in plugins/*/hooks/hooks.json; do
   [ -f "$hooks" ] || continue
   plugin_dir=$(dirname "$(dirname "$hooks")")
-  for cmd in $(jq -r '.. | .command? // empty' "$hooks"); do
-    script="${cmd/\$\{CLAUDE_PLUGIN_ROOT\}/$plugin_dir}"
+  while IFS= read -r cmd; do
+    case "$cmd" in
+      '"${CLAUDE_PLUGIN_ROOT}/'*) ;;
+      *'${CLAUDE_PLUGIN_ROOT}'*) err "$hooks: unquoted \${CLAUDE_PLUGIN_ROOT}: $cmd" ;;
+    esac
+    script="${cmd//\"/}"
+    script="${script/\$\{CLAUDE_PLUGIN_ROOT\}/$plugin_dir}"
     [ -f "$script" ] || err "$hooks: script not found: $script"
-  done
+  done < <(jq -r '.. | .command? // empty' "$hooks")
 done
 
 echo "== CI job names match the required-checks contract"
