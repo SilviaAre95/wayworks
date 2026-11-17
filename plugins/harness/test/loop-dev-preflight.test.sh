@@ -158,6 +158,77 @@ echo "$OUT" | grep -q "security-review.*needs whichever plugin" \
   && bad "security-review must not fall through to the unknown-grader arm" \
   || ok "security-review does not fall through to the unknown-grader arm"
 
+# --- codex graders: consent, readiness, scope --------------------------------
+# /codex:adversarial-review is disable-model-invocation, so the grader runs the
+# plugin's script. Everything that would make it fail mid-panel, or run without
+# the user's own consent, must block before building.
+d=$(newrepo codex)
+echo "make check" > "$d/.cc-verify"
+printf 'graders: [code-review, codex-adversarial, codex-security]\nbase: main\n' > "$d/.cc-dev.yaml"
+printf 'external_graders: [codex-adversarial, codex-security]\n' > "$d/.cc-dev.local.yaml"
+cfg="$TMP/cc-config"; bin="$TMP/codex-bin"; plug="$TMP/codex-plugin"
+mkdir -p "$cfg/plugins" "$bin" "$plug/scripts"
+printf '#!/bin/sh\nexit "${FAKE_CODEX_LOGIN_RC:-0}"\n' > "$bin/codex"; chmod +x "$bin/codex"
+: > "$plug/scripts/codex-companion.mjs"
+reg() { printf '{"plugins":{"codex@openai-codex":[{"scope":"%s","projectPath":%s,"installPath":"%s","version":"%s"}]}}\n' "$1" "$2" "$plug" "$3" > "$4/plugins/installed_plugins.json"; }
+reg user null 1.0.6 "$cfg"
+pf() { OUT=$(CLAUDE_CONFIG_DIR="${CFGDIR:-$cfg}" PATH="$bin:$PATH" bash "$SCRIPT" "$d" 2>&1); RC=$?; }
+blocks() { { [ "$RC" = "1" ] && echo "$OUT" | grep -q "$1"; } && ok "$2" || bad "$2 (rc=$RC: $OUT)"; }
+
+pf
+{ [ "$RC" = "0" ] && echo "$OUT" | grep -qF "CODEX_COMPANION: $plug/scripts/codex-companion.mjs" \
+  && [ "$(echo "$OUT" | grep -c CODEX_COMPANION)" = "1" ]; } \
+  && ok "codex graders with local consent resolve the companion once" || bad "codex graders resolve (rc=$RC: $OUT)"
+
+printf 'external_graders: [codex-adversarial]\n' > "$d/.cc-dev.local.yaml"; pf
+blocks "'codex-security' sends this repo's diff to OpenAI" "a codex grader missing from external_graders blocks"
+rm "$d/.cc-dev.local.yaml"; pf
+blocks "cannot consent for you" "codex grader with no .cc-dev.local.yaml blocks"
+printf 'external_graders: [codex-adversarial, codex-security]\n' > "$d/.cc-dev.local.yaml"
+git -C "$d" add .cc-dev.local.yaml; pf
+blocks ".cc-dev.local.yaml is TRACKED" "a tracked .cc-dev.local.yaml blocks (the repo would consent for you)"
+git -C "$d" rm -q --cached .cc-dev.local.yaml
+
+FAKE_CODEX_LOGIN_RC=1 pf
+blocks "needs a logged-in codex CLI" "logged-out codex CLI blocks"
+reg user null 1.0.5 "$cfg"; pf
+blocks ">= 1.0.6" "codex plugin older than 1.0.6 blocks"
+reg user null 1.0.6 "$cfg"
+CFGDIR="$TMP/no-config" pf
+blocks "needs the codex plugin" "codex grader without the plugin blocks"
+
+# install scope: a project-only install for ANOTHER repo is not consent to send
+# this repo's diff; one for this repo is.
+pcfg="$TMP/cc-config-proj"; mkdir -p "$pcfg/plugins" "$TMP/other-proj"
+reg project "\"$TMP/other-proj\"" 1.0.6 "$pcfg"; CFGDIR="$pcfg" pf
+blocks "needs the codex plugin" "codex installed only for another project blocks"
+reg project "\"$d\"" 1.0.6 "$pcfg"; CFGDIR="$pcfg" pf
+{ [ "$RC" = "0" ] && echo "$OUT" | grep -q "CODEX_COMPANION:"; } \
+  && ok "codex installed for this project resolves" || bad "matching project install resolves (rc=$RC: $OUT)"
+
+nocodex=$(printf '%s' "$PATH" | tr ':' '\n' | while IFS= read -r p; do [ -x "$p/codex" ] || printf '%s:' "$p"; done)
+OUT=$(CLAUDE_CONFIG_DIR="$cfg" PATH="${nocodex%:}" bash "$SCRIPT" "$d" 2>&1); RC=$?
+blocks "needs the codex CLI" "codex grader without the CLI blocks"
+
+# --- a base with shell metacharacters blocks, even when it resolves ---------
+# loop-dev.md has the agent paste <base> into shell commands; git accepts
+# `main;id` and `a$(id)` as ref names, so resolving is not enough.
+for hostile in 'main;id' 'a$(id)'; do
+  d=$(newrepo "hostile$RANDOM")
+  echo "make check" > "$d/.cc-verify"
+  git -C "$d" branch "$hostile"
+  printf 'graders: [code-review]\nbase: %s\n' "$hostile" > "$d/.cc-dev.yaml"
+  run "$d"
+  { [ "$RC" = "1" ] && echo "$OUT" | grep -q "not shell-safe"; } \
+    && ok "resolvable base '$hostile' blocks as not shell-safe" || bad "base '$hostile' blocks (rc=$RC: $OUT)"
+done
+d=$(newrepo safebase)
+echo "make check" > "$d/.cc-verify"
+git -C "$d" branch release/v1.2_x
+printf 'graders: [code-review]\nbase: release/v1.2_x\n' > "$d/.cc-dev.yaml"
+run "$d"
+[ "$RC" = "0" ] && ok "base with . _ / - passes" || bad "safe base passes (rc=$RC: $OUT)"
+
 # --- a mutating grader is refused ------------------------------------------
 # /simplify's contract is "review ... then apply the fixes". Graders run
 # concurrently and their edits are not findings the parent fixed, so a mutating
