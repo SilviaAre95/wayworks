@@ -312,12 +312,21 @@ for g in $(printf '%s' "$graders" | tr ',' ' '); do
         command -v codex >/dev/null 2>&1 \
           || err "grader '$g' needs the codex CLI on PATH — install it, then run /codex:setup"
         installed="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/installed_plugins.json"
-        companion=$(jq -r '.plugins["codex@openai-codex"][]?.installPath // empty' "$installed" 2>/dev/null \
-          | while IFS= read -r p; do [ -f "$p/scripts/codex-companion.mjs" ] && { echo "$p/scripts/codex-companion.mjs"; break; }; done)
+        # Honour the install scope: a user-scope install, or one made for THIS
+        # project. A project-only install elsewhere is not consent to send this
+        # repo's diff to OpenAI, and .cc-dev.yaml is repo-controlled.
+        top=$(cd "$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null || echo "$DIR")" 2>/dev/null && pwd -P)
+        companion=$(jq -r '.plugins["codex@openai-codex"][]? | [.scope // "", .projectPath // "", .installPath // ""] | join("\u001f")' "$installed" 2>/dev/null \
+          | while IFS=$'\x1f' read -r scope proj p; do
+              if [ "$scope" != "user" ]; then
+                [ -n "$proj" ] && [ "$(cd "$proj" 2>/dev/null && pwd -P)" = "$top" ] || continue
+              fi
+              [ -f "$p/scripts/codex-companion.mjs" ] && { echo "$p/scripts/codex-companion.mjs"; break; }
+            done)
         if [ -n "$companion" ]; then
           echo "CODEX_COMPANION: $companion"
         else
-          err "grader '$g' needs the codex plugin — run: /plugin marketplace add openai/codex-plugin-cc, /plugin install codex@openai-codex, /codex:setup"
+          err "grader '$g' needs the codex plugin installed at user scope or for this project — run: /plugin marketplace add openai/codex-plugin-cc, /plugin install codex@openai-codex, /codex:setup"
         fi
       fi ;;
     simplify)    err "grader '$g' applies its own fixes — a grader must be read-only, because the panel runs concurrently and self-applied edits land inside the reviews marker with no grader having read them. Remove it from .cc-dev.yaml and run it after the loop closes." ;;

@@ -169,7 +169,7 @@ cfg="$TMP/cc-config"; bin="$TMP/codex-bin"; plug="$TMP/codex-plugin"
 mkdir -p "$cfg/plugins" "$bin" "$plug/scripts"
 printf '#!/bin/sh\n' > "$bin/codex"; chmod +x "$bin/codex"
 : > "$plug/scripts/codex-companion.mjs"
-printf '{"plugins":{"codex@openai-codex":[{"installPath":"%s"}]}}\n' "$plug" > "$cfg/plugins/installed_plugins.json"
+printf '{"plugins":{"codex@openai-codex":[{"scope":"user","installPath":"%s"}]}}\n' "$plug" > "$cfg/plugins/installed_plugins.json"
 OUT=$(CLAUDE_CONFIG_DIR="$cfg" PATH="$bin:$PATH" bash "$SCRIPT" "$d" 2>&1); RC=$?
 { [ "$RC" = "0" ] && echo "$OUT" | grep -qF "CODEX_COMPANION: $plug/scripts/codex-companion.mjs" \
   && [ "$(echo "$OUT" | grep -c CODEX_COMPANION)" = "1" ]; } \
@@ -177,6 +177,17 @@ OUT=$(CLAUDE_CONFIG_DIR="$cfg" PATH="$bin:$PATH" bash "$SCRIPT" "$d" 2>&1); RC=$
 OUT=$(CLAUDE_CONFIG_DIR="$TMP/no-config" PATH="$bin:$PATH" bash "$SCRIPT" "$d" 2>&1); RC=$?
 { [ "$RC" = "1" ] && echo "$OUT" | grep -q "needs the codex plugin"; } \
   && ok "codex grader without the plugin blocks" || bad "codex grader without the plugin blocks (rc=$RC: $OUT)"
+# install scope is honoured: a project-only install for ANOTHER repo is not
+# consent to send this repo's diff; one for this repo is.
+other="$TMP/other-proj"; mkdir -p "$other"; pcfg="$TMP/cc-config-proj"; mkdir -p "$pcfg/plugins"
+printf '{"plugins":{"codex@openai-codex":[{"scope":"project","projectPath":"%s","installPath":"%s"}]}}\n' "$other" "$plug" > "$pcfg/plugins/installed_plugins.json"
+OUT=$(CLAUDE_CONFIG_DIR="$pcfg" PATH="$bin:$PATH" bash "$SCRIPT" "$d" 2>&1); RC=$?
+{ [ "$RC" = "1" ] && echo "$OUT" | grep -q "needs the codex plugin"; } \
+  && ok "codex installed only for another project blocks" || bad "foreign project install blocks (rc=$RC: $OUT)"
+printf '{"plugins":{"codex@openai-codex":[{"scope":"project","projectPath":"%s","installPath":"%s"}]}}\n' "$d" "$plug" > "$pcfg/plugins/installed_plugins.json"
+OUT=$(CLAUDE_CONFIG_DIR="$pcfg" PATH="$bin:$PATH" bash "$SCRIPT" "$d" 2>&1); RC=$?
+{ [ "$RC" = "0" ] && echo "$OUT" | grep -q "CODEX_COMPANION:"; } \
+  && ok "codex installed for this project resolves" || bad "matching project install resolves (rc=$RC: $OUT)"
 nocodex=$(printf '%s' "$PATH" | tr ':' '\n' | while IFS= read -r p; do [ -x "$p/codex" ] || printf '%s:' "$p"; done)
 OUT=$(CLAUDE_CONFIG_DIR="$cfg" PATH="${nocodex%:}" bash "$SCRIPT" "$d" 2>&1); RC=$?
 { [ "$RC" = "1" ] && echo "$OUT" | grep -q "needs the codex CLI"; } \

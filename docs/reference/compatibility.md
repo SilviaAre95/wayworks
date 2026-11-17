@@ -63,7 +63,7 @@ Re-check after any Claude Code upgrade. A degraded grader looks identical to a w
 The opt-in `codex-adversarial` and `codex-security` graders depend on `openai/codex-plugin-cc` (verified against plugin **1.0.6**, `codex-cli` 0.144.5, 2026-11-16 — read from source, not yet run inside a loop):
 
 - `/codex:adversarial-review` sets `disable-model-invocation: true`, so the loop cannot invoke it. Graders run `node <installPath>/scripts/codex-companion.mjs adversarial-review --wait --scope branch --base <ref> <focus>` instead. A renamed script, subcommand or flag breaks the graders; the preflight only checks the script exists.
-- The install path is read from `installed_plugins.json` under `${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/`, an undocumented Claude Code file. If its shape changes the preflight blocks with an install hint (fail-closed), not skips.
+- The install path is read from `installed_plugins.json` under `${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/`, an undocumented Claude Code file. Only a `user`-scope entry, or a `project`/`local` entry whose `projectPath` is this repo, counts: a project-only install for another repo is not consent to send this repo's diff, and `.cc-dev.yaml` is repo-controlled. Whether the plugin is *enabled* is not checked (settings are not reliable evidence, see below). If the file's shape changes the preflight blocks with an install hint (fail-closed), not skips.
 - Clean means `verdict: approve` from `schemas/review-output.schema.json` (`approve` | `needs-attention`). A changed verdict vocabulary reads as not clean, so the loop stalls rather than stamps.
 - Codex runs in a `read-only` sandbox (`codex-companion.mjs`), which is what makes it a valid grader.
 
