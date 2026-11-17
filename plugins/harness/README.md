@@ -69,7 +69,9 @@ the hook), and a `graders:` key with no value. It also prints the configured
 grader list so the agent can confirm each one resolves to a skill that is
 actually enabled — a shell script cannot see the session's plugin set, and a
 grader naming a skill you do not have is the common case (`bugs` needs
-`qa@wayworks`).
+`qa@wayworks`). For the opt-in Codex graders (`codex-adversarial`,
+`codex-security`) it goes further and blocks unless the `codex` CLI and the
+`codex@openai-codex` plugin are installed, printing the script the graders run.
 
 > **Upgrade-sensitive:** the default `code-review` grader dispatches Anthropic's
 > *bundled* `/code-review` skill by name. Bundled-skill invocation policy is set

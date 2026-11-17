@@ -158,6 +158,30 @@ echo "$OUT" | grep -q "security-review.*needs whichever plugin" \
   && bad "security-review must not fall through to the unknown-grader arm" \
   || ok "security-review does not fall through to the unknown-grader arm"
 
+# --- codex graders resolve the companion script, or block -------------------
+# /codex:adversarial-review is disable-model-invocation, so the grader runs the
+# plugin's script; a missing CLI or plugin must block before building, never
+# surface as a grader that quietly did not run.
+d=$(newrepo codex)
+echo "make check" > "$d/.cc-verify"
+printf 'graders: [code-review, codex-adversarial, codex-security]\nbase: main\n' > "$d/.cc-dev.yaml"
+cfg="$TMP/cc-config"; bin="$TMP/codex-bin"; plug="$TMP/codex-plugin"
+mkdir -p "$cfg/plugins" "$bin" "$plug/scripts"
+printf '#!/bin/sh\n' > "$bin/codex"; chmod +x "$bin/codex"
+: > "$plug/scripts/codex-companion.mjs"
+printf '{"plugins":{"codex@openai-codex":[{"installPath":"%s"}]}}\n' "$plug" > "$cfg/plugins/installed_plugins.json"
+OUT=$(CLAUDE_CONFIG_DIR="$cfg" PATH="$bin:$PATH" bash "$SCRIPT" "$d" 2>&1); RC=$?
+{ [ "$RC" = "0" ] && echo "$OUT" | grep -qF "CODEX_COMPANION: $plug/scripts/codex-companion.mjs" \
+  && [ "$(echo "$OUT" | grep -c CODEX_COMPANION)" = "1" ]; } \
+  && ok "codex graders resolve the companion script once" || bad "codex graders resolve (rc=$RC: $OUT)"
+OUT=$(CLAUDE_CONFIG_DIR="$TMP/no-config" PATH="$bin:$PATH" bash "$SCRIPT" "$d" 2>&1); RC=$?
+{ [ "$RC" = "1" ] && echo "$OUT" | grep -q "needs the codex plugin"; } \
+  && ok "codex grader without the plugin blocks" || bad "codex grader without the plugin blocks (rc=$RC: $OUT)"
+nocodex=$(printf '%s' "$PATH" | tr ':' '\n' | while IFS= read -r p; do [ -x "$p/codex" ] || printf '%s:' "$p"; done)
+OUT=$(CLAUDE_CONFIG_DIR="$cfg" PATH="${nocodex%:}" bash "$SCRIPT" "$d" 2>&1); RC=$?
+{ [ "$RC" = "1" ] && echo "$OUT" | grep -q "needs the codex CLI"; } \
+  && ok "codex grader without the CLI blocks" || bad "codex grader without the CLI blocks (rc=$RC: $OUT)"
+
 # --- a mutating grader is refused ------------------------------------------
 # /simplify's contract is "review ... then apply the fixes". Graders run
 # concurrently and their edits are not findings the parent fixed, so a mutating

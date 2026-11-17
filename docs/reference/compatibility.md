@@ -58,6 +58,15 @@ Re-check after any Claude Code upgrade. A degraded grader looks identical to a w
 
 `/harness:shape` invokes one third-party skill by name: `superpowers:writing-plans`, in stage 5 (plan). Stage 4 (feature questions) follows `superpowers:brainstorming`'s one-topic-at-a-time discipline as written in `shape.md` — it does not invoke that skill. A rename of `writing-plans` in the `superpowers` marketplace breaks `shape`. The guard is `shape.md`'s precondition, a model instruction rather than a hard check: it tells the agent to confirm `superpowers:writing-plans` resolves before stage 1 and to stop with an install hint when it doesn't. No script enforces it, so a model that skips the check reaches stage 5 and fails there. Unlike the bundled-skill risk above, there is still no marker to stamp over the missing dependency — the plan stage cannot produce `plan.md`, and `design-check.sh` blocks the lock without it.
 
+### Third-party CLI: the Codex graders
+
+The opt-in `codex-adversarial` and `codex-security` graders depend on `openai/codex-plugin-cc` (verified against plugin **1.0.6**, `codex-cli` 0.144.5, 2026-11-16 — read from source, not yet run inside a loop):
+
+- `/codex:adversarial-review` sets `disable-model-invocation: true`, so the loop cannot invoke it. Graders run `node <installPath>/scripts/codex-companion.mjs adversarial-review --wait --scope branch --base <ref> <focus>` instead. A renamed script, subcommand or flag breaks the graders; the preflight only checks the script exists.
+- The install path is read from `installed_plugins.json` under `${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/`, an undocumented Claude Code file. If its shape changes the preflight blocks with an install hint (fail-closed), not skips.
+- Clean means `verdict: approve` from `schemas/review-output.schema.json` (`approve` | `needs-attention`). A changed verdict vocabulary reads as not clean, so the loop stalls rather than stamps.
+- Codex runs in a `read-only` sandbox (`codex-companion.mjs`), which is what makes it a valid grader.
+
 ### Frontmatter fields in use
 
 `description`, `name`, `user-invocable`, `argument-hint`, `allowed-tools` (6, all in commands), `tools` (2, both agents), `model`, `paths`. Enforced by `scripts/lint-skills.sh`, which checks *our* conformance — not whether Claude Code still honours these keys. Counts are deliberately coarse now; the previous exact figures went stale silently.

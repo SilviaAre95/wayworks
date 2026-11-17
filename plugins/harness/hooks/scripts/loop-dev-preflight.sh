@@ -292,6 +292,24 @@ for g in $(printf '%s' "$graders" | tr ',' ' '); do
     bugs)        echo "  $g -> qa:bug-review          (needs qa@wayworks)" ;;
     design)      echo "  $g -> design:layout-review   (needs design@wayworks)" ;;
     security-review) echo "  $g -> /security-review      (bundled with Claude Code; no plugin)" ;;
+    codex-adversarial|codex-security)
+      # /codex:adversarial-review sets disable-model-invocation, so the loop
+      # cannot call it; the grader runs the plugin's companion script instead.
+      # Resolve it here so a missing install blocks before building, not mid-panel.
+      echo "  $g -> codex-companion.mjs adversarial-review (needs codex@openai-codex + codex CLI)"
+      if [ -z "${codex_done:-}" ]; then
+        codex_done=1
+        command -v codex >/dev/null 2>&1 \
+          || err "grader '$g' needs the codex CLI on PATH — install it, then run /codex:setup"
+        installed="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/installed_plugins.json"
+        companion=$(jq -r '.plugins["codex@openai-codex"][]?.installPath // empty' "$installed" 2>/dev/null \
+          | while IFS= read -r p; do [ -f "$p/scripts/codex-companion.mjs" ] && { echo "$p/scripts/codex-companion.mjs"; break; }; done)
+        if [ -n "$companion" ]; then
+          echo "CODEX_COMPANION: $companion"
+        else
+          err "grader '$g' needs the codex plugin — run: /plugin marketplace add openai/codex-plugin-cc, /plugin install codex@openai-codex, /codex:setup"
+        fi
+      fi ;;
     simplify)    err "grader '$g' applies its own fixes — a grader must be read-only, because the panel runs concurrently and self-applied edits land inside the reviews marker with no grader having read them. Remove it from .cc-dev.yaml and run it after the loop closes." ;;
     *)           echo "  $g -> skill named '$g'       (needs whichever plugin provides it)" ;;
   esac
