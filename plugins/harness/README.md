@@ -86,6 +86,35 @@ the script the graders run.
 > actually fires after a Claude Code upgrade: a degraded grader still stamps the
 > marker, so the loop cannot detect it for you.
 
+#### Codex graders: setup
+
+`codex-adversarial` (challenges the approach) and `codex-security` (the same
+pass, security-focused) run OpenAI Codex beside the Claude graders. They send
+the diff to OpenAI, so each repo opts in, and the consent is yours, not the
+repo's.
+
+1. Install the plugin and log in, once per machine:
+   ```
+   /plugin marketplace add openai/codex-plugin-cc
+   /plugin install codex@openai-codex
+   /codex:setup
+   ```
+2. In the repo's committed `.cc-dev.yaml`, add the graders:
+   ```yaml
+   graders: [code-review, security, bugs, codex-adversarial, codex-security]
+   ```
+3. In `.cc-dev.local.yaml`, which stays untracked (`/harness:harness-init`
+   gitignores it), give your consent:
+   ```yaml
+   external_graders: [codex-adversarial, codex-security]
+   ```
+
+The preflight blocks before building if step 3 is missing or the file is
+tracked, so a cloned repo cannot turn Codex on for you. It also blocks if
+`node` or a logged-in `codex` CLI is missing, or the plugin is older than
+1.0.6. Codex's sandbox stops writes, not reads, so it can read files outside
+the repo, and whatever it reads goes to OpenAI.
+
 ### `/harness:loop-deploy [--env prod|staging]`
 
 Deploys, watches the rollout, then verifies prod (health + smoke + error-rate)

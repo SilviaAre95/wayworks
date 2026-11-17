@@ -12,6 +12,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 6.4.1] — 2026-11-17
+
+### Changed
+- **`harness` `2.4.1`** — the harness README has a "Codex graders: setup" section: install and log in, add the graders to `.cc-dev.yaml`, and give consent in the untracked `.cc-dev.local.yaml`. Until now the install command appeared only in the preflight's error message. Docs only.
+
 ## [marketplace 6.4.0] — 2026-11-16
 
 ### Added
