@@ -60,6 +60,16 @@ else
 fi
 base="${base:-main}"
 
+# --- base must be shell-safe ------------------------------------------------
+# loop-dev.md has the agent paste <base> into shell commands (merge-base, the
+# marker stamp, /code-review, the Codex graders). Git accepts refs like
+# `main;id` and `a$(id)`, so a repo's .cc-dev.yaml plus a matching ref would run
+# its own commands under the user's account. Found by the codex-security grader.
+case "$base" in
+  ''|[!A-Za-z0-9]*|*[!A-Za-z0-9._/-]*)
+    err "base '$base' is not shell-safe — use only letters, digits and . _ / - (starting with a letter or digit)" ;;
+esac
+
 # --- base ref ---------------------------------------------------------------
 # The gate stamps a marker anchored on `git merge-base <base> HEAD`. A base that
 # does not resolve fails at stamp time, i.e. after all the work is done.

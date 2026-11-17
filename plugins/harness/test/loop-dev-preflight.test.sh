@@ -182,6 +182,25 @@ OUT=$(CLAUDE_CONFIG_DIR="$cfg" PATH="${nocodex%:}" bash "$SCRIPT" "$d" 2>&1); RC
 { [ "$RC" = "1" ] && echo "$OUT" | grep -q "needs the codex CLI"; } \
   && ok "codex grader without the CLI blocks" || bad "codex grader without the CLI blocks (rc=$RC: $OUT)"
 
+# --- a base with shell metacharacters blocks, even when it resolves ---------
+# loop-dev.md has the agent paste <base> into shell commands; git accepts
+# `main;id` and `a$(id)` as ref names, so resolving is not enough.
+for hostile in 'main;id' 'a$(id)'; do
+  d=$(newrepo "hostile$RANDOM")
+  echo "make check" > "$d/.cc-verify"
+  git -C "$d" branch "$hostile"
+  printf 'graders: [code-review]\nbase: %s\n' "$hostile" > "$d/.cc-dev.yaml"
+  run "$d"
+  { [ "$RC" = "1" ] && echo "$OUT" | grep -q "not shell-safe"; } \
+    && ok "resolvable base '$hostile' blocks as not shell-safe" || bad "base '$hostile' blocks (rc=$RC: $OUT)"
+done
+d=$(newrepo safebase)
+echo "make check" > "$d/.cc-verify"
+git -C "$d" branch release/v1.2_x
+printf 'graders: [code-review]\nbase: release/v1.2_x\n' > "$d/.cc-dev.yaml"
+run "$d"
+[ "$RC" = "0" ] && ok "base with . _ / - passes" || bad "safe base passes (rc=$RC: $OUT)"
+
 # --- a mutating grader is refused ------------------------------------------
 # /simplify's contract is "review ... then apply the fixes". Graders run
 # concurrently and their edits are not findings the parent fixed, so a mutating
