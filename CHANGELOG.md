@@ -12,6 +12,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the marketplace 
 
 ---
 
+## [marketplace 6.3.10] — 2026-11-16
+
+### Fixed
+- **`harness` `2.3.10`** — every hook command in `hooks.json` used `${CLAUDE_PLUGIN_ROOT}` unquoted, so when the plugin's install path held a space the shell split it and the hook failed to start. That includes the four `Stop` gates, and a gate that fails to start lets the loop stop. The paths are now quoted, and they run whether Claude Code expands the placeholder as text or as an environment variable. `claude plugin validate` warns on this (seen on 2.1.296; its changelog dates the warning to 2.1.281). `make check` now fails on an unquoted `${CLAUDE_PLUGIN_ROOT}` in any plugin's `hooks.json`, so the check also runs offline.
+
 ## [marketplace 6.3.9] — 2026-09-27
 
 ### Fixed
