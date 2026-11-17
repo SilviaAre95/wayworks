@@ -65,7 +65,9 @@ The opt-in `codex-adversarial` and `codex-security` graders depend on `openai/co
 - `/codex:adversarial-review` sets `disable-model-invocation: true`, so the loop cannot invoke it. Graders run `node <installPath>/scripts/codex-companion.mjs adversarial-review --wait --scope branch --base <ref> <focus>` instead. A renamed script, subcommand or flag breaks the graders; the preflight only checks the script exists.
 - The install path is read from `installed_plugins.json` under `${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/`, an undocumented Claude Code file. Only a `user`-scope entry, or a `project`/`local` entry whose `projectPath` is this repo, counts: a project-only install for another repo is not consent to send this repo's diff, and `.cc-dev.yaml` is repo-controlled. Whether the plugin is *enabled* is not checked (settings are not reliable evidence, see below). If the file's shape changes the preflight blocks with an install hint (fail-closed), not skips.
 - Clean means `verdict: approve` from `schemas/review-output.schema.json` (`approve` | `needs-attention`). A changed verdict vocabulary reads as not clean, so the loop stalls rather than stamps.
-- Codex runs in a `read-only` sandbox (`codex-companion.mjs`), which is what makes it a valid grader.
+- Codex runs in a `read-only` sandbox (`codex-companion.mjs`), which is what makes it a valid grader. Read-only stops writes, not reads: Codex can read files outside the repo, and repo content can steer it there. The Claude graders share that reach; what differs is that the reads leave for OpenAI. Not mitigated beyond the consent gate — restricting reads would need Codex's own sandbox to support it.
+- Consent comes from the untracked `.cc-dev.local.yaml` (`external_graders:`), never from the committed `.cc-dev.yaml`; the preflight blocks if the local file is tracked.
+- Readiness, checked by the preflight: `node` on PATH, `codex login status` exits 0, plugin `version` >= 1.0.6. It does not probe the script's flags or verdict schema; a changed interface fails at review time, closed.
 
 ### Frontmatter fields in use
 

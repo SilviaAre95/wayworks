@@ -10,7 +10,9 @@ graders: [code-review, security, bugs]   # review stages the agent must run + pa
                                           # includes Claude Code's BUNDLED skills — no plugin needed:
                                           #   security-review -> /security-review  (bundled)
                                           # bundled graders must be invoked BY NAME, see loop-dev step 5.
-                                          # opt-in, sends the diff to OpenAI (codex@openai-codex + codex CLI):
+                                          # opt-in, sends the diff to OpenAI (codex@openai-codex + codex CLI);
+                                          # ALSO list them in the untracked .cc-dev.local.yaml as
+                                          # external_graders: [...] — this file cannot consent for you:
                                           #   codex-adversarial -> Codex challenges the approach
                                           #   codex-security    -> Codex adversarial, security focus
                                           # A grader must be READ-ONLY. Never list a skill that applies

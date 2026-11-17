@@ -307,28 +307,49 @@ for g in $(printf '%s' "$graders" | tr ',' ' '); do
       # cannot call it; the grader runs the plugin's companion script instead.
       # Resolve it here so a missing install blocks before building, not mid-panel.
       echo "  $g -> codex-companion.mjs adversarial-review (needs codex@openai-codex + codex CLI)"
+      # Consent is the user's, not the repo's: .cc-dev.yaml is committed, so a
+      # cloned repo could list this grader itself. It runs only when ALSO listed
+      # in the untracked .cc-dev.local.yaml (external_graders: [...]).
       if [ -z "${codex_done:-}" ]; then
         codex_done=1
-        command -v codex >/dev/null 2>&1 \
-          || err "grader '$g' needs the codex CLI on PATH — install it, then run /codex:setup"
+        local_cfg="$DIR/.cc-dev.local.yaml"
+        git -C "$DIR" ls-files --error-unmatch .cc-dev.local.yaml >/dev/null 2>&1 \
+          && err ".cc-dev.local.yaml is TRACKED by git — it records YOUR consent to external graders, so a committed copy is the repo consenting for you. Untrack it and add it to .gitignore."
+        external=$(grep -E '^external_graders:' "$local_cfg" 2>/dev/null | head -1 \
+          | sed -E 's/^external_graders:[[:space:]]*//; s/[[:space:]]*#.*$//; s/^\[//; s/\]$//' | tr -d ' ')
+        command -v node >/dev/null 2>&1 \
+          || err "grader '$g' needs node on PATH to run the Codex companion script"
+        if command -v codex >/dev/null 2>&1; then
+          codex login status >/dev/null 2>&1 \
+            || err "grader '$g' needs a logged-in codex CLI — run /codex:setup (codex login status failed)"
+        else
+          err "grader '$g' needs the codex CLI on PATH — install it, then run /codex:setup"
+        fi
         installed="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/installed_plugins.json"
         # Honour the install scope: a user-scope install, or one made for THIS
         # project. A project-only install elsewhere is not consent to send this
-        # repo's diff to OpenAI, and .cc-dev.yaml is repo-controlled.
+        # repo's diff to OpenAI.
         top=$(cd "$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null || echo "$DIR")" 2>/dev/null && pwd -P)
-        companion=$(jq -r '.plugins["codex@openai-codex"][]? | [.scope // "", .projectPath // "", .installPath // ""] | join("\u001f")' "$installed" 2>/dev/null \
-          | while IFS=$'\x1f' read -r scope proj p; do
+        found=$(jq -r '.plugins["codex@openai-codex"][]? | [.scope // "", .projectPath // "", .installPath // "", .version // ""] | join("\u001f")' "$installed" 2>/dev/null \
+          | while IFS=$'\x1f' read -r scope proj p ver; do
               if [ "$scope" != "user" ]; then
                 [ -n "$proj" ] && [ "$(cd "$proj" 2>/dev/null && pwd -P)" = "$top" ] || continue
               fi
-              [ -f "$p/scripts/codex-companion.mjs" ] && { echo "$p/scripts/codex-companion.mjs"; break; }
+              [ -f "$p/scripts/codex-companion.mjs" ] && { printf '%s\037%s\n' "$ver" "$p/scripts/codex-companion.mjs"; break; }
             done)
-        if [ -n "$companion" ]; then
-          echo "CODEX_COMPANION: $companion"
-        else
+        companion=${found#*$'\x1f'}; cver=${found%%$'\x1f'*}
+        if [ -z "$found" ]; then
           err "grader '$g' needs the codex plugin installed at user scope or for this project — run: /plugin marketplace add openai/codex-plugin-cc, /plugin install codex@openai-codex, /codex:setup"
+        elif [ "$(printf '%s\n%s\n' 1.0.6 "$cver" | sort -V | head -1)" != "1.0.6" ]; then
+          err "grader '$g' needs codex@openai-codex >= 1.0.6 (the version its interface was verified against), found '${cver:-unknown}' — update the plugin"
+        else
+          echo "CODEX_COMPANION: $companion"
         fi
-      fi ;;
+      fi
+      case ",$external," in
+        *",$g,"*) ;;
+        *) err "grader '$g' sends this repo's diff to OpenAI, and .cc-dev.yaml is committed — it cannot consent for you. To allow it, add it to external_graders in .cc-dev.local.yaml (untracked), e.g. external_graders: [codex-adversarial, codex-security]" ;;
+      esac ;;
     simplify)    err "grader '$g' applies its own fixes — a grader must be read-only, because the panel runs concurrently and self-applied edits land inside the reviews marker with no grader having read them. Remove it from .cc-dev.yaml and run it after the loop closes." ;;
     *)           echo "  $g -> skill named '$g'       (needs whichever plugin provides it)" ;;
   esac

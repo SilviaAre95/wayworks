@@ -26,6 +26,7 @@ Set up the harness in the current project. Make each change visible and ask befo
    .cc-deploy.log
    .cc-loop-standdowns.log
    .cc-loop-gate.lock*
+   .cc-dev.local.yaml
    .wayworks/
    ```
    `.cc-verify` is project config (not transient state) and **should be committed** so a fresh clone retains the correct gate command. Do NOT add it to `.gitignore`.
